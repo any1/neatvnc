@@ -106,6 +106,13 @@ struct rfb_client_pointer_event_msg {
         uint16_t y;
 } RFB_PACKED;
 
+struct rfb_client_cut_text_msg {
+	uint8_t type;
+        uint8_t padding[3];
+        uint32_t length;
+        char test[0];
+} RFB_PACKED;
+
 static inline int rfb_send_security_types(void *client)
 {
         struct rfb_security_types_msg payload = {

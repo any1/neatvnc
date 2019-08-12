@@ -517,6 +517,19 @@ static int on_client_pointer_event(struct vnc_client *client)
 	return sizeof(*msg);
 }
 
+static int on_client_cut_text(struct vnc_client *client)
+{
+	struct rfb_client_cut_text_msg *msg =
+		(struct rfb_client_cut_text_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	uint32_t length = ntohl(msg->length);
+
+	// TODO
+
+	return sizeof(*msg) + length;
+}
+
 static int on_client_message(struct vnc_client *client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
@@ -537,7 +550,7 @@ static int on_client_message(struct vnc_client *client)
 	case RFB_CLIENT_TO_SERVER_POINTER_EVENT:
 		return on_client_pointer_event(client);
 	case RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT:
-		break;
+		return on_client_cut_text(client);
 	}
 
 	uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);

@@ -10,6 +10,17 @@
 #define READ_BUFFER_SIZE 4096
 #define MSG_BUFFER_SIZE 4096
 
+enum vnc_encodings {
+	VNC_ENCODING_RAW = 1 << 0,
+	VNC_ENCODING_COPYRECT = 1 << 1,
+	VNC_ENCODING_RRE = 1 << 2,
+	VNC_ENCODING_HEXTILE = 1 << 3,
+	VNC_ENCODING_TRLE = 1 << 4,
+	VNC_ENCODING_ZRLE = 1 << 5,
+	VNC_ENCODING_CURSOR = 1 << 6,
+	VNC_ENCODING_DESKTOPSIZE = 1 << 7,
+};
+
 enum vnc_client_state {
 	VNC_CLIENT_STATE_ERROR = -1,
 	VNC_CLIENT_STATE_WAITING_FOR_VERSION = 0,
@@ -25,6 +36,7 @@ struct vnc_client {
 	struct vnc_server *server;
 	enum vnc_client_state state;
 	uint32_t pixfmt;
+	enum vnc_encodings encodings;
 	LIST_ENTRY(vnc_client) link;
 	size_t buffer_index;
 	size_t buffer_len;
@@ -424,9 +436,85 @@ static int on_client_set_pixel_format(struct vnc_client *client)
 
 	client->pixfmt = rfb_pixfmt_to_fourcc(fmt);
 
-	printf("SetPixelFormat: %x\n", client->pixfmt);
+	printf("SetPixelFormat: %s\n", fourcc_to_string(client->pixfmt));
 
 	return 4 + sizeof(struct rfb_pixel_format);
+}
+
+static int on_client_set_encodings(struct vnc_client *client)
+{
+	struct rfb_client_set_encodings_msg *msg =
+		(struct rfb_client_set_encodings_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	int n_encodings = ntohs(msg->n_encodings);
+
+	uint32_t e = 0;
+
+	for (int i = 0; i < n_encodings; ++i)
+		switch (msg->encodings[i]) {
+		case RFB_ENCODING_RAW: e |= VNC_ENCODING_RAW;
+		case RFB_ENCODING_COPYRECT: e |= VNC_ENCODING_COPYRECT;
+		case RFB_ENCODING_RRE: e |= VNC_ENCODING_RRE;
+		case RFB_ENCODING_HEXTILE: e |= VNC_ENCODING_HEXTILE;
+		case RFB_ENCODING_TRLE: e |= VNC_ENCODING_TRLE;
+		case RFB_ENCODING_ZRLE: e |= VNC_ENCODING_ZRLE;
+		case RFB_ENCODING_CURSOR: e |= VNC_ENCODING_CURSOR;
+		case RFB_ENCODING_DESKTOPSIZE: e |= VNC_ENCODING_COPYRECT;
+		}
+
+	client->encodings = e;
+
+	return sizeof(*msg) + 4 * n_encodings;
+}
+
+static int on_client_fb_update_request(struct vnc_client *client)
+{
+	struct rfb_client_fb_update_req_msg *msg =
+		(struct rfb_client_fb_update_req_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	int incremental = msg->incremental;
+	int x = ntohs(msg->x);
+	int y = ntohs(msg->y);
+	int width = ntohs(msg->width);
+	int height = ntohs(msg->height);
+
+	printf("framebuffer update: %d, %d. %d %d\n", x, y, width, height);
+	// TODO
+
+	return sizeof(*msg);
+}
+
+static int on_client_key_event(struct vnc_client *client)
+{
+	struct rfb_client_key_event_msg *msg =
+		(struct rfb_client_key_event_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	int down_flag = msg->down_flag;
+	uint32_t key = ntohl(msg->key);
+
+	printf("key event: %d\n", key);
+	// TODO
+
+	return sizeof(*msg);
+}
+
+static int on_client_pointer_event(struct vnc_client *client)
+{
+	struct rfb_client_pointer_event_msg *msg =
+		(struct rfb_client_pointer_event_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	int button_mask = msg->button_mask;
+	uint16_t x = ntohs(msg->x);
+	uint16_t y = ntohs(msg->y);
+
+	printf("pointer event: %d, %d, %d\n", x, y, button_mask);
+	// TODO
+
+	return sizeof(*msg);
 }
 
 static int on_client_message(struct vnc_client *client)
@@ -441,9 +529,13 @@ static int on_client_message(struct vnc_client *client)
 	case RFB_CLIENT_TO_SERVER_SET_PIXEL_FORMAT:
 		return on_client_set_pixel_format(client);
 	case RFB_CLIENT_TO_SERVER_SET_ENCODINGS:
+		return on_client_set_encodings(client);
 	case RFB_CLIENT_TO_SERVER_FRAMEBUFFER_UPDATE_REQUEST:
+		return on_client_fb_update_request(client);
 	case RFB_CLIENT_TO_SERVER_KEY_EVENT:
+		return on_client_key_event(client);
 	case RFB_CLIENT_TO_SERVER_POINTER_EVENT:
+		return on_client_pointer_event(client);
 	case RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT:
 		break;
 	}
@@ -479,7 +571,7 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 	if (n_read == UV_EOF) {
 		// TODO: Make it known to the user of the library that the
 		// client is gone.
-		uv_close((uv_handle_t*)&stream, cleanup_client);
+		uv_close((uv_handle_t*)stream, cleanup_client);
 		return;
 	}
 
@@ -493,7 +585,7 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 	if (n_read > MSG_BUFFER_SIZE - client->buffer_len) {
 		/* Can't handle this. Let's just give up */
 		client->state = VNC_CLIENT_STATE_ERROR;
-		uv_close((uv_handle_t*)&stream, cleanup_client);
+		uv_close((uv_handle_t*)stream, cleanup_client);
 		return;
 	}
 

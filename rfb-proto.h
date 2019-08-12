@@ -33,6 +33,17 @@ enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT = 6,
 };
 
+enum rfb_encodings {
+	RFB_ENCODING_RAW = 0,
+	RFB_ENCODING_COPYRECT = 1,
+	RFB_ENCODING_RRE = 2,
+	RFB_ENCODING_HEXTILE = 5,
+	RFB_ENCODING_TRLE = 15,
+	RFB_ENCODING_ZRLE = 16,
+	RFB_ENCODING_CURSOR = -239,
+	RFB_ENCODING_DESKTOPSIZE = -223,
+};
+
 struct rfb_security_types_msg {
         uint8_t n;
         uint8_t types[1];
@@ -63,6 +74,36 @@ struct rfb_server_init_msg {
 	struct rfb_pixel_format pixel_format;
 	uint32_t name_length;
 	char name_string[0];
+} RFB_PACKED;
+
+struct rfb_client_set_encodings_msg {
+        uint8_t type;
+        uint8_t padding;
+        uint16_t n_encodings;
+        int32_t encodings[0];
+} RFB_PACKED;
+
+struct rfb_client_fb_update_req_msg {
+	uint8_t type;
+        uint8_t incremental;
+        uint16_t x;
+        uint16_t y;
+        uint16_t width;
+        uint16_t height;
+} RFB_PACKED;
+
+struct rfb_client_key_event_msg {
+        uint8_t type;
+        uint8_t down_flag;
+        uint16_t padding;
+        uint32_t key;
+} RFB_PACKED;
+
+struct rfb_client_pointer_event_msg {
+        uint8_t type;
+        uint8_t button_mask;
+        uint16_t x;
+        uint16_t y;
 } RFB_PACKED;
 
 static inline int rfb_send_security_types(void *client)

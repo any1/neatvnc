@@ -13,18 +13,18 @@
 int send_to_client(void *client, const void *payload, size_t size);
 int receive_from_client(void *client, void *result, size_t size);
 
-enum rfb_security_type : uint8_t {
+enum rfb_security_type {
         RFB_SECURITY_TYPE_INVALID = 0,
         RFB_SECURITY_TYPE_NONE = 1,
         RFB_SECURITY_TYPE_VNC_AUTH = 2,
 };
 
-enum rfb_security_handshake_result : uint32_t {
+enum rfb_security_handshake_result {
 	RFB_SECURITY_HANDSHAKE_OK = 0,
 	RFB_SECURITY_HANDSHAKE_FAILED = 1,
 };
 
-enum rfb_client_to_server_msg_type : uint8_t {
+enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_SET_PIXEL_FORMAT = 0,
 	RFB_CLIENT_TO_SERVER_SET_ENCODINGS = 2,
 	RFB_CLIENT_TO_SERVER_FRAMEBUFFER_UPDATE_REQUEST = 3,
@@ -35,7 +35,7 @@ enum rfb_client_to_server_msg_type : uint8_t {
 
 struct rfb_security_types_msg {
         uint8_t n;
-        enum rfb_security_type types[1];
+        uint8_t types[1];
 } RFB_PACKED;
 
 struct rfb_error_reason {

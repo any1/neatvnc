@@ -21,7 +21,7 @@ enum vnc_client_state {
 struct vnc_server;
 
 struct vnc_client {
-	uv_stream_t stream_handle;
+	uv_tcp_t stream_handle;
 	struct vnc_server *server;
 	enum vnc_client_state state;
 	uint32_t pixfmt;
@@ -51,6 +51,19 @@ struct vnc_server {
 	struct vnc_client_list clients;
 	struct vnc_display display;
 };
+
+static const char* fourcc_to_string(uint32_t fourcc)
+{
+	static char buffer[5];
+
+	buffer[0] = (fourcc >>  0) & 0xff;
+	buffer[1] = (fourcc >>  8) & 0xff;
+	buffer[2] = (fourcc >> 16) & 0xff;
+	buffer[3] = (fourcc >> 24) & 0xff;
+	buffer[4] = '\0';
+
+	return buffer;
+}
 
 static void on_write_req_done(uv_write_t *req, int status)
 {
@@ -112,7 +125,7 @@ static int handle_unsupported_version(struct vnc_client *client)
 	reason->length = htonl(strlen(reason_string));
 	(void)strcmp(reason->message, reason_string);
 
-	vnc__write(&client->stream_handle, buffer,
+	vnc__write((uv_stream_t*)&client->stream_handle, buffer,
 		   1 + sizeof(*reason) + strlen(reason_string),
 		   close_after_write);
 
@@ -138,7 +151,7 @@ static int on_version_message(struct vnc_client *client)
 		},
 	};
 
-	vnc__write(&client->stream_handle, &security, sizeof(security), NULL);
+	vnc__write((uv_stream_t*)&client->stream_handle, &security, sizeof(security), NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_SECURITY;
 	return 12;
@@ -150,8 +163,7 @@ static int handle_invalid_security_type(struct vnc_client *client)
 
 	client->state = VNC_CLIENT_STATE_ERROR;
 
-	enum rfb_security_handshake_result *result =
-		(enum rfb_security_handshake_result*)buffer;
+	uint8_t *result = (uint8_t*)buffer;
 
 	struct rfb_error_reason *reason =
 		(struct rfb_error_reason*)(buffer + sizeof(*result));
@@ -162,7 +174,7 @@ static int handle_invalid_security_type(struct vnc_client *client)
 	reason->length = htonl(strlen(reason_string));
 	(void)strcmp(reason->message, reason_string);
 
-	vnc__write(&client->stream_handle, buffer,
+	vnc__write((uv_stream_t*)&client->stream_handle, buffer,
 		   sizeof(*result) + sizeof(*reason) + strlen(reason_string),
 		   close_after_write);
 
@@ -182,7 +194,7 @@ static int on_security_message(struct vnc_client *client)
 	enum rfb_security_handshake_result result
 		= htonl(RFB_SECURITY_HANDSHAKE_OK);
 
-	vnc__write(&client->stream_handle, &result, sizeof(result), NULL);
+	vnc__write((uv_stream_t*)&client->stream_handle, &result, sizeof(result), NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	return sizeof(type);
@@ -276,7 +288,7 @@ static int max_values_to_depth(int r, int g, int b)
 	return -1;
 }
 
-static uint32_t shift_values_to_fourcc(int r, int b, int g, int bpp)
+static uint32_t shift_values_to_fourcc(int r, int g, int b, int bpp)
 {
 #define RGBEQ(rv, gv, bv) (r == (rv) && g == (gv) && b == (bv))
 	if (bpp == 32 && RGBEQ(24, 16,  8)) return DRM_FORMAT_RGBX8888;
@@ -319,7 +331,8 @@ int get_fourcc_depth(uint32_t fourcc)
 	case DRM_FORMAT_BGR233:
 		return 8;
 	default:
-		return (fourcc & 0xffff) - (('0' << 8) | '0');
+		return (((fourcc >> 24) & 0xff) - '0') +
+		       (((fourcc >> 16) & 0xff) - '0') * 10;
 	}
 }
 
@@ -329,10 +342,9 @@ uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format *fmt)
 	if (!fmt->true_colour_flag)
 		return DRM_FORMAT_INVALID;
 
-
-	uint16_t red_max = ntohl(fmt->red_max);
-	uint16_t green_max = ntohl(fmt->green_max);
-	uint16_t blue_max = ntohl(fmt->blue_max);
+	uint16_t red_max = ntohs(fmt->red_max);
+	uint16_t green_max = ntohs(fmt->green_max);
+	uint16_t blue_max = ntohs(fmt->blue_max);
 
 	/* Note: The depth value given by the client is ignored */
 	int depth = max_values_to_depth(red_max, green_max, blue_max);
@@ -340,7 +352,7 @@ uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format *fmt)
 		return DRM_FORMAT_INVALID;
 
 	uint32_t fourcc =
-		shift_values_to_fourcc(fmt->red_shift, fmt->green_max,
+		shift_values_to_fourcc(fmt->red_shift, fmt->green_shift,
 				       fmt->blue_shift, fmt->bits_per_pixel);
 
 	if (fourcc == DRM_FORMAT_INVALID)
@@ -370,11 +382,11 @@ static void send_server_init_message(struct vnc_client *client)
 
 	msg->width = htons(display->width),
 	msg->height = htons(display->height),
-	msg->name_length = htons(name_len),
+	msg->name_length = htonl(name_len),
 	memcpy(msg->name_string, display->name, name_len);
 	rfb_pixfmt_from_fourcc(&msg->pixel_format, display->pixfmt);
 
-	vnc__write(&client->stream_handle, msg, size, NULL);
+	vnc__write((uv_stream_t*)&client->stream_handle, msg, size, NULL);
 
 	free(msg);
 }
@@ -412,6 +424,8 @@ static int on_client_set_pixel_format(struct vnc_client *client)
 
 	client->pixfmt = rfb_pixfmt_to_fourcc(fmt);
 
+	printf("SetPixelFormat: %x\n", client->pixfmt);
+
 	return 4 + sizeof(struct rfb_pixel_format);
 }
 
@@ -425,6 +439,7 @@ static int on_client_message(struct vnc_client *client)
 
 	switch (type) {
 	case RFB_CLIENT_TO_SERVER_SET_PIXEL_FORMAT:
+		return on_client_set_pixel_format(client);
 	case RFB_CLIENT_TO_SERVER_SET_ENCODINGS:
 	case RFB_CLIENT_TO_SERVER_FRAMEBUFFER_UPDATE_REQUEST:
 	case RFB_CLIENT_TO_SERVER_KEY_EVENT:
@@ -439,6 +454,7 @@ static int on_client_message(struct vnc_client *client)
 
 static int try_read_client_message(struct vnc_client *client)
 {
+	printf("Client state: %d\n", client->state);
 	switch (client->state) {
 	case VNC_CLIENT_STATE_ERROR:
 		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
@@ -467,6 +483,9 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 		return;
 	}
 
+	if (n_read < 0)
+		return;
+
 	struct vnc_client *client = (struct vnc_client*)stream;
 
 	assert(client->buffer_index == 0);
@@ -489,7 +508,7 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 		client->buffer_index += rc;
 	}
 
-	assert(client->buffer_index < client->buffer_len);
+	assert(client->buffer_index <= client->buffer_len);
 
 	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,
 		client->buffer_index);
@@ -507,7 +526,10 @@ static void on_connection(uv_stream_t *server_stream, int status)
 
 	client->server = server;
 
-	uv_accept((uv_stream_t*)&server->tcp_handle, &client->stream_handle);
+	uv_tcp_init(uv_default_loop(), &client->stream_handle);
+
+	uv_accept((uv_stream_t*)&server->tcp_handle,
+		  (uv_stream_t*)&client->stream_handle);
 
 	uv_read_start((uv_stream_t*)&client->stream_handle,
 		      allocate_read_buffer, on_client_read);
@@ -542,4 +564,17 @@ int vnc_server_init(struct vnc_server *self, const char* address, int port)
 failure:
 	uv_unref((uv_handle_t*)&self->tcp_handle);
 	return -1;
+}
+
+int main()
+{
+	struct vnc_server server = { 0 };
+	server.display.pixfmt = DRM_FORMAT_RGBX8888;
+	server.display.width = 1024;
+	server.display.height = 768;
+	server.display.name = "Silly VNC";
+
+	vnc_server_init(&server, "127.0.0.1", 5900);
+
+	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 }

@@ -9,6 +9,12 @@
 
 #define POPCOUNT(x) __builtin_popcount(x)
 
+struct bitmap;
+
+size_t bitmap_popcount(struct bitmap*);
+
+#define bitmap_for_each(b)
+
 void pixel_format_into_native(struct rfb_pixel_format *fmt)
 {
 #if __BYTE_ORDER__ == __LITTLE_ENDIAN__
@@ -134,8 +140,55 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 #undef CONVERT_PIXELS
 }
 
-void zrle_encode_tile(uint8_t* dst, const uint32_t *src, int stride,
-		      int width, int height)
+void zrle_encode_tile(uint8_t *dst, const struct rfb_pixel_format *dst_fmt,
+		      const uint32_t *src,
+		      const struct rfb_pixel_format *src_fmt,
+		      int stride, int width, int height)
 {
+	int bytes_per_cpixel = dst_fmt->depth / 8;
 
+	for (int y = 0; y < height; ++y)
+		pixel32_to_cpixel(dst + width * y, dst_fmt, src + stride * y,
+				  src_fmt, bytes_per_cpixel, width);
+}
+
+ssize_t zrle_encode_frame(uint8_t **result,
+			  const struct rfb_pixel_format *dst_fmt,
+			  uint8_t *src,
+			  const struct rfb_pixel_format *src_fmt,
+			  int width, int height,
+			  struct bitmap *tile_mask)
+{
+	/* Expect the compressed data to be half the size of the updated regions
+	 */
+	size_t actual_size, size = 64 * bitmap_popcount(tile_mask) / 2;
+	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
+
+	uint8_t *frame = malloc(size);
+	if (!frame)
+		return -1;
+
+	int bytes_per_cpixel = dst_fmt->depth / 8;
+
+	uint8_t *tile_buffer = malloc(size * bytes_per_cpixel);
+	if (!tile_buffer)
+		goto failure;
+
+	int boff = 0;
+
+	for (int i = 0; i < n_tiles;) {
+		if (!bitmap_is_set(tile_mask, i))
+			continue;
+
+		int x = (i * 64) % UDIV_UP(width, 64);
+		int y = (i * 64) / UDIV_UP(width, 64);
+
+	}
+
+	*result = frame;
+	return actual_size;
+
+failure:
+	free(frame);
+	return -1;
 }

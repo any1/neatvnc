@@ -34,6 +34,9 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 		       const struct rfb_pixel_format* src_fmt,
 		       size_t bytes_per_cpixel, size_t len)
 {
+	assert(src_fmt->true_colour_flag);
+	assert(src_fmt->bits_per_pixel == 32);
+	assert(src_fmt->depth <= 32);
 	assert(dst_fmt->true_colour_flag);
 	assert(dst_fmt->bits_per_pixel <= 32);
 	assert(dst_fmt->depth <= 24);
@@ -79,6 +82,18 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 
 	switch (bytes_per_cpixel) {
 	case 3:
+		if (dst_fmt->bits_per_pixel == 32 && dst_fmt->depth <= 24) {
+			uint32_t min_dst_shift = dst_red_shift;
+			if (min_dst_shift > dst_green_shift)
+				min_dst_shift = dst_green_shift;
+			if (min_dst_shift > dst_blue_shift)
+				min_dst_shift = dst_blue_shift;
+
+			dst_red_shift -= min_dst_shift;
+			dst_green_shift -= min_dst_shift;
+			dst_blue_shift -= min_dst_shift;
+		}
+
 		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
 
 		while (len--) {

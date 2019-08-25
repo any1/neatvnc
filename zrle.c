@@ -162,7 +162,7 @@ void zrle_encode_tile(uint8_t *dst, const struct rfb_pixel_format *dst_fmt,
 
 int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 		    uint8_t *src, const struct rfb_pixel_format *src_fmt,
-		    int x, int y, int width, int height)
+		    int x, int y, int stride, int width, int height)
 {
 	int r = -1;
 	int zr = Z_STREAM_ERROR;
@@ -190,12 +190,18 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
 
 	for (int i = 0; i < n_tiles; ++i) {
-		int tile_width = (i + 1) * 64 <= width ? 64 : (width % 64);
-		int tile_height = (i + 1) * 64 <= height ? 64 : (height % 64);
+		int tile_x = x + (i % UDIV_UP(width, 64)) * 64;
+		int tile_y = y + (i / UDIV_UP(width, 64)) * 64;
+
+		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
+		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
+
+		printf("Encoding tile @ %dx%d. width: %d, height: %d\n", tile_x,
+				tile_y, tile_width, tile_height);
 
 		zrle_encode_tile(in, dst_fmt,
-				 ((uint32_t*)src) + x + y * width,
-				 src_fmt, width, tile_width, tile_height);
+				 ((uint32_t*)src) + tile_x + tile_y * width,
+				 src_fmt, stride, tile_width, tile_height);
 
 		zs.next_in = in;
 		zs.avail_in = tile_width * tile_height * 4;
@@ -280,7 +286,7 @@ int zrle_encode_frame(uv_stream_t *stream,
 			return -1;
 
 		rc = zrle_encode_box(stream, dst_fmt, src, src_fmt, x, y,
-				     box_width, box_height);
+				     width, box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}

@@ -1,5 +1,6 @@
 #include "rfb-proto.h"
 #include "util.h"
+#include "zrle.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -7,6 +8,7 @@
 #include <assert.h>
 #include <uv.h>
 #include <libdrm/drm_fourcc.h>
+#include <pixman.h>
 
 #define READ_BUFFER_SIZE 4096
 #define MSG_BUFFER_SIZE 4096
@@ -36,7 +38,8 @@ struct vnc_client {
 	uv_tcp_t stream_handle;
 	struct vnc_server *server;
 	enum vnc_client_state state;
-	uint32_t pixfmt;
+	uint32_t fourcc;
+	struct rfb_pixel_format pixfmt;
 	enum vnc_encodings encodings;
 	LIST_ENTRY(vnc_client) link;
 	size_t buffer_index;
@@ -57,6 +60,7 @@ struct vnc_server {
 	uv_tcp_t tcp_handle;
 	struct vnc_client_list clients;
 	struct vnc_display display;
+	struct vnc_framebuffer* fb;
 };
 
 static const char* fourcc_to_string(uint32_t fourcc)
@@ -217,9 +221,9 @@ int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
 bpp_32:
 		dst->bits_per_pixel = 32;
 		dst->depth = 24;
-		dst->red_max = htons(0xff);
-		dst->green_max = htons(0xff);
-		dst->blue_max = htons(0xff);
+		dst->red_max = 0xff;
+		dst->green_max = 0xff;
+		dst->blue_max = 0xff;
 		break;
 	case DRM_FORMAT_RGBA4444:
 	case DRM_FORMAT_RGBX4444:
@@ -247,9 +251,9 @@ bpp_32:
 bpp_16:
 		dst->bits_per_pixel = 16;
 		dst->depth = 12;
-		dst->red_max = htons(0x7f);
-		dst->green_max = htons(0x7f);
-		dst->blue_max = htons(0x7f);
+		dst->red_max = 0x7f;
+		dst->green_max = 0x7f;
+		dst->blue_max = 0x7f;
 		break;
 	default:
 		return -1;
@@ -320,18 +324,14 @@ int get_fourcc_depth(uint32_t fourcc)
 	}
 }
 
-/* Note: Pixel format is in network order */
 uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format *fmt)
 {
 	if (!fmt->true_colour_flag)
 		return DRM_FORMAT_INVALID;
 
-	uint16_t red_max = ntohs(fmt->red_max);
-	uint16_t green_max = ntohs(fmt->green_max);
-	uint16_t blue_max = ntohs(fmt->blue_max);
-
 	/* Note: The depth value given by the client is ignored */
-	int depth = max_values_to_depth(red_max, green_max, blue_max);
+	int depth = max_values_to_depth(fmt->red_max, fmt->green_max,
+					fmt->blue_max);
 	if (depth < 0)
 		return DRM_FORMAT_INVALID;
 
@@ -368,7 +368,11 @@ static void send_server_init_message(struct vnc_client *client)
 	msg->height = htons(display->height),
 	msg->name_length = htonl(name_len),
 	memcpy(msg->name_string, display->name, name_len);
+
 	rfb_pixfmt_from_fourcc(&msg->pixel_format, display->pixfmt);
+	msg->pixel_format.red_max = htons(msg->pixel_format.red_max);
+	msg->pixel_format.green_max = htons(msg->pixel_format.green_max);
+	msg->pixel_format.blue_max = htons(msg->pixel_format.blue_max);
 
 	vnc__write((uv_stream_t*)&client->stream_handle, msg, size, NULL);
 
@@ -406,9 +410,15 @@ static int on_client_set_pixel_format(struct vnc_client *client)
 		return 0;
 	}
 
-	client->pixfmt = rfb_pixfmt_to_fourcc(fmt);
+	fmt->red_max = ntohs(fmt->red_max);
+	fmt->green_max = ntohs(fmt->green_max);
+	fmt->blue_max = ntohs(fmt->blue_max);
 
-	printf("SetPixelFormat: %s\n", fourcc_to_string(client->pixfmt));
+	memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
+
+	client->fourcc = rfb_pixfmt_to_fourcc(fmt);
+
+	printf("SetPixelFormat: %s\n", fourcc_to_string(client->fourcc));
 
 	return 4 + sizeof(struct rfb_pixel_format);
 }
@@ -453,7 +463,25 @@ static int on_client_fb_update_request(struct vnc_client *client)
 	int height = ntohs(msg->height);
 
 	printf("framebuffer update: %d, %d. %d %d\n", x, y, width, height);
-	// TODO
+
+	struct vnc_server *server = client->server;
+	struct vnc_display *display = &server->display;
+	struct vnc_framebuffer *fb = server->fb;
+
+	struct rfb_pixel_format server_fmt;
+	rfb_pixfmt_from_fourcc(&server_fmt, server->display.pixfmt);
+
+	struct pixman_region16 region;
+	pixman_region_init(&region);
+
+	pixman_region_union_rect(&region, &region, x, y, width, height);
+	pixman_region_intersect_rect(&region, &region, 0, 0, display->width,
+				     display->height);
+
+	zrle_encode_frame((uv_stream_t*)&client->stream_handle, &client->pixfmt,
+			server->fb->addr, &server_fmt, fb->width, fb->height, &region);
+
+	pixman_region_fini(&region);
 
 	return sizeof(*msg);
 }
@@ -643,13 +671,27 @@ failure:
 	return -1;
 }
 
-int main()
+int read_png_file(struct vnc_framebuffer* fb, const char *filename);
+
+int main(int argc, char *argv[])
 {
+	if (!argv[1]) {
+		printf("Missing argument\n");
+		return 1;
+	}
+
+	struct vnc_framebuffer fb;
+	if (read_png_file(&fb, argv[1]) < 0) {
+		printf("Failed to read png file\n");
+		return 1;
+	}
+
 	struct vnc_server server = { 0 };
+	server.fb = &fb;
 	server.display.pixfmt = DRM_FORMAT_RGBX8888;
-	server.display.width = 1024;
-	server.display.height = 768;
-	server.display.name = "Silly VNC";
+	server.display.width = fb.width;
+	server.display.height = fb.height;
+	server.display.name = argv[1];
 
 	vnc_server_init(&server, "127.0.0.1", 5900);
 

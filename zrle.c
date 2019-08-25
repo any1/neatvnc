@@ -264,23 +264,23 @@ int zrle_encode_frame(uv_stream_t *stream,
 	for (int i = 0; i < n_rects; ++i) {
 		int x = box[i].x1;
 		int y = box[i].y1;
-		int width = box[i].x2 - x;
-		int height = box[i].y2 - y;
+		int box_width = box[i].x2 - x;
+		int box_height = box[i].y2 - y;
 
 		struct rfb_server_fb_rect rect = {
 			.encoding = htonl(RFB_ENCODING_ZRLE),
-			.x = x,
-			.y = x,
-			.width = width,
-			.height = height,
+			.x = htons(x),
+			.y = htons(y),
+			.width = htons(box_width),
+			.height = htons(box_height),
 		};
 
-		rc = vnc__write(stream, &rect, sizeof(head), NULL);
+		rc = vnc__write(stream, &rect, sizeof(rect), NULL);
 		if (rc < 0)
 			return -1;
 
 		rc = zrle_encode_box(stream, dst_fmt, src, src_fmt, x, y,
-				     width, height);
+				     box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}

@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <zlib.h>
 #include <uv.h>
+#include <pixman.h>
 
 #define POPCOUNT(x) __builtin_popcount(x)
 
@@ -151,21 +152,22 @@ void zrle_encode_tile(uint8_t *dst, const struct rfb_pixel_format *dst_fmt,
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 
+	dst[0] = 0; /* Sub-encoding is raw pixel data */
+
 	for (int y = 0; y < height; ++y)
-		pixel32_to_cpixel(dst + width * y, dst_fmt, src + stride * y,
+		pixel32_to_cpixel(dst + 1 + width * y,
+				  dst_fmt, src + stride * y,
 				  src_fmt, bytes_per_cpixel, width);
 }
 
-int zrle_encode_adjacent_tiles(uv_stream_t *stream,
-			       const struct rfb_pixel_format *dst_fmt,
-			       uint8_t *src,
-			       const struct rfb_pixel_format *src_fmt,
-			       int n, int x, int y, int width, int height)
+int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
+		    uint8_t *src, const struct rfb_pixel_format *src_fmt,
+		    int x, int y, int width, int height)
 {
 	int r = -1;
 	int zr = Z_STREAM_ERROR;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
-	int chunk_size = bytes_per_cpixel * 64 * 64;
+	int chunk_size = 1 + bytes_per_cpixel * 64 * 64;
 	z_stream zs = { 0 };
 
 	struct vec out;
@@ -175,8 +177,7 @@ int zrle_encode_adjacent_tiles(uv_stream_t *stream,
 	if (!in)
 		goto failure;
 
-	/* The output is expected to be around half the size of the input */
-	if (vec_init(&out, chunk_size * n / 2) < 0)
+	if (vec_init(&out, bytes_per_cpixel * width * height / 2) < 0)
 		goto failure;
 
 	r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
@@ -186,15 +187,20 @@ int zrle_encode_adjacent_tiles(uv_stream_t *stream,
 	/* Reserve space for size */
 	vec_append_zero(&out, 4);
 
-	for (int i = 0; i < n; ++i) {
+	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
+
+	for (int i = 0; i < n_tiles; ++i) {
+		int tile_width = (i + 1) * 64 <= width ? 64 : (width % 64);
+		int tile_height = (i + 1) * 64 <= height ? 64 : (height % 64);
+
 		zrle_encode_tile(in, dst_fmt,
 				 ((uint32_t*)src) + x + y * width,
-				 src_fmt, width, width, height);
+				 src_fmt, width, tile_width, tile_height);
 
 		zs.next_in = in;
-		zs.avail_in = chunk_size;
+		zs.avail_in = tile_width * tile_height * 4;
 
-		int flush = (i == n - 1) ? Z_FINISH : Z_NO_FLUSH;
+		int flush = (i == n_tiles - 1) ? Z_FINISH : Z_NO_FLUSH;
 
 		do {
 			zs.next_out = ((Bytef*)out.data) + out.len;
@@ -208,7 +214,7 @@ int zrle_encode_adjacent_tiles(uv_stream_t *stream,
 			zr = deflate(&zs, flush);
 			assert(zr != Z_STREAM_ERROR);
 
-			int have = chunk_size - zs.avail_out;
+			int have = out.cap - out.len - zs.avail_out;
 			out.len += have;
 		} while (zs.avail_out == 0);
 
@@ -230,71 +236,53 @@ failure:
 #undef CHUNK
 }
 
-int zrle_count_contiguous_regions(struct bitmap *tile_mask, int n_tiles)
-{
-	int r = 0;
-
-	for (int i = 0; i < n_tiles;) {
-		int rl = bitmap_runlength(tile_mask, i);
-		if (rl == 0) {
-			++i;
-		} else {
-			++r;
-			i += rl;
-		}
-	}
-
-	return r;
-}
-
 int zrle_encode_frame(uv_stream_t *stream,
 		      const struct rfb_pixel_format *dst_fmt,
 		      uint8_t *src,
 		      const struct rfb_pixel_format *src_fmt,
 		      int width, int height,
-		      struct bitmap *tile_mask)
+		      struct pixman_region16 *region)
 {
 	int rc = -1;
-	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
 
-	int n_regions = zrle_count_contiguous_regions(tile_mask, n_tiles);
-	assert(n_regions < UINT16_MAX);
+	int n_rects = 0;
+	struct pixman_box16 *box = pixman_region_rectangles(region, &n_rects);
+	if (n_rects > UINT16_MAX) {
+		box = pixman_region_extents(region);
+		n_rects = 1;
+	}
 
 	struct rfb_server_fb_update_msg head = {
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(n_regions),
+		.n_rects = htons(n_rects),
 	};
 
 	rc = vnc__write(stream, &head, sizeof(head), NULL);
 	if (rc < 0)
 		return -1;
 
-	struct rfb_server_fb_rect rect = { 0 };
+	for (int i = 0; i < n_rects; ++i) {
+		int x = box[i].x1;
+		int y = box[i].y1;
+		int width = box[i].x2 - x;
+		int height = box[i].y2 - y;
 
-	for (int i = 0; i < n_tiles;) {
-		if (!bitmap_is_set(tile_mask, i)) {
-			i += 1;
-			continue;
-		}
+		struct rfb_server_fb_rect rect = {
+			.encoding = htonl(RFB_ENCODING_ZRLE),
+			.x = x,
+			.y = x,
+			.width = width,
+			.height = height,
+		};
 
-		int x = (i * 64) % UDIV_UP(width, 64);
-		int y = (i * 64) / UDIV_UP(width, 64);
-
-		int adjacent = bitmap_runlength(tile_mask, i);
-		assert(adjacent <= n_tiles - i);
-
-		rect.encoding = htonl(RFB_ENCODING_ZRLE);
-		rect.x = x;
-		rect.y = y;
-		rect.width = 0; /* TODO */
-		rect.height = 0; /* TODO */
-
-		rc = zrle_encode_adjacent_tiles(stream, dst_fmt, src, src_fmt,
-						adjacent, x, y, width, height);
+		rc = vnc__write(stream, &rect, sizeof(head), NULL);
 		if (rc < 0)
-			return rc;
+			return -1;
 
-		i += adjacent;
+		rc = zrle_encode_box(stream, dst_fmt, src, src_fmt, x, y,
+				     width, height);
+		if (rc < 0)
+			return -1;
 	}
 
 	return 0;

@@ -1,4 +1,5 @@
 #include "rfb-proto.h"
+#include "util.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -43,12 +44,6 @@ struct vnc_client {
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
 };
 
-struct vnc_write_request {
-	uv_write_t request;
-	uv_write_cb on_done;
-	uv_buf_t buffer;
-};
-
 LIST_HEAD(vnc_client_list, vnc_client);
 
 struct vnc_display {
@@ -75,29 +70,6 @@ static const char* fourcc_to_string(uint32_t fourcc)
 	buffer[4] = '\0';
 
 	return buffer;
-}
-
-static void on_write_req_done(uv_write_t *req, int status)
-{
-	struct vnc_write_request *self = (struct vnc_write_request*)req;
-	if (self->on_done)
-		self->on_done(req, status);
-	free(self);
-}
-
-static int vnc__write(uv_stream_t *stream, const void *payload, size_t size,
-		      uv_write_cb on_done)
-{
-	struct vnc_write_request *req = calloc(1, sizeof(*req));
-	if (!req)
-		return -1;
-
-	req->buffer.base = (char*)payload;
-	req->buffer.len = size;
-	req->on_done = on_done;
-
-	return uv_write(&req->request, stream, &req->buffer, 1,
-			on_write_req_done);
 }
 
 static void allocate_read_buffer(uv_handle_t *handle, size_t suggested_size,

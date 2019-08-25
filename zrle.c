@@ -1,4 +1,7 @@
 #include "rfb-proto.h"
+#include "bitmap.h"
+#include "util.h"
+#include "vec.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -6,6 +9,7 @@
 #include <endian.h>
 #include <assert.h>
 #include <zlib.h>
+#include <uv.h>
 
 #define POPCOUNT(x) __builtin_popcount(x)
 
@@ -152,43 +156,146 @@ void zrle_encode_tile(uint8_t *dst, const struct rfb_pixel_format *dst_fmt,
 				  src_fmt, bytes_per_cpixel, width);
 }
 
-ssize_t zrle_encode_frame(uint8_t **result,
-			  const struct rfb_pixel_format *dst_fmt,
-			  uint8_t *src,
-			  const struct rfb_pixel_format *src_fmt,
-			  int width, int height,
-			  struct bitmap *tile_mask)
+int zrle_encode_adjacent_tiles(uv_stream_t *stream,
+			       const struct rfb_pixel_format *dst_fmt,
+			       uint8_t *src,
+			       const struct rfb_pixel_format *src_fmt,
+			       int n, int x, int y, int width, int height)
 {
-	/* Expect the compressed data to be half the size of the updated regions
-	 */
-	size_t actual_size, size = 64 * bitmap_popcount(tile_mask) / 2;
-	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
-
-	uint8_t *frame = malloc(size);
-	if (!frame)
-		return -1;
-
+	int r = -1;
+	int zr = Z_STREAM_ERROR;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
+	int chunk_size = bytes_per_cpixel * 64 * 64;
+	z_stream zs = { 0 };
 
-	uint8_t *tile_buffer = malloc(size * bytes_per_cpixel);
-	if (!tile_buffer)
+	struct vec out;
+	uint8_t *in;
+
+	in = malloc(chunk_size);
+	if (!in)
 		goto failure;
 
-	int boff = 0;
+	/* The output is expected to be around half the size of the input */
+	if (vec_init(&out, chunk_size * n / 2) < 0)
+		goto failure;
+
+	r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
+	if (r != Z_OK)
+		goto failure;
+
+	/* Reserve space for size */
+	vec_append_zero(&out, 4);
+
+	for (int i = 0; i < n; ++i) {
+		zrle_encode_tile(in, dst_fmt,
+				 ((uint32_t*)src) + x + y * width,
+				 src_fmt, width, width, height);
+
+		zs.next_in = in;
+		zs.avail_in = chunk_size;
+
+		int flush = (i == n - 1) ? Z_FINISH : Z_NO_FLUSH;
+
+		do {
+			zs.next_out = ((Bytef*)out.data) + out.len;
+
+			r = vec_reserve(&out, out.len + chunk_size);
+			if (r < 0)
+				goto failure;
+
+			zs.avail_out = out.cap - out.len;
+
+			zr = deflate(&zs, flush);
+			assert(zr != Z_STREAM_ERROR);
+
+			int have = chunk_size - zs.avail_out;
+			out.len += have;
+		} while (zs.avail_out == 0);
+
+		assert(zs.avail_in == 0);
+	}
+
+	assert(zr == Z_STREAM_END);
+
+	deflateEnd(&zs);
+
+	uint32_t *out_size = out.data;
+	*out_size = htonl(out.len);
+
+	r = vnc__write(stream, out.data, out.len, NULL);
+failure:
+	vec_destroy(&out);
+	free(in);
+	return r;
+#undef CHUNK
+}
+
+int zrle_count_contiguous_regions(struct bitmap *tile_mask, int n_tiles)
+{
+	int r = 0;
 
 	for (int i = 0; i < n_tiles;) {
-		if (!bitmap_is_set(tile_mask, i))
+		int rl = bitmap_runlength(tile_mask, i);
+		if (rl == 0) {
+			++i;
+		} else {
+			++r;
+			i += rl;
+		}
+	}
+
+	return r;
+}
+
+int zrle_encode_frame(uv_stream_t *stream,
+		      const struct rfb_pixel_format *dst_fmt,
+		      uint8_t *src,
+		      const struct rfb_pixel_format *src_fmt,
+		      int width, int height,
+		      struct bitmap *tile_mask)
+{
+	int rc = -1;
+	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
+
+	int n_regions = zrle_count_contiguous_regions(tile_mask, n_tiles);
+	assert(n_regions < UINT16_MAX);
+
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(n_regions),
+	};
+
+	rc = vnc__write(stream, &head, sizeof(head), NULL);
+	if (rc < 0)
+		return -1;
+
+	struct rfb_server_fb_rect rect = { 0 };
+
+	for (int i = 0; i < n_tiles;) {
+		if (!bitmap_is_set(tile_mask, i)) {
+			i += 1;
 			continue;
+		}
 
 		int x = (i * 64) % UDIV_UP(width, 64);
 		int y = (i * 64) / UDIV_UP(width, 64);
 
+		int adjacent = bitmap_runlength(tile_mask, i);
+		assert(adjacent <= n_tiles - i);
+
+		rect.encoding = htonl(RFB_ENCODING_ZRLE);
+		rect.x = x;
+		rect.y = y;
+		rect.width = 0; /* TODO */
+		rect.height = 0; /* TODO */
+
+		rc = zrle_encode_adjacent_tiles(stream, dst_fmt, src, src_fmt,
+						adjacent, x, y, width, height);
+		if (rc < 0)
+			return rc;
+
+		i += adjacent;
 	}
 
-	*result = frame;
-	return actual_size;
-
-failure:
-	free(frame);
-	return -1;
+	return 0;
 }

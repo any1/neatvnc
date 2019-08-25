@@ -44,6 +44,13 @@ enum rfb_encodings {
 	RFB_ENCODING_DESKTOPSIZE = -223,
 };
 
+enum rfb_server_to_client_msg_type {
+        RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE = 0,
+        RFB_SERVER_TO_CLIENT_SET_COLOUR_MAP_ENTRIES = 1,
+        RFB_SERVER_TO_CLIENT_BELL = 2,
+        RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT = 3,
+};
+
 struct rfb_security_types_msg {
         uint8_t n;
         uint8_t types[1];
@@ -111,6 +118,21 @@ struct rfb_client_cut_text_msg {
         uint8_t padding[3];
         uint32_t length;
         char test[0];
+} RFB_PACKED;
+
+struct rfb_server_fb_rect {
+        uint16_t x;
+        uint16_t y;
+        uint16_t width;
+        uint16_t height;
+        int32_t encoding;
+} RFB_PACKED;
+
+struct rfb_server_fb_update_msg {
+        uint8_t type;
+        uint8_t padding;
+        uint16_t n_rects;
+        struct rfb_server_fb_rect rects[0];
 } RFB_PACKED;
 
 static inline int rfb_send_security_types(void *client)

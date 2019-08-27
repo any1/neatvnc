@@ -1,6 +1,7 @@
 #include "rfb-proto.h"
 #include "util.h"
 #include "zrle.h"
+#include "vec.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -484,10 +485,15 @@ static int on_client_fb_update_request(struct vnc_client *client)
 	pixman_region_intersect_rect(&region, &region, 0, 0, display->width,
 				     display->height);
 
-	zrle_encode_frame((uv_stream_t*)&client->stream_handle, &client->pixfmt,
-			server->fb->addr, &server_fmt, fb->width, fb->height, &region);
+	struct vec frame;
+	vec_init(&frame, width * height * 3 / 2);
+
+	zrle_encode_frame(&frame, &client->pixfmt, server->fb->addr,
+			  &server_fmt, fb->width, fb->height, &region);
 
 	pixman_region_fini(&region);
+
+	vnc__write((uv_stream_t*)&client->stream_handle, frame.data, frame.len, NULL);
 
 	return sizeof(*msg);
 }

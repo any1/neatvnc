@@ -2,6 +2,7 @@
 #include "bitmap.h"
 #include "util.h"
 #include "vec.h"
+#include "zrle.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -191,8 +192,8 @@ int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
 	return 0;
 }
 
-int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
-		    uint8_t *src, const struct rfb_pixel_format *src_fmt,
+int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
+		    const uint8_t *src, const struct rfb_pixel_format *src_fmt,
 		    int x, int y, int stride, int width, int height)
 {
 	int r = -1;
@@ -200,21 +201,30 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	int chunk_size = 1 + bytes_per_cpixel * 64 * 64;
 	z_stream zs = { 0 };
 
-	struct vec out;
 	struct vec in;
 
 	if (vec_init(&in, 1 + bytes_per_cpixel * 64 * 64) < 0)
-		goto failure;
-
-	if (vec_init(&out, bytes_per_cpixel * width * height / 2) < 0)
 		goto failure;
 
 	r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
 	if (r != Z_OK)
 		goto failure;
 
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_ZRLE),
+		.x = htons(x),
+		.y = htons(y),
+		.width = htons(width),
+		.height = htons(height),
+	};
+
+	r = vec_append(out, &rect, sizeof(rect));
+	if (r < 0)
+		goto failure;
+
 	/* Reserve space for size */
-	vec_append_zero(&out, 4);
+	size_t size_index = out->len;
+	vec_append_zero(out, 4);
 
 	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
 
@@ -232,29 +242,29 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 				 ((uint32_t*)src) + tile_x + tile_y * width,
 				 src_fmt, stride, tile_width, tile_height);
 
-		r = zrle_deflate(&out, &in, &zs, i == n_tiles - 1);
+		r = zrle_deflate(out, &in, &zs, i == n_tiles - 1);
 		if (r < 0)
 			goto failure;
 	}
 
 	deflateEnd(&zs);
 
-	uint32_t *out_size = out.data;
-	*out_size = htonl(out.len - 8);
+	/* There seems to be something extra at the end */
+	out->len -= 4;
+	printf("Encoded with size: %lu\n", out->len - size_index);
 
-	printf("Sending %lu bytes\n", out.len - 4);
+	uint32_t out_size = htonl(out->len - size_index - 4);
+	memcpy(((uint8_t*)out->data) + size_index, &out_size, sizeof(out_size));
 
-	r = vnc__write(stream, out.data, out.len - 4, NULL);
 failure:
-//	vec_destroy(&out);
 	vec_destroy(&in);
 	return r;
 #undef CHUNK
 }
 
-int zrle_encode_frame(uv_stream_t *stream,
+int zrle_encode_frame(struct vec* dst,
 		      const struct rfb_pixel_format *dst_fmt,
-		      uint8_t *src,
+		      const uint8_t *src,
 		      const struct rfb_pixel_format *src_fmt,
 		      int width, int height,
 		      struct pixman_region16 *region)
@@ -273,7 +283,7 @@ int zrle_encode_frame(uv_stream_t *stream,
 		.n_rects = htons(n_rects),
 	};
 
-	rc = vnc__write(stream, &head, sizeof(head), NULL);
+	rc = vec_append(dst, &head, sizeof(head));
 	if (rc < 0)
 		return -1;
 
@@ -283,19 +293,7 @@ int zrle_encode_frame(uv_stream_t *stream,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		struct rfb_server_fb_rect rect = {
-			.encoding = htonl(RFB_ENCODING_ZRLE),
-			.x = htons(x),
-			.y = htons(y),
-			.width = htons(box_width),
-			.height = htons(box_height),
-		};
-
-		rc = vnc__write(stream, &rect, sizeof(rect), NULL);
-		if (rc < 0)
-			return -1;
-
-		rc = zrle_encode_box(stream, dst_fmt, src, src_fmt, x, y,
+		rc = zrle_encode_box(dst, dst_fmt, src, src_fmt, x, y,
 				     width, box_width, box_height);
 		if (rc < 0)
 			return -1;

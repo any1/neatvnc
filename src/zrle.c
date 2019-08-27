@@ -145,19 +145,23 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 #undef CONVERT_PIXELS
 }
 
-void zrle_encode_tile(uint8_t *dst, const struct rfb_pixel_format *dst_fmt,
+void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 		      const uint32_t *src,
 		      const struct rfb_pixel_format *src_fmt,
 		      int stride, int width, int height)
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 
-	dst[0] = 0; /* Sub-encoding is raw pixel data */
+	vec_clear(dst);
+
+	vec_fast_append_8(dst, 0);
 
 	for (int y = 0; y < height; ++y)
-		pixel32_to_cpixel(dst + 1 + width * y * bytes_per_cpixel,
+		pixel32_to_cpixel(((uint8_t*)dst->data) + 1 + width * y * bytes_per_cpixel,
 				  dst_fmt, src + stride * y,
 				  src_fmt, bytes_per_cpixel, width);
+
+	dst->len += bytes_per_cpixel * width * height;
 }
 
 int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
@@ -171,10 +175,9 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	z_stream zs = { 0 };
 
 	struct vec out;
-	uint8_t *in;
+	struct vec in;
 
-	in = malloc(chunk_size);
-	if (!in)
+	if (vec_init(&in, 1 + bytes_per_cpixel * 64 * 64) < 0)
 		goto failure;
 
 	if (vec_init(&out, bytes_per_cpixel * width * height * 2) < 0)
@@ -199,12 +202,12 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 		printf("Encoding tile @ %dx%d. width: %d, height: %d\n", tile_x,
 				tile_y, tile_width, tile_height);
 
-		zrle_encode_tile(in, dst_fmt,
+		zrle_encode_tile(&in, dst_fmt,
 				 ((uint32_t*)src) + tile_x + tile_y * width,
 				 src_fmt, stride, tile_width, tile_height);
 
-		zs.next_in = in;
-		zs.avail_in = 1 + tile_width * tile_height * bytes_per_cpixel;
+		zs.next_in = in.data;
+		zs.avail_in = in.len;
 
 		int flush = (i == n_tiles - 1) ? Z_FINISH : Z_NO_FLUSH;
 
@@ -239,7 +242,7 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	r = vnc__write(stream, out.data, out.len - 4, NULL);
 failure:
 //	vec_destroy(&out);
-	free(in);
+	vec_destroy(&in);
 	return r;
 #undef CHUNK
 }

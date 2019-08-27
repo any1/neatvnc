@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
+#include <assert.h>
 
 struct vec {
 	void* data;
@@ -24,6 +26,19 @@ int vec_assign(struct vec* vec, const void* data, size_t size);
 int vec_append(struct vec* vec, const void* data, size_t size);
 void* vec_append_zero(struct vec* vec, size_t size);
 
+static inline void vec_fast_append_8(struct vec* vec, uint8_t value)
+{
+        assert(vec->len < vec->cap);
+        ((uint8_t*)vec->data)[vec->len++] = value;
+}
+
+static inline void vec_fast_append_32(struct vec* vec, uint32_t value)
+{
+        assert(vec->len + sizeof(value) <= vec->cap);
+        assert(vec->len % sizeof(value) == 0);
+        ((uint32_t*)vec->data)[vec->len] = value;
+        vec->len += sizeof(value);
+}
 
 #define vec_for(elem, vec) \
 	for (elem = (vec)->data; \

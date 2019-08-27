@@ -1,0 +1,4 @@
+.clang_complete
+src/*.o
+src/*.o.deps
+neatvnc

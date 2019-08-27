@@ -235,9 +235,6 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
 		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
 
-		printf("Encoding tile @ %dx%d. width: %d, height: %d\n", tile_x,
-				tile_y, tile_width, tile_height);
-
 		zrle_encode_tile(&in, dst_fmt,
 				 ((uint32_t*)src) + tile_x + tile_y * width,
 				 src_fmt, stride, tile_width, tile_height);
@@ -251,7 +248,6 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 
 	/* There seems to be something extra at the end */
 	out->len -= 4;
-	printf("Encoded with size: %lu\n", out->len - size_index);
 
 	uint32_t out_size = htonl(out->len - size_index - 4);
 	memcpy(((uint8_t*)out->data) + size_index, &out_size, sizeof(out_size));

@@ -685,6 +685,7 @@ failure:
 
 int read_png_file(struct vnc_framebuffer* fb, const char *filename);
 
+/*
 int main(int argc, char *argv[])
 {
 	if (!argv[1]) {
@@ -709,3 +710,4 @@ int main(int argc, char *argv[])
 
 	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 }
+*/

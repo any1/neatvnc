@@ -1,5 +1,8 @@
 .clang_complete
-src/*.o
-src/*.o.deps
+*/*.o
+*/*.o.deps
 neatvnc
 vgcore.*
+perf.data
+perf.data.old
+zrle-bench

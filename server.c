@@ -450,8 +450,14 @@ static int on_client_set_encodings(struct vnc_client *client)
 	return sizeof(*msg) + 4 * n_encodings;
 }
 
+static int is_done= 0;
+
 static int on_client_fb_update_request(struct vnc_client *client)
 {
+	
+	if (is_done)
+		return 0;
+	is_done = 1;
 	struct rfb_client_fb_update_req_msg *msg =
 		(struct rfb_client_fb_update_req_msg*)(client->msg_buffer +
 				client->buffer_index);
@@ -688,7 +694,7 @@ int main(int argc, char *argv[])
 
 	struct vnc_server server = { 0 };
 	server.fb = &fb;
-	server.display.pixfmt = DRM_FORMAT_RGBX8888;
+	server.display.pixfmt = DRM_FORMAT_XRGB8888;
 	server.display.width = fb.width;
 	server.display.height = fb.height;
 	server.display.name = argv[1];

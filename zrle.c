@@ -155,7 +155,7 @@ void zrle_encode_tile(uint8_t *dst, const struct rfb_pixel_format *dst_fmt,
 	dst[0] = 0; /* Sub-encoding is raw pixel data */
 
 	for (int y = 0; y < height; ++y)
-		pixel32_to_cpixel(dst + 1 + width * y,
+		pixel32_to_cpixel(dst + 1 + width * y * bytes_per_cpixel,
 				  dst_fmt, src + stride * y,
 				  src_fmt, bytes_per_cpixel, width);
 }
@@ -177,7 +177,7 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	if (!in)
 		goto failure;
 
-	if (vec_init(&out, bytes_per_cpixel * width * height / 2) < 0)
+	if (vec_init(&out, bytes_per_cpixel * width * height * 2) < 0)
 		goto failure;
 
 	r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
@@ -204,24 +204,24 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 				 src_fmt, stride, tile_width, tile_height);
 
 		zs.next_in = in;
-		zs.avail_in = tile_width * tile_height * 4;
+		zs.avail_in = 1 + tile_width * tile_height * bytes_per_cpixel;
 
 		int flush = (i == n_tiles - 1) ? Z_FINISH : Z_NO_FLUSH;
 
 		do {
-			zs.next_out = ((Bytef*)out.data) + out.len;
-
+			/*
 			r = vec_reserve(&out, out.len + chunk_size);
 			if (r < 0)
 				goto failure;
+*/
 
+			zs.next_out = ((Bytef*)out.data) + out.len;
 			zs.avail_out = out.cap - out.len;
 
 			zr = deflate(&zs, flush);
 			assert(zr != Z_STREAM_ERROR);
 
-			int have = out.cap - out.len - zs.avail_out;
-			out.len += have;
+			out.len = out.cap - zs.avail_out;
 		} while (zs.avail_out == 0);
 
 		assert(zs.avail_in == 0);
@@ -232,11 +232,13 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	deflateEnd(&zs);
 
 	uint32_t *out_size = out.data;
-	*out_size = htonl(out.len);
+	*out_size = htonl(out.len - 8);
 
-	r = vnc__write(stream, out.data, out.len, NULL);
+	printf("Sending %lu bytes\n", out.len - 4);
+
+	r = vnc__write(stream, out.data, out.len - 4, NULL);
 failure:
-	vec_destroy(&out);
+//	vec_destroy(&out);
 	free(in);
 	return r;
 #undef CHUNK

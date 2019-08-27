@@ -164,12 +164,38 @@ void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 	dst->len += bytes_per_cpixel * width * height;
 }
 
+int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
+		 bool flush)
+{
+	int r = Z_STREAM_ERROR;
+
+	zs->next_in = src->data;
+	zs->avail_in = src->len;
+
+	do {
+		if (dst->len == dst->cap && vec_reserve(dst, dst->cap * 2) < 0)
+			return -1;
+
+		zs->next_out = ((Bytef*)dst->data) + dst->len;
+		zs->avail_out = dst->cap - dst->len;
+
+		r = deflate(zs, flush ? Z_FINISH : Z_NO_FLUSH);
+		assert(r != Z_STREAM_ERROR);
+
+		dst->len = dst->cap - zs->avail_out;
+	} while (zs->avail_out == 0);
+
+	assert(zs->avail_in == 0);
+	assert(!flush || r == Z_STREAM_END);
+
+	return 0;
+}
+
 int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 		    uint8_t *src, const struct rfb_pixel_format *src_fmt,
 		    int x, int y, int stride, int width, int height)
 {
 	int r = -1;
-	int zr = Z_STREAM_ERROR;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 	int chunk_size = 1 + bytes_per_cpixel * 64 * 64;
 	z_stream zs = { 0 };
@@ -180,7 +206,7 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 	if (vec_init(&in, 1 + bytes_per_cpixel * 64 * 64) < 0)
 		goto failure;
 
-	if (vec_init(&out, bytes_per_cpixel * width * height * 2) < 0)
+	if (vec_init(&out, bytes_per_cpixel * width * height / 2) < 0)
 		goto failure;
 
 	r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
@@ -206,31 +232,10 @@ int zrle_encode_box(uv_stream_t *stream, const struct rfb_pixel_format *dst_fmt,
 				 ((uint32_t*)src) + tile_x + tile_y * width,
 				 src_fmt, stride, tile_width, tile_height);
 
-		zs.next_in = in.data;
-		zs.avail_in = in.len;
-
-		int flush = (i == n_tiles - 1) ? Z_FINISH : Z_NO_FLUSH;
-
-		do {
-			/*
-			r = vec_reserve(&out, out.len + chunk_size);
-			if (r < 0)
-				goto failure;
-*/
-
-			zs.next_out = ((Bytef*)out.data) + out.len;
-			zs.avail_out = out.cap - out.len;
-
-			zr = deflate(&zs, flush);
-			assert(zr != Z_STREAM_ERROR);
-
-			out.len = out.cap - zs.avail_out;
-		} while (zs.avail_out == 0);
-
-		assert(zs.avail_in == 0);
+		r = zrle_deflate(&out, &in, &zs, i == n_tiles - 1);
+		if (r < 0)
+			goto failure;
 	}
-
-	assert(zr == Z_STREAM_END);
 
 	deflateEnd(&zs);
 

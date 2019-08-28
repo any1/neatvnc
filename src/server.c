@@ -2,6 +2,7 @@
 #include "util.h"
 #include "zrle.h"
 #include "vec.h"
+#include "neatvnc.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -13,6 +14,8 @@
 
 #define READ_BUFFER_SIZE 4096
 #define MSG_BUFFER_SIZE 4096
+
+#define EXPORT __attribute__((visibility("default")))
 
 enum vnc_encodings {
 	VNC_ENCODING_RAW = 1 << 0,
@@ -33,16 +36,17 @@ enum vnc_client_state {
 	VNC_CLIENT_STATE_READY,
 };
 
-struct vnc_server;
+struct nvnc;
 
 struct vnc_client {
 	uv_tcp_t stream_handle;
-	struct vnc_server *server;
+	struct nvnc *server;
 	enum vnc_client_state state;
 	uint32_t fourcc;
 	struct rfb_pixel_format pixfmt;
 	enum vnc_encodings encodings;
 	LIST_ENTRY(vnc_client) link;
+	struct pixman_region16 requested_region;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
@@ -57,11 +61,15 @@ struct vnc_display {
 	char *name;
 };
 
-struct vnc_server {
+struct nvnc {
 	uv_tcp_t tcp_handle;
 	struct vnc_client_list clients;
 	struct vnc_display display;
 	struct vnc_framebuffer* fb;
+	void *userdata;
+	nvnc_key_fn key_fn;
+	nvnc_pointer_fn pointer_fn;
+	nvnc_fb_req_fn fb_req_fn;
 };
 
 static const char* fourcc_to_string(uint32_t fourcc)
@@ -91,6 +99,7 @@ static void cleanup_client(uv_handle_t* handle)
 	struct vnc_client *client = (struct vnc_client*)handle;
 
 	LIST_REMOVE(client, link);
+	pixman_region_fini(&client->requested_region);
 	free(client);
 }
 
@@ -353,7 +362,7 @@ uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format *fmt)
 
 static void send_server_init_message(struct vnc_client *client)
 {
-	struct vnc_server *server = client->server;
+	struct nvnc *server = client->server;
 	struct vnc_display *display = &server->display;
 
 	size_t name_len = strlen(display->name);
@@ -451,14 +460,10 @@ static int on_client_set_encodings(struct vnc_client *client)
 	return sizeof(*msg) + 4 * n_encodings;
 }
 
-static int is_done= 0;
-
 static int on_client_fb_update_request(struct vnc_client *client)
 {
-	
-	if (is_done)
-		return 0;
-	is_done = 1;
+	struct nvnc *server = client->server;
+
 	struct rfb_client_fb_update_req_msg *msg =
 		(struct rfb_client_fb_update_req_msg*)(client->msg_buffer +
 				client->buffer_index);
@@ -469,52 +474,39 @@ static int on_client_fb_update_request(struct vnc_client *client)
 	int width = ntohs(msg->width);
 	int height = ntohs(msg->height);
 
-	printf("framebuffer update: %d, %d. %d %d\n", x, y, width, height);
+	pixman_region_union_rect(&client->requested_region,
+				 &client->requested_region,
+				 x, y, width, height);
 
-	struct vnc_server *server = client->server;
-	struct vnc_display *display = &server->display;
-	struct vnc_framebuffer *fb = server->fb;
-
-	struct rfb_pixel_format server_fmt;
-	rfb_pixfmt_from_fourcc(&server_fmt, server->display.pixfmt);
-
-	struct pixman_region16 region;
-	pixman_region_init(&region);
-
-	pixman_region_union_rect(&region, &region, x, y, width, height);
-	pixman_region_intersect_rect(&region, &region, 0, 0, display->width,
-				     display->height);
-
-	struct vec frame;
-	vec_init(&frame, width * height * 3 / 2);
-
-	zrle_encode_frame(&frame, &client->pixfmt, server->fb->addr,
-			  &server_fmt, fb->width, fb->height, &region);
-
-	pixman_region_fini(&region);
-
-	vnc__write((uv_stream_t*)&client->stream_handle, frame.data, frame.len, NULL);
+	nvnc_fb_req_fn fn = server->fb_req_fn;
+	if (fn)
+		fn(server, incremental, x, y, width, height);
 
 	return sizeof(*msg);
 }
 
 static int on_client_key_event(struct vnc_client *client)
 {
+	struct nvnc *server = client->server;
+
 	struct rfb_client_key_event_msg *msg =
 		(struct rfb_client_key_event_msg*)(client->msg_buffer +
 				client->buffer_index);
 
 	int down_flag = msg->down_flag;
-	uint32_t key = ntohl(msg->key);
+	uint32_t keysym = ntohl(msg->key);
 
-	printf("key event: %d\n", key);
-	// TODO
+	nvnc_key_fn fn = server->key_fn;
+	if (fn)
+		fn(server, keysym, !!down_flag);
 
 	return sizeof(*msg);
 }
 
 static int on_client_pointer_event(struct vnc_client *client)
 {
+	struct nvnc *server = client->server;
+
 	struct rfb_client_pointer_event_msg *msg =
 		(struct rfb_client_pointer_event_msg*)(client->msg_buffer +
 				client->buffer_index);
@@ -523,8 +515,9 @@ static int on_client_pointer_event(struct vnc_client *client)
 	uint16_t x = ntohs(msg->x);
 	uint16_t y = ntohs(msg->y);
 
-	printf("pointer event: %d, %d, %d\n", x, y, button_mask);
-	// TODO
+	nvnc_pointer_fn fn = server->pointer_fn;
+	if (fn)
+		fn(server, x, y, button_mask);
 
 	return sizeof(*msg);
 }
@@ -635,13 +628,15 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 
 static void on_connection(uv_stream_t *server_stream, int status)
 {
-	struct vnc_server *server = (struct vnc_server*)server_stream;
+	struct nvnc *server = (struct nvnc*)server_stream;
 
 	struct vnc_client *client = calloc(1, sizeof(*client));
 	if (!client)
 		return;
 
 	client->server = server;
+
+	pixman_region_init(&client->requested_region);
 
 	uv_tcp_init(uv_default_loop(), &client->stream_handle);
 
@@ -659,7 +654,7 @@ static void on_connection(uv_stream_t *server_stream, int status)
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
 }
 
-int vnc_server_init(struct vnc_server *self, const char* address, int port)
+int vnc_server_init(struct nvnc *self, const char* address, int port)
 {
 	LIST_INIT(&self->clients);
 
@@ -681,6 +676,119 @@ int vnc_server_init(struct vnc_server *self, const char* address, int port)
 failure:
 	uv_unref((uv_handle_t*)&self->tcp_handle);
 	return -1;
+}
+
+EXPORT
+struct nvnc *nvnc_open(const char *address, uint16_t port)
+{
+	struct nvnc *self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	LIST_INIT(&self->clients);
+
+	uv_tcp_init(uv_default_loop(), &self->tcp_handle);
+
+	struct sockaddr_in addr = { 0 };
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = inet_addr(address);
+	addr.sin_port = htons(port);
+
+	if (uv_tcp_bind(&self->tcp_handle, (const struct sockaddr*)&addr, 0) < 0)
+		goto failure;
+
+	if (uv_listen((uv_stream_t*)&self->tcp_handle, 16, on_connection) < 0)
+		goto failure;
+
+	return self;
+failure:
+	uv_unref((uv_handle_t*)&self->tcp_handle);
+	return NULL;
+}
+
+EXPORT
+void nvnc_close(struct nvnc *self)
+{
+	struct vnc_client *client;
+
+	LIST_FOREACH(client, &self->clients, link)
+		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+
+	uv_unref((uv_handle_t*)&self->tcp_handle);
+	free(self);
+}
+
+EXPORT
+int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
+		   const struct pixman_region16 *input_region)
+{
+	int rc = -1;
+
+	struct rfb_pixel_format server_fmt;
+	rfb_pixfmt_from_fourcc(&server_fmt, fb->fourcc_format);
+
+	struct pixman_region16 region;
+	pixman_region_init(&region);
+
+	pixman_region_intersect_rect(&region,
+				     (struct pixman_region16*)input_region,
+				     0, 0, fb->width, fb->height);
+
+	struct vec frame;
+	rc = vec_init(&frame, fb->width * fb->height * 3 / 2);
+	if (rc < 0)
+		goto failure;
+
+	struct vnc_client *client;
+
+	LIST_FOREACH(client, &self->clients, link) {
+		struct pixman_region16* cregion = &client->requested_region;
+
+		pixman_region_intersect(cregion, cregion, &region);
+
+		zrle_encode_frame(&frame, &client->pixfmt, fb->addr,
+				  &server_fmt, fb->width, fb->height, &region);
+
+		pixman_region_clear(cregion);
+
+		vnc__write((uv_stream_t*)&client->stream_handle, frame.data,
+			   frame.len, NULL);
+	}
+
+	rc = 0;
+failure:
+	pixman_region_fini(&region);
+	return rc;
+}
+
+EXPORT
+void nvnc_set_userdata(struct nvnc *self, void *userdata)
+{
+	self->userdata = userdata;
+}
+
+EXPORT
+void* nvnc_get_userdata(struct nvnc *self)
+{
+	return self->userdata;
+}
+
+EXPORT
+void nvnc_set_key_fn(struct nvnc *self, nvnc_key_fn fn)
+{
+	self->key_fn = fn;
+}
+
+EXPORT
+void nvnc_set_pointer_fn(struct nvnc *self, nvnc_pointer_fn fn)
+{
+	self->pointer_fn = fn;
+}
+
+EXPORT
+void nvnc_set_fb_req_fn(struct nvnc *self, nvnc_fb_req_fn fn)
+{
+	self->fb_req_fn = fn;
 }
 
 int read_png_file(struct vnc_framebuffer* fb, const char *filename);

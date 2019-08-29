@@ -428,8 +428,6 @@ static int on_client_set_pixel_format(struct vnc_client *client)
 
 	client->fourcc = rfb_pixfmt_to_fourcc(fmt);
 
-	printf("SetPixelFormat: %s\n", fourcc_to_string(client->fourcc));
-
 	return 4 + sizeof(struct rfb_pixel_format);
 }
 
@@ -564,7 +562,6 @@ static int on_client_message(struct vnc_client *client)
 
 static int try_read_client_message(struct vnc_client *client)
 {
-	printf("Client state: %d\n", client->state);
 	switch (client->state) {
 	case VNC_CLIENT_STATE_ERROR:
 		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);

@@ -2,18 +2,19 @@
 #include "rfb-proto.h"
 #include "util.h"
 #include "vec.h"
+#include "neatvnc.h"
 
 #include <stdlib.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 
-int read_png_file(struct vnc_framebuffer* fb, const char *filename);
+int read_png_file(struct nvnc_fb* fb, const char *filename);
 
 int run_benchmark(const char *image)
 {
 	int rc = -1;
 
-	struct vnc_framebuffer fb;
+	struct nvnc_fb fb;
 	rc = read_png_file(&fb, image);
 	if (rc < 0)
 		return -1;

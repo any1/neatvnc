@@ -34,7 +34,12 @@ struct nvnc *nvnc_open(const char *addr, uint16_t port);
 void nvnc_close(struct nvnc *self);
 
 void nvnc_set_userdata(struct nvnc *self, void* userdata);
-void* nvnc_get_userdata(struct nvnc *self);
+void* nvnc_get_userdata(const struct nvnc *self);
+
+void nvnc_set_dimensions(struct nvnc *self, uint16_t width, uint16_t height,
+                         uint32_t fourcc_format);
+
+void nvnc_set_name(struct nvnc *self, const char *name);
 
 void nvnc_set_key_fn(struct nvnc *self, nvnc_key_fn);
 void nvnc_set_pointer_fn(struct nvnc *self, nvnc_pointer_fn);

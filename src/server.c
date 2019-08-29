@@ -12,6 +12,7 @@
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 
+#define DEFAULT_NAME "Neat VNC"
 #define READ_BUFFER_SIZE 4096
 #define MSG_BUFFER_SIZE 4096
 
@@ -58,14 +59,13 @@ struct vnc_display {
 	uint16_t width;
 	uint16_t height;
 	uint32_t pixfmt; /* fourcc pixel format */
-	char *name;
+	char name[256];
 };
 
 struct nvnc {
 	uv_tcp_t tcp_handle;
 	struct vnc_client_list clients;
 	struct vnc_display display;
-	struct vnc_framebuffer* fb;
 	void *userdata;
 	nvnc_key_fn key_fn;
 	nvnc_pointer_fn pointer_fn;
@@ -685,6 +685,8 @@ struct nvnc *nvnc_open(const char *address, uint16_t port)
 	if (!self)
 		return NULL;
 
+	strcpy(self->display.name, DEFAULT_NAME);
+
 	LIST_INIT(&self->clients);
 
 	uv_tcp_init(uv_default_loop(), &self->tcp_handle);
@@ -772,7 +774,7 @@ void nvnc_set_userdata(struct nvnc *self, void *userdata)
 }
 
 EXPORT
-void* nvnc_get_userdata(struct nvnc *self)
+void* nvnc_get_userdata(const struct nvnc *self)
 {
 	return self->userdata;
 }
@@ -795,31 +797,18 @@ void nvnc_set_fb_req_fn(struct nvnc *self, nvnc_fb_req_fn fn)
 	self->fb_req_fn = fn;
 }
 
-int read_png_file(struct vnc_framebuffer* fb, const char *filename);
-
-/*
-int main(int argc, char *argv[])
+EXPORT
+void nvnc_set_dimensions(struct nvnc *self, uint16_t width, uint16_t height,
+			 uint32_t fourcc_format)
 {
-	if (!argv[1]) {
-		printf("Missing argument\n");
-		return 1;
-	}
-
-	struct vnc_framebuffer fb;
-	if (read_png_file(&fb, argv[1]) < 0) {
-		printf("Failed to read png file\n");
-		return 1;
-	}
-
-	struct vnc_server server = { 0 };
-	server.fb = &fb;
-	server.display.pixfmt = DRM_FORMAT_XRGB8888;
-	server.display.width = fb.width;
-	server.display.height = fb.height;
-	server.display.name = argv[1];
-
-	vnc_server_init(&server, "127.0.0.1", 5900);
-
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	self->display.width = width;
+	self->display.height = height;
+	self->display.pixfmt = fourcc_format;
 }
-*/
+
+EXPORT
+void nvnc_set_name(struct nvnc *self, const char *name)
+{
+	strncpy(self->display.name, name, sizeof(self->display.name));
+	self->display.name[sizeof(self->display.name) - 1] = '\0';
+}

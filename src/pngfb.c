@@ -1,12 +1,14 @@
 #include "util.h"
+#include "neatvnc.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <png.h>
 #include <stdint.h>
 #include <assert.h>
+#include <libdrm/drm_fourcc.h>
 
-int read_png_file(struct vnc_framebuffer* fb, const char *filename) {
+int read_png_file(struct nvnc_fb* fb, const char *filename) {
 	int width, height;
 	png_byte color_type;
 	png_byte bit_depth;
@@ -77,8 +79,11 @@ int read_png_file(struct vnc_framebuffer* fb, const char *filename) {
 	png_destroy_read_struct(&png, &info, NULL);
 
 	fb->addr = addr;
+	fb->size = sizeof(row_bytes * height);
 	fb->width = width;
 	fb->height = height;
+	fb->fourcc_format = DRM_FORMAT_ARGB8888;
+	fb->fourcc_modifier = DRM_FORMAT_MOD_LINEAR;
 
 	return 0;
 }

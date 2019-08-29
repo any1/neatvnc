@@ -229,14 +229,14 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
 
 	for (int i = 0; i < n_tiles; ++i) {
-		int tile_x = x + (i % UDIV_UP(width, 64)) * 64;
-		int tile_y = y + (i / UDIV_UP(width, 64)) * 64;
+		int tile_x = (i % UDIV_UP(width, 64)) * 64;
+		int tile_y = (i / UDIV_UP(width, 64)) * 64;
 
 		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
 		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
 
 		zrle_encode_tile(&in, dst_fmt,
-				 ((uint32_t*)src) + tile_x + tile_y * width,
+				 ((uint32_t*)src) + x + tile_x + (y + tile_y) * stride,
 				 src_fmt, stride, tile_width, tile_height);
 
 		r = zrle_deflate(out, &in, &zs, i == n_tiles - 1);

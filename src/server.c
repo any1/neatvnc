@@ -724,6 +724,10 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 {
 	int rc = -1;
 
+	/* TODO: Support some more tiling modes */
+	if (fb->fourcc_modifier != DRM_FORMAT_MOD_LINEAR)
+		return -1;
+
 	struct rfb_pixel_format server_fmt;
 	rfb_pixfmt_from_fourcc(&server_fmt, fb->fourcc_format);
 

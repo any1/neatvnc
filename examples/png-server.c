@@ -7,18 +7,21 @@
 
 int read_png_file(struct nvnc_fb* fb, const char *filename);
 
-void on_fb_req(struct nvnc *nvnc, bool incremental, uint16_t x, uint16_t y,
-	       uint16_t width, uint16_t height)
+void on_fb_req(struct nvnc_client *client, bool incremental,
+	       uint16_t x, uint16_t y, uint16_t width, uint16_t height)
 {
 	if (incremental)
 		return;
 
-	struct nvnc_fb *fb = nvnc_get_userdata(nvnc);
+	struct nvnc *server = nvnc_get_server(client);
+	assert(server);
+
+	struct nvnc_fb *fb = nvnc_get_userdata(server);
 	assert(fb);
 
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, fb->width, fb->height);
-	nvnc_update_fb(nvnc, fb, &region);
+	nvnc_update_fb(server, fb, &region);
 	pixman_region_fini(&region);
 }
 

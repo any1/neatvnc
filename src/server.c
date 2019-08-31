@@ -2,6 +2,7 @@
 #include "util.h"
 #include "zrle.h"
 #include "vec.h"
+#include "type-macros.h"
 #include "neatvnc.h"
 
 #include <stdlib.h>
@@ -29,7 +30,7 @@ enum vnc_encodings {
 	VNC_ENCODING_DESKTOPSIZE = 1 << 7,
 };
 
-enum vnc_client_state {
+enum nvnc_client_state {
 	VNC_CLIENT_STATE_ERROR = -1,
 	VNC_CLIENT_STATE_WAITING_FOR_VERSION = 0,
 	VNC_CLIENT_STATE_WAITING_FOR_SECURITY,
@@ -39,21 +40,26 @@ enum vnc_client_state {
 
 struct nvnc;
 
-struct vnc_client {
+struct nvnc_common {
+	void* userdata;
+};
+
+struct nvnc_client {
+	struct nvnc_common common;
 	uv_tcp_t stream_handle;
 	struct nvnc *server;
-	enum vnc_client_state state;
+	enum nvnc_client_state state;
 	uint32_t fourcc;
 	struct rfb_pixel_format pixfmt;
 	enum vnc_encodings encodings;
-	LIST_ENTRY(vnc_client) link;
+	LIST_ENTRY(nvnc_client) link;
 	struct pixman_region16 requested_region;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
 };
 
-LIST_HEAD(vnc_client_list, vnc_client);
+LIST_HEAD(nvnc_client_list, nvnc_client);
 
 struct vnc_display {
 	uint16_t width;
@@ -63,8 +69,9 @@ struct vnc_display {
 };
 
 struct nvnc {
+	struct nvnc_common common;
 	uv_tcp_t tcp_handle;
-	struct vnc_client_list clients;
+	struct nvnc_client_list clients;
 	struct vnc_display display;
 	void *userdata;
 	nvnc_key_fn key_fn;
@@ -96,7 +103,9 @@ static void allocate_read_buffer(uv_handle_t *handle, size_t suggested_size,
 
 static void cleanup_client(uv_handle_t* handle)
 {
-	struct vnc_client *client = (struct vnc_client*)handle;
+	struct nvnc_client *client =
+		container_of((uv_tcp_t*)handle, struct nvnc_client,
+			     stream_handle);
 
 	LIST_REMOVE(client, link);
 	pixman_region_fini(&client->requested_region);
@@ -108,7 +117,7 @@ static void close_after_write(uv_write_t *req, int status)
 	uv_close((uv_handle_t*)req->handle, cleanup_client);
 }
 
-static int handle_unsupported_version(struct vnc_client *client)
+static int handle_unsupported_version(struct nvnc_client *client)
 {
 	char buffer[256];
 
@@ -130,7 +139,7 @@ static int handle_unsupported_version(struct vnc_client *client)
 	return 0;
 }
 
-static int on_version_message(struct vnc_client *client)
+static int on_version_message(struct nvnc_client *client)
 {
 	if (client->buffer_len - client->buffer_index < 12)
 		return 0;
@@ -155,7 +164,7 @@ static int on_version_message(struct vnc_client *client)
 	return 12;
 }
 
-static int handle_invalid_security_type(struct vnc_client *client)
+static int handle_invalid_security_type(struct nvnc_client *client)
 {
 	char buffer[256];
 
@@ -179,7 +188,7 @@ static int handle_invalid_security_type(struct vnc_client *client)
 	return 0;
 }
 
-static int on_security_message(struct vnc_client *client)
+static int on_security_message(struct nvnc_client *client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
 		return 0;
@@ -198,7 +207,7 @@ static int on_security_message(struct vnc_client *client)
 	return sizeof(type);
 }
 
-static void disconnect_all_other_clients(struct vnc_client *client)
+static void disconnect_all_other_clients(struct nvnc_client *client)
 {
 	// TODO
 }
@@ -360,7 +369,7 @@ uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format *fmt)
 	return fourcc;
 }
 
-static void send_server_init_message(struct vnc_client *client)
+static void send_server_init_message(struct nvnc_client *client)
 {
 	struct nvnc *server = client->server;
 	struct vnc_display *display = &server->display;
@@ -389,7 +398,7 @@ static void send_server_init_message(struct vnc_client *client)
 	free(msg);
 }
 
-static int on_init_message(struct vnc_client *client)
+static int on_init_message(struct nvnc_client *client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
 		return 0;
@@ -404,7 +413,7 @@ static int on_init_message(struct vnc_client *client)
 	return sizeof(shared_flag);
 }
 
-static int on_client_set_pixel_format(struct vnc_client *client)
+static int on_client_set_pixel_format(struct nvnc_client *client)
 {
 	if (client->buffer_len - client->buffer_index
 			< 4 + sizeof(struct rfb_pixel_format))
@@ -431,7 +440,7 @@ static int on_client_set_pixel_format(struct vnc_client *client)
 	return 4 + sizeof(struct rfb_pixel_format);
 }
 
-static int on_client_set_encodings(struct vnc_client *client)
+static int on_client_set_encodings(struct nvnc_client *client)
 {
 	struct rfb_client_set_encodings_msg *msg =
 		(struct rfb_client_set_encodings_msg*)(client->msg_buffer +
@@ -458,7 +467,7 @@ static int on_client_set_encodings(struct vnc_client *client)
 	return sizeof(*msg) + 4 * n_encodings;
 }
 
-static int on_client_fb_update_request(struct vnc_client *client)
+static int on_client_fb_update_request(struct nvnc_client *client)
 {
 	struct nvnc *server = client->server;
 
@@ -478,12 +487,12 @@ static int on_client_fb_update_request(struct vnc_client *client)
 
 	nvnc_fb_req_fn fn = server->fb_req_fn;
 	if (fn)
-		fn(server, incremental, x, y, width, height);
+		fn(client, incremental, x, y, width, height);
 
 	return sizeof(*msg);
 }
 
-static int on_client_key_event(struct vnc_client *client)
+static int on_client_key_event(struct nvnc_client *client)
 {
 	struct nvnc *server = client->server;
 
@@ -496,12 +505,12 @@ static int on_client_key_event(struct vnc_client *client)
 
 	nvnc_key_fn fn = server->key_fn;
 	if (fn)
-		fn(server, keysym, !!down_flag);
+		fn(client, keysym, !!down_flag);
 
 	return sizeof(*msg);
 }
 
-static int on_client_pointer_event(struct vnc_client *client)
+static int on_client_pointer_event(struct nvnc_client *client)
 {
 	struct nvnc *server = client->server;
 
@@ -515,12 +524,12 @@ static int on_client_pointer_event(struct vnc_client *client)
 
 	nvnc_pointer_fn fn = server->pointer_fn;
 	if (fn)
-		fn(server, x, y, button_mask);
+		fn(client, x, y, button_mask);
 
 	return sizeof(*msg);
 }
 
-static int on_client_cut_text(struct vnc_client *client)
+static int on_client_cut_text(struct nvnc_client *client)
 {
 	struct rfb_client_cut_text_msg *msg =
 		(struct rfb_client_cut_text_msg*)(client->msg_buffer +
@@ -533,7 +542,7 @@ static int on_client_cut_text(struct vnc_client *client)
 	return sizeof(*msg) + length;
 }
 
-static int on_client_message(struct vnc_client *client)
+static int on_client_message(struct nvnc_client *client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
 		return 0;
@@ -560,7 +569,7 @@ static int on_client_message(struct vnc_client *client)
 	return 0;
 }
 
-static int try_read_client_message(struct vnc_client *client)
+static int try_read_client_message(struct nvnc_client *client)
 {
 	switch (client->state) {
 	case VNC_CLIENT_STATE_ERROR:
@@ -593,7 +602,9 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 	if (n_read < 0)
 		return;
 
-	struct vnc_client *client = (struct vnc_client*)stream;
+	struct nvnc_client *client =
+		container_of((uv_tcp_t*)stream, struct nvnc_client,
+			     stream_handle);
 
 	assert(client->buffer_index == 0);
 
@@ -625,9 +636,10 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 
 static void on_connection(uv_stream_t *server_stream, int status)
 {
-	struct nvnc *server = (struct nvnc*)server_stream;
+	struct nvnc *server = container_of((uv_tcp_t*)server_stream,
+					   struct nvnc, tcp_handle);
 
-	struct vnc_client *client = calloc(1, sizeof(*client));
+	struct nvnc_client *client = calloc(1, sizeof(*client));
 	if (!client)
 		return;
 
@@ -708,7 +720,7 @@ failure:
 EXPORT
 void nvnc_close(struct nvnc *self)
 {
-	struct vnc_client *client;
+	struct nvnc_client *client;
 
 	LIST_FOREACH(client, &self->clients, link)
 		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
@@ -742,7 +754,7 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 	if (rc < 0)
 		goto failure;
 
-	struct vnc_client *client;
+	struct nvnc_client *client;
 
 	LIST_FOREACH(client, &self->clients, link) {
 		struct pixman_region16* cregion = &client->requested_region;
@@ -765,15 +777,17 @@ failure:
 }
 
 EXPORT
-void nvnc_set_userdata(struct nvnc *self, void *userdata)
+void nvnc_set_userdata(void *self, void *userdata)
 {
-	self->userdata = userdata;
+	struct nvnc_common *common = self;
+	common->userdata = userdata;
 }
 
 EXPORT
-void* nvnc_get_userdata(const struct nvnc *self)
+void* nvnc_get_userdata(const void *self)
 {
-	return self->userdata;
+	const struct nvnc_common *common = self;
+	return common->userdata;
 }
 
 EXPORT
@@ -801,6 +815,12 @@ void nvnc_set_dimensions(struct nvnc *self, uint16_t width, uint16_t height,
 	self->display.width = width;
 	self->display.height = height;
 	self->display.pixfmt = fourcc_format;
+}
+
+EXPORT
+struct nvnc *nvnc_get_server(const struct nvnc_client *client)
+{
+	return client->server;
 }
 
 EXPORT

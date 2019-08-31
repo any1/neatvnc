@@ -13,16 +13,19 @@ libneatvnc.so.0.0: src/server.o src/util.o src/vec.o src/zrle.o src/pngfb.o \
 	$(CC) -fPIC -shared $^ $(LDFLAGS) -o $@
 
 libneatvnc.so.0: libneatvnc.so.0.0
-	ln -s $^ $@
+	ln -sf $^ $@
 
 libneatvnc.so: libneatvnc.so.0
-	ln -s $^ $@
+	ln -sf $^ $@
 
 zrle-bench: bench/zrle-bench.o src/server.o src/util.o src/vec.o src/zrle.o \
 		src/pngfb.o src/miniz.o
 	$(CC) $^ $(LDFLAGS) -o $@
 
 examples/png-server: examples/png-server.o src/pngfb.o libneatvnc.so
+	$(CC) $^ $(LDFLAGS) -L. -lneatvnc -Wl,-rpath=$(shell pwd) -o $@
+
+examples/draw: examples/draw.o libneatvnc.so
 	$(CC) $^ $(LDFLAGS) -L. -lneatvnc -Wl,-rpath=$(shell pwd) -o $@
 
 src/%.o: src/%.c

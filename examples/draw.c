@@ -12,29 +12,35 @@ struct draw {
 	struct nvnc_fb fb;
 };
 
-void on_fb_req(struct nvnc *nvnc, bool incremental, uint16_t x, uint16_t y,
+void on_fb_req(struct nvnc_client *client, bool incremental, uint16_t x, uint16_t y,
 	       uint16_t width, uint16_t height)
 {
 	if (incremental)
 		return;
 
-	struct draw *draw = nvnc_get_userdata(nvnc);
+	struct nvnc* server = nvnc_get_server(client);
+	assert(server);
+
+	struct draw *draw = nvnc_get_userdata(server);
 	assert(draw);
 
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, draw->fb.width,
 				draw->fb.height);
-	nvnc_update_fb(nvnc, &draw->fb, &region);
+	nvnc_update_fb(server, &draw->fb, &region);
 	pixman_region_fini(&region);
 }
 
-void on_pointer_event(struct nvnc *nvnc, uint16_t x, uint16_t y,
+void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
 		      enum nvnc_button_mask buttons)
 {
 	if (!(buttons & NVNC_BUTTON_LEFT))
 		return;
 
-	struct draw *draw = nvnc_get_userdata(nvnc);
+	struct nvnc *server = nvnc_get_server(client);
+	assert(server);
+
+	struct draw *draw = nvnc_get_userdata(server);
 	assert(draw);
 
 	uint32_t *image = draw->fb.addr;
@@ -45,7 +51,7 @@ void on_pointer_event(struct nvnc *nvnc, uint16_t x, uint16_t y,
 	pixman_region_init_rect(&region, 0, 0, draw->fb.width,
 				draw->fb.height);
 //	pixman_region_init_rect(&region, x, y, 1, 1);
-	nvnc_update_fb(nvnc, &draw->fb, &region);
+	nvnc_update_fb(server, &draw->fb, &region);
 	pixman_region_fini(&region);
 }
 

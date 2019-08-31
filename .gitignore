@@ -6,3 +6,6 @@ vgcore.*
 perf.data
 perf.data.old
 zrle-bench
+*.so*
+examples/draw
+examples/png-server

@@ -183,7 +183,7 @@ int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
 		r = deflate(zs, flush ? Z_FINISH : Z_NO_FLUSH);
 		assert(r != Z_STREAM_ERROR);
 
-		dst->len = dst->cap - zs->avail_out;
+		dst->len = zs->next_out - (Bytef*)dst->data;
 	} while (zs->avail_out == 0);
 
 	assert(zs->avail_in == 0);

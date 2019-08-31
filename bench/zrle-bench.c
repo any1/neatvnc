@@ -7,6 +7,15 @@
 #include <stdlib.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
+#include <time.h>
+#include <inttypes.h>
+
+uint64_t gettime_us(clockid_t clock)
+{
+	struct timespec ts = { 0 };
+	clock_gettime(clock, &ts);
+	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
+}
 
 int read_png_file(struct nvnc_fb* fb, const char *filename);
 
@@ -30,8 +39,14 @@ int run_benchmark(const char *image)
 	struct vec frame;
 	vec_init(&frame, fb.width * fb.height * 3 / 2);
 
+	uint64_t start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
+
 	rc = zrle_encode_frame(&frame, &pixfmt, fb.addr, &pixfmt,
 			       fb.width, fb.height, &region);
+
+	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
+	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
+	       end_time - start_time);
 
 	if (rc < 0)
 		goto failure;

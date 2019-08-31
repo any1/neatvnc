@@ -54,6 +54,7 @@ struct nvnc_client {
 	enum vnc_encodings encodings;
 	LIST_ENTRY(nvnc_client) link;
 	struct pixman_region16 requested_region;
+	nvnc_client_fn cleanup_fn;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
@@ -77,6 +78,7 @@ struct nvnc {
 	nvnc_key_fn key_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
+	nvnc_client_fn new_client_fn;
 };
 
 static const char* fourcc_to_string(uint32_t fourcc)
@@ -106,6 +108,10 @@ static void cleanup_client(uv_handle_t* handle)
 	struct nvnc_client *client =
 		container_of((uv_tcp_t*)handle, struct nvnc_client,
 			     stream_handle);
+
+	nvnc_client_fn fn = client->cleanup_fn;
+	if (fn)
+		fn(client);
 
 	LIST_REMOVE(client, link);
 	pixman_region_fini(&client->requested_region);
@@ -408,6 +414,10 @@ static int on_init_message(struct nvnc_client *client)
 		disconnect_all_other_clients(client);
 
 	send_server_init_message(client);
+
+	nvnc_client_fn fn = client->server->new_client_fn;
+	if (fn)
+		fn(client);
 
 	client->state = VNC_CLIENT_STATE_READY;
 	return sizeof(shared_flag);
@@ -806,6 +816,18 @@ EXPORT
 void nvnc_set_fb_req_fn(struct nvnc *self, nvnc_fb_req_fn fn)
 {
 	self->fb_req_fn = fn;
+}
+
+EXPORT
+void nvnc_set_new_client_fn(struct nvnc *self, nvnc_client_fn fn)
+{
+	self->new_client_fn = fn;
+}
+
+EXPORT
+void nvnc_set_client_cleanup_fn(struct nvnc_client *self, nvnc_client_fn fn)
+{
+	self->cleanup_fn = fn;
 }
 
 EXPORT

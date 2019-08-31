@@ -30,6 +30,7 @@ typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
 typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t x, uint16_t y,
                                uint16_t width, uint16_t height);
+typedef void (*nvnc_client_fn)(struct nvnc_client*);
 
 struct nvnc *nvnc_open(const char *addr, uint16_t port);
 void nvnc_close(struct nvnc *self);
@@ -47,6 +48,8 @@ void nvnc_set_name(struct nvnc *self, const char *name);
 void nvnc_set_key_fn(struct nvnc *self, nvnc_key_fn);
 void nvnc_set_pointer_fn(struct nvnc *self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc *self, nvnc_fb_req_fn);
+void nvnc_set_new_client_fn(struct nvnc *self, nvnc_client_fn);
+void nvnc_set_client_cleanup_fn(struct nvnc_client *self, nvnc_client_fn fn);
 
 /*
  * Send an updated framebuffer to all clients with pending update requests.

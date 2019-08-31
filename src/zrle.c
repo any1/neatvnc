@@ -3,13 +3,13 @@
 #include "util.h"
 #include "vec.h"
 #include "zrle.h"
+#include "miniz.h"
 
 #include <stdint.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <endian.h>
 #include <assert.h>
-#include <zlib.h>
 #include <uv.h>
 #include <pixman.h>
 

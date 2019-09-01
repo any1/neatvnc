@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#include "miniz.h"
+
 struct rfb_pixel_format;
 struct pixman_region16;
 struct vec;
@@ -14,7 +16,8 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 		       const struct rfb_pixel_format* src_fmt,
 		       size_t bytes_per_cpixel, size_t len);
 
-int zrle_encode_frame(struct vec *dst,
+int zrle_encode_frame(z_stream *zs,
+                      struct vec *dst,
 		      const struct rfb_pixel_format *dst_fmt,
 		      const uint8_t *src,
 		      const struct rfb_pixel_format *src_fmt,

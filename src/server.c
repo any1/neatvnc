@@ -55,6 +55,7 @@ struct nvnc_client {
 	LIST_ENTRY(nvnc_client) link;
 	struct pixman_region16 requested_region;
 	nvnc_client_fn cleanup_fn;
+	z_stream z_stream;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
@@ -112,6 +113,8 @@ static void cleanup_client(uv_handle_t* handle)
 	nvnc_client_fn fn = client->cleanup_fn;
 	if (fn)
 		fn(client);
+
+	deflateEnd(&client->z_stream);
 
 	LIST_REMOVE(client, link);
 	pixman_region_fini(&client->requested_region);
@@ -655,6 +658,11 @@ static void on_connection(uv_stream_t *server_stream, int status)
 
 	client->server = server;
 
+	if (deflateInit(&client->z_stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+		free(client);
+		return;
+	}
+
 	pixman_region_init(&client->requested_region);
 
 	uv_tcp_init(uv_default_loop(), &client->stream_handle);
@@ -771,8 +779,9 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 
 		pixman_region_intersect(cregion, cregion, &region);
 
-		zrle_encode_frame(&frame, &client->pixfmt, fb->addr,
-				  &server_fmt, fb->width, fb->height, &region);
+		zrle_encode_frame(&client->z_stream, &frame, &client->pixfmt,
+				  fb->addr, &server_fmt, fb->width, fb->height,
+				  &region);
 
 		pixman_region_clear(cregion);
 

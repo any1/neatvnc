@@ -132,7 +132,6 @@ struct rfb_server_fb_update_msg {
         uint8_t type;
         uint8_t padding;
         uint16_t n_rects;
-        struct rfb_server_fb_rect rects[0];
 } RFB_PACKED;
 
 static inline int rfb_send_security_types(void *client)

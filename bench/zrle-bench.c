@@ -3,6 +3,7 @@
 #include "util.h"
 #include "vec.h"
 #include "neatvnc.h"
+#include "miniz.h"
 
 #include <stdlib.h>
 #include <libdrm/drm_fourcc.h>
@@ -39,14 +40,20 @@ int run_benchmark(const char *image)
 	struct vec frame;
 	vec_init(&frame, fb.width * fb.height * 3 / 2);
 
+	z_stream zs = { 0 };
+
+	deflateInit(&zs, Z_DEFAULT_COMPRESSION);
+
 	uint64_t start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 
-	rc = zrle_encode_frame(&frame, &pixfmt, fb.addr, &pixfmt,
+	rc = zrle_encode_frame(&zs, &frame, &pixfmt, fb.addr, &pixfmt,
 			       fb.width, fb.height, &region);
 
 	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
 	       end_time - start_time);
+
+	deflateEnd(&zs);
 
 	if (rc < 0)
 		goto failure;

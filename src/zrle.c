@@ -180,34 +180,28 @@ int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
 		zs->next_out = ((Bytef*)dst->data) + dst->len;
 		zs->avail_out = dst->cap - dst->len;
 
-		r = deflate(zs, flush ? Z_FINISH : Z_NO_FLUSH);
+		r = deflate(zs, flush ? Z_SYNC_FLUSH : Z_NO_FLUSH);
 		assert(r != Z_STREAM_ERROR);
 
 		dst->len = zs->next_out - (Bytef*)dst->data;
 	} while (zs->avail_out == 0);
 
 	assert(zs->avail_in == 0);
-	assert(!flush || r == Z_STREAM_END);
 
 	return 0;
 }
 
 int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		    const uint8_t *src, const struct rfb_pixel_format *src_fmt,
-		    int x, int y, int stride, int width, int height)
+		    int x, int y, int stride, int width, int height,
+		    z_stream* zs)
 {
 	int r = -1;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 	int chunk_size = 1 + bytes_per_cpixel * 64 * 64;
-	z_stream zs = { 0 };
-
 	struct vec in;
 
 	if (vec_init(&in, 1 + bytes_per_cpixel * 64 * 64) < 0)
-		goto failure;
-
-	r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
-	if (r != Z_OK)
 		goto failure;
 
 	struct rfb_server_fb_rect rect = {
@@ -239,15 +233,10 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 				 ((uint32_t*)src) + x + tile_x + (y + tile_y) * stride,
 				 src_fmt, stride, tile_width, tile_height);
 
-		r = zrle_deflate(out, &in, &zs, i == n_tiles - 1);
+		r = zrle_deflate(out, &in, zs, i == n_tiles - 1);
 		if (r < 0)
 			goto failure;
 	}
-
-	deflateEnd(&zs);
-
-	/* There seems to be something extra at the end */
-	out->len -= 4;
 
 	uint32_t out_size = htonl(out->len - size_index - 4);
 	memcpy(((uint8_t*)out->data) + size_index, &out_size, sizeof(out_size));
@@ -258,7 +247,8 @@ failure:
 #undef CHUNK
 }
 
-int zrle_encode_frame(struct vec* dst,
+int zrle_encode_frame(z_stream *zs,
+		      struct vec* dst,
 		      const struct rfb_pixel_format *dst_fmt,
 		      const uint8_t *src,
 		      const struct rfb_pixel_format *src_fmt,
@@ -290,7 +280,7 @@ int zrle_encode_frame(struct vec* dst,
 		int box_height = box[i].y2 - y;
 
 		rc = zrle_encode_box(dst, dst_fmt, src, src_fmt, x, y,
-				     width, box_width, box_height);
+				     width, box_width, box_height, zs);
 		if (rc < 0)
 			return -1;
 	}

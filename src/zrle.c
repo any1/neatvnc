@@ -192,7 +192,7 @@ void zrle_encode_unichrome_tile(struct vec *dst,
 	dst->len += bytes_per_cpixel;
 }
 
-void encode_run_length(struct vec *dst, int index, int run_length)
+void encode_run_length(struct vec *dst, uint8_t index, int run_length)
 {
 	if (run_length == 1) {
 		vec_fast_append_8(dst, index);
@@ -222,33 +222,28 @@ void zrle_encode_packed_tile(struct vec *dst,
 	pixel32_to_cpixel((uint8_t*)cpalette, dst_fmt, palette,
 			  src_fmt, bytes_per_cpixel, palette_size);
 
-	vec_fast_append_8(dst, 128 + palette_size);
+	vec_fast_append_8(dst, 128 | palette_size);
 
 	vec_append(dst, cpalette, palette_size * bytes_per_cpixel);
 
 	int index;
-	int run_length = -1;
-	uint32_t old_colour = src[0];
+	int run_length = 1;
 
-	for (size_t i = 0; i < length; ++i) {
-		uint32_t colour = src[i];
-		run_length++;
-
-		if (colour == old_colour)
+	for (size_t i = 1; i < length; ++i) {
+		if (src[i] == src[i - 1]) {
+			run_length++;
 			continue;
+		}
 
 		index = find_colour_in_palette(palette, palette_size,
-					       old_colour);
-
+					       src[i - 1]);
 		encode_run_length(dst, index, run_length);
-
-		old_colour = colour;
-		run_length = 0;
+		run_length = 1;
 	}
 
 	if (run_length > 0) {
 		index = find_colour_in_palette(palette, palette_size,
-					       old_colour);
+					       src[length - 1]);
 		encode_run_length(dst, index, run_length);
 	}
 }

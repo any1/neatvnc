@@ -156,25 +156,23 @@ static inline int find_colour_in_palette(uint32_t *palette, int len,
 	return -1;
 }
 
-int zrle_get_tile_palette(uint32_t *palette, const uint32_t *src, int stride,
-			  int width, int height)
+int zrle_get_tile_palette(uint32_t *palette, const uint32_t *src, size_t length)
 {
 	int n = 0;
 
 	/* TODO: Maybe ignore the alpha channel */
 	palette[n++] = src[0];
 
-	for (int y = 0; y < height; ++y)
-		for (int x = 0; x < width; ++x) {
-			uint32_t colour = src[x + y * stride];
+	for (size_t i = 0; i < length; ++i) {
+		uint32_t colour = src[i];
 
-			if (find_colour_in_palette(palette, n, colour) < 0) {
-				if (n >= 16)
-					return -1;
+		if (find_colour_in_palette(palette, n, colour) < 0) {
+			if (n >= 16)
+				return -1;
 
-				palette[n++] = colour;
-			}
+			palette[n++] = colour;
 		}
+	}
 
 	return n;
 }
@@ -215,7 +213,7 @@ void zrle_encode_packed_tile(struct vec *dst,
 			     const struct rfb_pixel_format *dst_fmt,
 			     const uint32_t *src,
 			     const struct rfb_pixel_format *src_fmt,
-			     int stride, int width, int height,
+			     size_t length,
 			     uint32_t *palette, int palette_size)
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
@@ -232,22 +230,21 @@ void zrle_encode_packed_tile(struct vec *dst,
 	int run_length = -1;
 	uint32_t old_colour = src[0];
 
-	for (int y = 0; y < height; ++y)
-		for (int x = 0; x < width; ++x) {
-			uint32_t colour = src[x + y * stride];
-			run_length++;
+	for (size_t i = 0; i < length; ++i) {
+		uint32_t colour = src[i];
+		run_length++;
 
-			if (colour == old_colour)
-				continue;
+		if (colour == old_colour)
+			continue;
 
-			index = find_colour_in_palette(palette, palette_size,
-						       old_colour);
+		index = find_colour_in_palette(palette, palette_size,
+					       old_colour);
 
-			encode_run_length(dst, index, run_length);
+		encode_run_length(dst, index, run_length);
 
-			old_colour = colour;
-			run_length = 0;
-		}
+		old_colour = colour;
+		run_length = 0;
+	}
 
 	if (run_length > 0) {
 		index = find_colour_in_palette(palette, palette_size,
@@ -256,18 +253,24 @@ void zrle_encode_packed_tile(struct vec *dst,
 	}
 }
 
+void zrle_copy_tile(uint32_t *dst, const uint32_t *src, int stride,
+		    int width, int height)
+{
+	for (int y = 0; y < height; ++y)
+		memcpy(dst + y * width, src + y * stride, width * 4);
+}
+
 void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 		      const uint32_t *src,
 		      const struct rfb_pixel_format *src_fmt,
-		      int stride, int width, int height)
+		      size_t length)
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 
 	vec_clear(dst);
 
 	uint32_t palette[16];
-	int palette_size = zrle_get_tile_palette(palette, src, stride,
-						 width, height);
+	int palette_size = zrle_get_tile_palette(palette, src, length);
 
 	if (palette_size == 1) {
 		zrle_encode_unichrome_tile(dst, dst_fmt, palette[0], src_fmt);
@@ -275,19 +278,17 @@ void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 	}
 
 	if (palette_size > 1) {
-		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt, stride,
-					width, height, palette, palette_size);
+		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt, length,
+					palette, palette_size);
 		return;
 	}
 
 	vec_fast_append_8(dst, 0);
 
-	for (int y = 0; y < height; ++y)
-		pixel32_to_cpixel(((uint8_t*)dst->data) + 1 + width * y * bytes_per_cpixel,
-				  dst_fmt, src + stride * y,
-				  src_fmt, bytes_per_cpixel, width);
+	pixel32_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, src, src_fmt,
+			  bytes_per_cpixel, length);
 
-	dst->len += bytes_per_cpixel * width * height;
+	dst->len += bytes_per_cpixel * length;
 }
 
 int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
@@ -326,6 +327,10 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 	int chunk_size = 1 + bytes_per_cpixel * 64 * 64;
 	struct vec in;
 
+	uint32_t *tile = malloc(64 * 64 * 4);
+	if (!tile)
+		goto failure;
+
 	if (vec_init(&in, 1 + bytes_per_cpixel * 64 * 64) < 0)
 		goto failure;
 
@@ -354,9 +359,12 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
 		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
 
-		zrle_encode_tile(&in, dst_fmt,
-				 ((uint32_t*)src) + x + tile_x + (y + tile_y) * stride,
-				 src_fmt, stride, tile_width, tile_height);
+		zrle_copy_tile(tile,
+			       ((uint32_t*)src) + x + tile_x + (y + tile_y) * stride,
+			       stride, tile_width, tile_height);
+
+		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
+				 tile_width * tile_height);
 
 		r = zrle_deflate(out, &in, zs, i == n_tiles - 1);
 		if (r < 0)
@@ -368,6 +376,7 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 
 failure:
 	vec_destroy(&in);
+	free(tile);
 	return r;
 #undef CHUNK
 }

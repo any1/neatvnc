@@ -790,6 +790,9 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 
 		pixman_region_intersect(cregion, cregion, &region);
 
+		if (!pixman_region_not_empty(cregion))
+			continue;
+
 		zrle_encode_frame(&client->z_stream, &frame, &client->pixfmt,
 				  fb->addr, &server_fmt, fb->width, fb->height,
 				  &region);

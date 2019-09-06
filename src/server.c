@@ -775,11 +775,6 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 				     (struct pixman_region16*)input_region,
 				     0, 0, fb->width, fb->height);
 
-	struct vec frame;
-	rc = vec_init(&frame, fb->width * fb->height * 3 / 2);
-	if (rc < 0)
-		goto failure;
-
 	struct nvnc_client *client;
 
 	LIST_FOREACH(client, &self->clients, link) {
@@ -792,6 +787,11 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 
 		if (!pixman_region_not_empty(cregion))
 			continue;
+
+		struct vec frame;
+		rc = vec_init(&frame, fb->width * fb->height * 3 / 2);
+		if (rc < 0)
+			goto failure;
 
 		zrle_encode_frame(&client->z_stream, &frame, &client->pixfmt,
 				  fb->addr, &server_fmt, fb->width, fb->height,

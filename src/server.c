@@ -218,7 +218,11 @@ static int on_security_message(struct nvnc_client *client)
 
 static void disconnect_all_other_clients(struct nvnc_client *client)
 {
-	// TODO
+	struct nvnc_client *node;
+	LIST_FOREACH(node, &client->server->clients, link)
+		if (node != client)
+			uv_close((uv_handle_t*)&node->stream_handle,
+				 cleanup_client);
 }
 
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
@@ -413,7 +417,7 @@ static int on_init_message(struct nvnc_client *client)
 		return 0;
 
 	uint8_t shared_flag = client->msg_buffer[client->buffer_index];
-	if (shared_flag)
+	if (!shared_flag)
 		disconnect_all_other_clients(client);
 
 	send_server_init_message(client);
@@ -606,8 +610,6 @@ static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 			   const uv_buf_t *buf)
 {
 	if (n_read == UV_EOF) {
-		// TODO: Make it known to the user of the library that the
-		// client is gone.
 		uv_close((uv_handle_t*)stream, cleanup_client);
 		return;
 	}
@@ -781,6 +783,9 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 	struct nvnc_client *client;
 
 	LIST_FOREACH(client, &self->clients, link) {
+		if (uv_is_closing((uv_handle_t*)&self->tcp_handle))
+			continue;
+
 		struct pixman_region16* cregion = &client->requested_region;
 
 		pixman_region_intersect(cregion, cregion, &region);

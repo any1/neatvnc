@@ -10,9 +10,6 @@
 
 #define RFB_PACKED __attribute__((packed))
 
-int send_to_client(void *client, const void *payload, size_t size);
-int receive_from_client(void *client, void *result, size_t size);
-
 enum rfb_security_type {
         RFB_SECURITY_TYPE_INVALID = 0,
         RFB_SECURITY_TYPE_NONE = 1,
@@ -133,60 +130,5 @@ struct rfb_server_fb_update_msg {
         uint8_t padding;
         uint16_t n_rects;
 } RFB_PACKED;
-
-static inline int rfb_send_security_types(void *client)
-{
-        struct rfb_security_types_msg payload = {
-                .n = 1,
-                .types = {
-                        RFB_SECURITY_TYPE_NONE,
-                },
-        };
-
-        return send_to_client(client, &payload, sizeof(payload));
-}
-
-static inline int
-rfb_receive_security_type(void *client, enum rfb_security_type *type)
-{
-	return receive_from_client(client, type, sizeof(*type));
-}
-
-static inline int
-rfb_send_security_result(void *client,
-			 enum rfb_security_handshake_result result)
-{
-	uint32_t payload = htonl(result);
-        return send_to_client(client, &payload, sizeof(payload));
-}
-
-static inline int rfb_send_error_reason(void *client, const char *message)
-{
-	char buffer[256];
-	struct rfb_error_reason *payload = (struct rfb_error_reason*)buffer;
-	size_t length = strlen(message);
-	payload->length = htonl(length);
-	strncpy(payload->message, message, sizeof(buffer) - sizeof(*payload));
-        return send_to_client(client, &payload, sizeof(*payload) + length);
-}
-
-static inline int rfb_receive_client_init(void *client, uint8_t is_shared)
-{
-        return send_to_client(client, &is_shared, sizeof(is_shared));
-}
-
-static inline int
-rfb_send_server_init(void *client, struct rfb_server_init_msg *msg)
-{
-	struct rfb_server_init_msg payload;
-	memcpy(&payload, msg, sizeof(payload));
-	payload.width = htons(payload.width);
-	payload.height = htons(payload.height);
-	payload.pixel_format.red_max = htons(payload.pixel_format.red_max);
-	payload.pixel_format.green_max = htons(payload.pixel_format.green_max);
-	payload.pixel_format.blue_max = htons(payload.pixel_format.blue_max);
-	payload.name_length = htons(payload.name_length);
-        return send_to_client(client, &payload, sizeof(payload));
-}
 
 #endif /* _RFB_PROTO_H */

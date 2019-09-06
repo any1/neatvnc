@@ -747,6 +747,12 @@ void nvnc_close(struct nvnc *self)
 	free(self);
 }
 
+static void free_write_buffer(uv_write_t *req, int status)
+{
+	struct vnc_write_request *rq = (struct vnc_write_request*)req;
+	free(rq->buffer.base);
+}
+
 EXPORT
 int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 		   const struct pixman_region16 *input_region)
@@ -786,7 +792,7 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 		pixman_region_clear(cregion);
 
 		vnc__write((uv_stream_t*)&client->stream_handle, frame.data,
-			   frame.len, NULL);
+			   frame.len, free_write_buffer);
 	}
 
 	rc = 0;

@@ -1,12 +1,23 @@
-CFLAGS ?= -g -O3 -mavx -flto -DNDEBUG
+MACHINE := $(shell $(CC) -dumpmachine)
+ARCH := $(firstword $(subst -, ,$(MACHINE)))
+BUILD_DIR ?= build-$(MACHINE)
+
+ifeq ($(ARCH),x86_64)
+	ARCH_CFLAGS := -mavx
+else
+ifeq ($(ARCH),arm)
+	ARCH_CFLAGS := -mfpu=neon
+endif # end arm block
+endif # end x86_64 block
+
+CFLAGS ?= -g -O3 $(ARCH_CFLAGS) -flto -DNDEBUG
 LDFLAGS ?= -flto
-BUILD_DIR ?= build-$(shell uname -m)
 
 DSO_NAME=libneatvnc
 DSO_MAJOR=0
 DSO_MINOR=0
 
-DEPENDENCIES := pixman-1 libpng libuv
+DEPENDENCIES := pixman-1 libuv
 
 SOURCES := \
 	src/server.c \

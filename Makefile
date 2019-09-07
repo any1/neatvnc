@@ -38,13 +38,13 @@ $(BUILD_DIR)/neatvnc.pc:
 BENCH_DIR = $(BUILD_DIR)/bench
 
 $(BENCH_DIR)/%.o: bench/%.c | $(BENCH_DIR)
-	$(CC_OBJ) $(shell pkg-config --cflags libpng)
+	$(CC_OBJ) $(shell $(PKGCONFIG) --cflags libpng)
 
 $(BENCH_DIR): ; mkdir -p $@
 $(BENCH_DIR)/zrle-bench:
 $(BENCH_DIR)/zrle-bench: $(OBJECTS) $(BUILD_DIR)/pngfb.o \
 		$(BENCH_DIR)/zrle-bench.o
-	$(LINK_EXE) $(shell pkg-config --libs libpng)
+	$(LINK_EXE) $(shell $(PKGCONFIG) --libs libpng)
 
 .PHONY: install
 install: $(DSO) $(BUILD_DIR)/neatvnc.pc

@@ -18,6 +18,12 @@ else
 	STRIP := $(MACHINE)-strip
 endif
 
+ifeq (, $(shell which $(MACHINE)-pkg-config 2>/dev/null))
+	PKGCONFIG ?= pkg-config
+else
+	PKGCONFIG ?= $(MACHINE)-pkg-config
+endif
+
 CFLAGS ?= -g -O3 $(ARCH_CFLAGS) -flto -DNDEBUG
 LDFLAGS ?= -flto
 
@@ -27,8 +33,8 @@ CC_OBJ = $(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $(@:.o=.deps)
 LINK_EXE = $(CC) $^ $(LDFLAGS) -o $@
 LINK_DSO = $(CC) -fPIC -shared $^ $(LDFLAGS) -o $@
 
-CFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --cflags $(dep)))
-LDFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --libs $(dep)))
+CFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell $(PKGCONFIG) --cflags $(dep)))
+LDFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell $(PKGCONFIG) --libs $(dep)))
 OBJECTS := $(SOURCES:src/%.c=$(BUILD_DIR)/%.o)
 
 $(BUILD_DIR): ; mkdir -p $(BUILD_DIR)

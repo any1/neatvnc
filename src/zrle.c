@@ -15,7 +15,6 @@
  */
 
 #include "rfb-proto.h"
-#include "bitmap.h"
 #include "util.h"
 #include "vec.h"
 #include "zrle.h"
@@ -25,17 +24,13 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <endian.h>
+#include <stdbool.h>
 #include <assert.h>
 #include <uv.h>
 #include <pixman.h>
 
-#define POPCOUNT(x) __builtin_popcount(x)
-
-struct bitmap;
-
-size_t bitmap_popcount(struct bitmap*);
-
-#define bitmap_for_each(b)
+#define POPCOUNT(x) __builtin_popcount(x)   
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
 void pixel_format_into_native(struct rfb_pixel_format *fmt)
 {

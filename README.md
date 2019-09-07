@@ -10,6 +10,19 @@ neat.
  * Interoperability with the Freedesktop.org ecosystem.
 
 ## Building
+
+# Runtime Dependencies
+ * pixman
+ * libuv
+ * libpng (only needed for examples and benchmarks)
+
+# Build Dependencies
+ * GNU Make
+ * GCC or Clang
+ * pkg-config
+ * libdrm
+
+To build just run:
 ```
 make 
 ```

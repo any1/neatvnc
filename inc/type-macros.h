@@ -1,4 +1,5 @@
-/* Copyright (c) 2014-2016, Marel
+/*
+ * Copyright (c) 2019 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,8 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef TYPE_MACROS_H_
-#define TYPE_MACROS_H_
+#pragma once
 
 #include <stddef.h>
 
@@ -23,5 +23,3 @@
 	const typeof( ((type *)0)->member ) *__mptr = (ptr); \
 	(type *)( (char *)__mptr - offsetof(type,member) ); \
 })
-
-#endif /* TYPE_MACROS_H_ */

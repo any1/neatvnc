@@ -13,9 +13,9 @@ endif # end arm block
 endif # end x86_64 block
 
 ifeq (, $(shell which $(MACHINE)-strip 2>/dev/null))
-	STRIP := strip
+	STRIP ?= strip
 else
-	STRIP := $(MACHINE)-strip
+	STRIP ?= $(MACHINE)-strip
 endif
 
 ifeq (, $(shell which $(MACHINE)-pkg-config 2>/dev/null))

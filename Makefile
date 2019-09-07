@@ -1,51 +1,47 @@
-all: libneatvnc.so
+CFLAGS ?= -g -O3 -mavx -flto -DNDEBUG
+LDFLAGS ?= -flto
+BUILD_DIR ?= build-$(shell uname -m)
+
+DSO_NAME=libneatvnc
+DSO_MAJOR=0
+DSO_MINOR=0
 
 DEPENDENCIES := pixman-1 libpng libuv
 
-CFLAGS := -g -O3 -mavx -DNDEBUG -std=gnu11 -D_GNU_SOURCE -Iinc \
-	-fvisibility=hidden -Icontrib/miniz \
-	$(foreach dep,$(DEPENDENCIES),$(shell pkg-config --cflags $(dep)))
+SOURCES := \
+	src/server.c \
+	src/util.c \
+	src/vec.c \
+	src/zrle.c \
 
-LDFLAGS := $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --libs $(dep)))
+OBJECTS := $(SOURCES:src/%.c=$(BUILD_DIR)/%.o) $(BUILD_DIR)/miniz.o
 
-libneatvnc.so.0.0: src/server.o src/util.o src/vec.o src/zrle.o src/pngfb.o \
-		src/miniz.o
+CFLAGS += -std=gnu11 -D_GNU_SOURCE -Iinc -fvisibility=hidden -Icontrib/miniz \
+	  $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --cflags $(dep)))
+
+LDFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --libs $(dep)))
+
+DSO_PATH := $(BUILD_DIR)/$(DSO_NAME)
+
+all: $(DSO_PATH).so.$(DSO_MAJOR).$(DSO_MINOR)
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(DSO_PATH).so.$(DSO_MAJOR).$(DSO_MINOR): $(OBJECTS)
 	$(CC) -fPIC -shared $^ $(LDFLAGS) -o $@
+	ln -sf $(DSO_NAME).so.$(DSO_MAJOR).$(DSO_MINOR) $(DSO_PATH).so.$(DSO_MINOR)
+	ln -sf $(DSO_NAME).so.$(DSO_MAJOR).$(DSO_MINOR) $(DSO_PATH).so
 
-libneatvnc.so.0: libneatvnc.so.0.0
-	ln -sf $^ $@
-
-libneatvnc.so: libneatvnc.so.0
-	ln -sf $^ $@
-
-zrle-bench: bench/zrle-bench.o src/server.o src/util.o src/vec.o src/zrle.o \
-		src/pngfb.o src/miniz.o
-	$(CC) $^ $(LDFLAGS) -o $@
-
-examples/png-server: examples/png-server.o src/pngfb.o libneatvnc.so
-	$(CC) $^ $(LDFLAGS) -L. -lneatvnc -Wl,-rpath=$(shell pwd) -o $@
-
-examples/draw: examples/draw.o libneatvnc.so
-	$(CC) $^ $(LDFLAGS) -L. -lneatvnc -Wl,-rpath=$(shell pwd) -o $@
-
-src/%.o: src/%.c
-	$(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $@.deps
-
-src/miniz.o: contrib/miniz/miniz.c
-	$(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $@.deps
-
-bench/%.o: bench/%.c
-	$(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $@.deps
-
-examples/%.o: examples/%.c
-	$(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $@.deps
+CC_OBJ = $(CC) -c $(CFLAGS) $< -o $@ $(CC_DEP_ARGS) -MMD -MP -MF $(@:.o=.deps)
+$(BUILD_DIR)/%.o: src/%.c | $(BUILD_DIR) ; $(CC_OBJ)
+$(BUILD_DIR)/miniz.o: contrib/miniz/miniz.c | $(BUILD_DIR) ; $(CC_OBJ)
 
 .PHONY: clean
 clean:
-	rm -f libneatvnc.so*
-	rm -f src/*.o src/*.deps bench/*.o bench/*.deps
+	rm -rf $(BUILD_DIR)
 
--include src/*.deps
+-include $(BUILD_DIR)/*.deps
 
 .SUFFIXES:
 .SECONDARY:

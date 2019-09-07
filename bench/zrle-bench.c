@@ -34,6 +34,14 @@ uint64_t gettime_us(clockid_t clock)
 	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
 }
 
+#pragma push_options
+#pragma GCC optimize ("-O0")
+void memcpy_unoptimized(void* dst, const void* src, size_t len)
+{
+	memcpy(dst, src, len);
+}
+#pragma pop_options
+
 int read_png_file(struct nvnc_fb* fb, const char *filename);
 
 int run_benchmark(const char *image)
@@ -60,12 +68,25 @@ int run_benchmark(const char *image)
 
 	deflateInit(&zs, Z_DEFAULT_COMPRESSION);
 
+	void *dummy = malloc(fb.width * fb.height * 4);
+	if (!dummy)
+		goto failure;
+
 	uint64_t start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 
+	memcpy_unoptimized(dummy, fb.addr, fb.width * fb.height * 4);
+
+	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
+	printf("memcpy baseline for %s took %"PRIu64" micro seconds\n", image,
+	       end_time - start_time);
+
+	free(dummy);
+
+	start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	rc = zrle_encode_frame(&zs, &frame, &pixfmt, fb.addr, &pixfmt,
 			       fb.width, fb.height, &region);
 
-	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
+	end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
 	       end_time - start_time);
 

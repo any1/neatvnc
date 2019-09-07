@@ -11,12 +11,12 @@ neat. Note: This is a beta release, so the interface is not yet stable.
 
 ## Building
 
-# Runtime Dependencies
+### Runtime Dependencies
  * pixman
  * libuv
  * libpng (only needed for examples and benchmarks)
 
-# Build Dependencies
+### Build Dependencies
  * GNU Make
  * GCC or Clang
  * pkg-config

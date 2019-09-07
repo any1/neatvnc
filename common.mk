@@ -2,6 +2,8 @@ MACHINE := $(shell $(CC) -dumpmachine)
 ARCH := $(firstword $(subst -, ,$(MACHINE)))
 BUILD_DIR ?= build-$(MACHINE)
 
+PREFIX ?= /usr/local
+
 ifeq ($(ARCH),x86_64)
 	ARCH_CFLAGS := -mavx
 else
@@ -9,6 +11,12 @@ ifeq ($(ARCH),arm)
 	ARCH_CFLAGS := -mfpu=neon
 endif # end arm block
 endif # end x86_64 block
+
+ifeq (, $(shell which $(MACHINE)-strip 2>/dev/null))
+	STRIP := strip
+else
+	STRIP := $(MACHINE)-strip
+endif
 
 CFLAGS ?= -g -O3 $(ARCH_CFLAGS) -flto -DNDEBUG
 LDFLAGS ?= -flto

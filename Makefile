@@ -8,6 +8,8 @@ SOURCES := \
 
 include common.mk
 
+VERSION=0.0.0
+
 DSO_NAME=libneatvnc
 DSO_MAJOR=0
 DSO_MINOR=0
@@ -30,6 +32,9 @@ $(DSO): $(OBJECTS)
 $(BUILD_DIR)/%.o: src/%.c | $(BUILD_DIR) ; $(CC_OBJ)
 $(BUILD_DIR)/miniz.o: contrib/miniz/miniz.c | $(BUILD_DIR) ; $(CC_OBJ)
 
+$(BUILD_DIR)/neatvnc.pc:
+	PREFIX=$(PREFIX) VERSION=$(VERSION) ./gen-pkgconfig.sh >$@
+
 BENCH_DIR = $(BUILD_DIR)/bench
 
 $(BENCH_DIR)/%.o: bench/%.c | $(BENCH_DIR)
@@ -42,8 +47,9 @@ $(BENCH_DIR)/zrle-bench: $(OBJECTS) $(BUILD_DIR)/pngfb.o \
 	$(LINK_EXE) $(shell pkg-config --libs libpng)
 
 .PHONY: install
-install: $(DSO)
+install: $(DSO) $(BUILD_DIR)/neatvnc.pc
 	install $(INSTALL_STRIP) -Dt $(DESTDIR)$(PREFIX)/lib $(BUILD_DIR)/*.so*
+	install -Dt $(DESTDIR)$(PREFIX)/lib/pkgconfig $(BUILD_DIR)/neatvnc.pc
 	install -Dt $(DESTDIR)$(PREFIX)/include inc/neatvnc.h
 
 .PHONY: bench

@@ -1,3 +1,8 @@
+/*
+ * This is not a part of the library. It's only used in tests, examples and
+ * benchmarks.
+ */
+
 #include "util.h"
 #include "neatvnc.h"
 

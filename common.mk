@@ -16,6 +16,7 @@ LDFLAGS ?= -flto
 CFLAGS += -std=gnu11 -D_GNU_SOURCE -Iinc 
 
 CC_OBJ = $(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $(@:.o=.deps)
+LINK_EXE = $(CC) $^ $(LDFLAGS) -o $@
 LINK_DSO = $(CC) -fPIC -shared $^ $(LDFLAGS) -o $@
 
 CFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --cflags $(dep)))
@@ -23,7 +24,6 @@ LDFLAGS += $(foreach dep,$(DEPENDENCIES),$(shell pkg-config --libs $(dep)))
 OBJECTS := $(SOURCES:src/%.c=$(BUILD_DIR)/%.o)
 
 $(BUILD_DIR): ; mkdir -p $(BUILD_DIR)
-$(BUILD_DIR)/%.o: src/%.c | $(BUILD_DIR) ; $(CC_OBJ)
 
 .PHONY: clean
 clean: ; rm -rf $(BUILD_DIR)

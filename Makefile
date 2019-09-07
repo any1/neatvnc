@@ -16,8 +16,9 @@ CFLAGS += -fvisibility=hidden -Icontrib/miniz
 OBJECTS += $(BUILD_DIR)/miniz.o
 
 DSO_PATH := $(BUILD_DIR)/$(DSO_NAME)
+DSO := $(DSO_PATH).so.$(DSO_MAJOR).$(DSO_MINOR)
 
-$(DSO_PATH).so.$(DSO_MAJOR).$(DSO_MINOR): $(OBJECTS)
+$(DSO): $(OBJECTS)
 	$(LINK_DSO)
 	ln -sf $(DSO_NAME).so.$(DSO_MAJOR).$(DSO_MINOR) $(DSO_PATH).so.$(DSO_MINOR)
 	ln -sf $(DSO_NAME).so.$(DSO_MAJOR).$(DSO_MINOR) $(DSO_PATH).so
@@ -26,7 +27,7 @@ $(BUILD_DIR)/%.o: src/%.c | $(BUILD_DIR) ; $(CC_OBJ)
 $(BUILD_DIR)/miniz.o: contrib/miniz/miniz.c | $(BUILD_DIR) ; $(CC_OBJ)
 
 .PHONY: examples
-examples:
+examples: $(DSO)
 	make -C examples \
 		BUILD_DIR=../$(BUILD_DIR)/examples \
 		LIB_PATH=../$(BUILD_DIR)

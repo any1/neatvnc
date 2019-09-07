@@ -26,6 +26,21 @@ $(DSO): $(OBJECTS)
 $(BUILD_DIR)/%.o: src/%.c | $(BUILD_DIR) ; $(CC_OBJ)
 $(BUILD_DIR)/miniz.o: contrib/miniz/miniz.c | $(BUILD_DIR) ; $(CC_OBJ)
 
+BENCH_DIR = $(BUILD_DIR)/bench
+
+$(BENCH_DIR)/%.o: bench/%.c | $(BENCH_DIR)
+	$(CC_OBJ) $(shell pkg-config --cflags libpng)
+
+$(BENCH_DIR): ; mkdir -p $@
+$(BENCH_DIR)/zrle-bench:
+$(BENCH_DIR)/zrle-bench: $(OBJECTS) $(BUILD_DIR)/pngfb.o \
+		$(BENCH_DIR)/zrle-bench.o
+	$(LINK_EXE) $(shell pkg-config --libs libpng)
+
+.PHONY: bench
+bench: $(BENCH_DIR)/zrle-bench
+	./$(BENCH_DIR)/zrle-bench
+
 .PHONY: examples
 examples: $(DSO)
 	make -C examples \

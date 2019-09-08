@@ -56,8 +56,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	fb.nvnc_modifier = NVNC_MOD_Y_INVERT;
-
 	struct nvnc *server = nvnc_open("127.0.0.1", 5900);
 
 	nvnc_set_dimensions(server, fb.width, fb.height, fb.fourcc_format);

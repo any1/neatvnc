@@ -124,9 +124,9 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
-			*dst++ = (cpx >> 8) & 0xff;
 			*dst++ = (cpx >> (16 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
+			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
 		}
 		break;
 	case 2:
@@ -137,8 +137,8 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
 			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
 		}
 		break;
 	case 1:

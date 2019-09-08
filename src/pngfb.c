@@ -84,10 +84,10 @@ int read_png_file(struct nvnc_fb* fb, const char *filename) {
 	png_destroy_read_struct(&png, &info, NULL);
 
 	fb->addr = addr;
-	fb->size = sizeof(row_bytes * height);
+	fb->size = width * height * 4;
 	fb->width = width;
 	fb->height = height;
-	fb->fourcc_format = DRM_FORMAT_ARGB8888;
+	fb->fourcc_format = DRM_FORMAT_ABGR8888;
 	fb->fourcc_modifier = DRM_FORMAT_MOD_LINEAR;
 
 	return 0;

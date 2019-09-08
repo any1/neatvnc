@@ -417,7 +417,12 @@ static void send_server_init_message(struct nvnc_client *client)
 	msg->name_length = htonl(name_len),
 	memcpy(msg->name_string, display->name, name_len);
 
-	rfb_pixfmt_from_fourcc(&msg->pixel_format, display->pixfmt);
+	int rc = rfb_pixfmt_from_fourcc(&msg->pixel_format, display->pixfmt);
+	if (rc < 0) {
+		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+		return;
+	}
+
 	msg->pixel_format.red_max = htons(msg->pixel_format.red_max);
 	msg->pixel_format.green_max = htons(msg->pixel_format.green_max);
 	msg->pixel_format.blue_max = htons(msg->pixel_format.blue_max);
@@ -782,7 +787,8 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 		return -1;
 
 	struct rfb_pixel_format server_fmt;
-	rfb_pixfmt_from_fourcc(&server_fmt, fb->fourcc_format);
+	if (rfb_pixfmt_from_fourcc(&server_fmt, fb->fourcc_format) < 0)
+		return -1;
 
 	struct pixman_region16 region;
 	pixman_region_init(&region);

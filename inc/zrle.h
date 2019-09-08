@@ -21,6 +21,7 @@
 
 #include "miniz.h"
 
+struct nvnc_fb;
 struct rfb_pixel_format;
 struct pixman_region16;
 struct vec;
@@ -32,9 +33,8 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 		       size_t bytes_per_cpixel, size_t len);
 
 int zrle_encode_frame(z_stream *zs,
-                      struct vec *dst,
+		      struct vec *dst,
 		      const struct rfb_pixel_format *dst_fmt,
-		      const uint8_t *src,
+		      const struct nvnc_fb *src,
 		      const struct rfb_pixel_format *src_fmt,
-		      int width, int height,
 		      struct pixman_region16 *region);

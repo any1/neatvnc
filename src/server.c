@@ -810,8 +810,7 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 			goto failure;
 
 		zrle_encode_frame(&client->z_stream, &frame, &client->pixfmt,
-				  fb->addr, &server_fmt, fb->width, fb->height,
-				  &region);
+				  fb, &server_fmt, cregion);
 
 		pixman_region_clear(cregion);
 

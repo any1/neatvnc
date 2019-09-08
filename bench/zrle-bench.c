@@ -48,7 +48,7 @@ int run_benchmark(const char *image)
 {
 	int rc = -1;
 
-	struct nvnc_fb fb;
+	struct nvnc_fb fb = { 0 };
 	rc = read_png_file(&fb, image);
 	if (rc < 0)
 		return -1;
@@ -83,8 +83,7 @@ int run_benchmark(const char *image)
 	free(dummy);
 
 	start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
-	rc = zrle_encode_frame(&zs, &frame, &pixfmt, fb.addr, &pixfmt,
-			       fb.width, fb.height, &region);
+	rc = zrle_encode_frame(&zs, &frame, &pixfmt, &fb, &pixfmt, &region);
 
 	end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,

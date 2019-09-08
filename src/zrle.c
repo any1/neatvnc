@@ -19,6 +19,7 @@
 #include "vec.h"
 #include "zrle.h"
 #include "miniz.h"
+#include "neatvnc.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -260,10 +261,15 @@ void zrle_encode_packed_tile(struct vec *dst,
 }
 
 void zrle_copy_tile(uint32_t *dst, const uint32_t *src, int stride,
-		    int width, int height)
+		    int width, int height, enum nvnc_modifier mod)
 {
-	for (int y = 0; y < height; ++y)
-		memcpy(dst + y * width, src + y * stride, width * 4);
+	for (int y = 0; y < height; ++y) {
+		if (!(mod & NVNC_MOD_Y_INVERT))
+			memcpy(dst + y * width, src + y * stride, width * 4);
+		else
+			memcpy(dst + (height - y - 1) * width, src + y * stride,
+			       width * 4);
+	}
 }
 
 void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
@@ -324,7 +330,8 @@ int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
 }
 
 int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
-		    const uint8_t *src, const struct rfb_pixel_format *src_fmt,
+		    const struct nvnc_fb *fb,
+		    const struct rfb_pixel_format *src_fmt,
 		    int x, int y, int stride, int width, int height,
 		    z_stream* zs)
 {
@@ -362,12 +369,16 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		int tile_x = (i % UDIV_UP(width, 64)) * 64;
 		int tile_y = (i / UDIV_UP(width, 64)) * 64;
 
+		if (fb->nvnc_modifier & NVNC_MOD_Y_INVERT)
+			tile_y = (UDIV_UP(height, 64) - tile_y / 64 - 1) * 64;
+
 		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
 		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
 
 		zrle_copy_tile(tile,
-			       ((uint32_t*)src) + x + tile_x + (y + tile_y) * stride,
-			       stride, tile_width, tile_height);
+			       ((uint32_t*)fb->addr) + x + tile_x + (y + tile_y) * stride,
+			       stride, tile_width, tile_height,
+			       fb->nvnc_modifier);
 
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
 				 tile_width * tile_height);
@@ -390,9 +401,8 @@ failure:
 int zrle_encode_frame(z_stream *zs,
 		      struct vec* dst,
 		      const struct rfb_pixel_format *dst_fmt,
-		      const uint8_t *src,
+		      const struct nvnc_fb *src,
 		      const struct rfb_pixel_format *src_fmt,
-		      int width, int height,
 		      struct pixman_region16 *region)
 {
 	int rc = -1;
@@ -420,7 +430,7 @@ int zrle_encode_frame(z_stream *zs,
 		int box_height = box[i].y2 - y;
 
 		rc = zrle_encode_box(dst, dst_fmt, src, src_fmt, x, y,
-				     width, box_width, box_height, zs);
+				     src->width, box_width, box_height, zs);
 		if (rc < 0)
 			return -1;
 	}

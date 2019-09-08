@@ -50,11 +50,13 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	struct nvnc_fb fb;
+	struct nvnc_fb fb = { 0 };
 	if (read_png_file(&fb, file) < 0) {
 		printf("Failed to read png file\n");
 		return 1;
 	}
+
+	fb.nvnc_modifier = NVNC_MOD_Y_INVERT;
 
 	struct nvnc *server = nvnc_open("127.0.0.1", 5900);
 

@@ -794,7 +794,7 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 	struct nvnc_client *client;
 
 	LIST_FOREACH(client, &self->clients, link) {
-		if (uv_is_closing((uv_handle_t*)&self->tcp_handle))
+		if (uv_is_closing((uv_handle_t*)&client->stream_handle))
 			continue;
 
 		struct pixman_region16* cregion = &client->requested_region;

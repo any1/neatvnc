@@ -369,14 +369,15 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		int tile_x = (i % UDIV_UP(width, 64)) * 64;
 		int tile_y = (i / UDIV_UP(width, 64)) * 64;
 
-		if (fb->nvnc_modifier & NVNC_MOD_Y_INVERT)
-			tile_y = (UDIV_UP(height, 64) - tile_y / 64 - 1) * 64;
-
 		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
 		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
 
+		int y_off = !(fb->nvnc_modifier & NVNC_MOD_Y_INVERT)
+			  ? y + tile_y
+			  : fb->height - y - tile_y - tile_height;
+
 		zrle_copy_tile(tile,
-			       ((uint32_t*)fb->addr) + x + tile_x + (y + tile_y) * stride,
+			       ((uint32_t*)fb->addr) + x + tile_x + y_off * stride,
 			       stride, tile_width, tile_height,
 			       fb->nvnc_modifier);
 

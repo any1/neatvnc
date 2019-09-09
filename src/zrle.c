@@ -30,6 +30,8 @@
 #include <uv.h>
 #include <pixman.h>
 
+#define TILE_LENGTH 64
+
 #define POPCOUNT(x) __builtin_popcount(x)   
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -337,14 +339,14 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 {
 	int r = -1;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
-	int chunk_size = 1 + bytes_per_cpixel * 64 * 64;
+	int chunk_size = 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH;
 	struct vec in;
 
-	uint32_t *tile = malloc(64 * 64 * 4);
+	uint32_t *tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);
 	if (!tile)
 		goto failure;
 
-	if (vec_init(&in, 1 + bytes_per_cpixel * 64 * 64) < 0)
+	if (vec_init(&in, 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH) < 0)
 		goto failure;
 
 	struct rfb_server_fb_rect rect = {
@@ -363,14 +365,15 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 	size_t size_index = out->len;
 	vec_append_zero(out, 4);
 
-	int n_tiles = UDIV_UP(width, 64) * UDIV_UP(height, 64);
+	int n_tiles =
+		UDIV_UP(width, TILE_LENGTH) * UDIV_UP(height, TILE_LENGTH);
 
 	for (int i = 0; i < n_tiles; ++i) {
-		int tile_x = (i % UDIV_UP(width, 64)) * 64;
-		int tile_y = (i / UDIV_UP(width, 64)) * 64;
+		int tile_x = (i % UDIV_UP(width, TILE_LENGTH)) * TILE_LENGTH;
+		int tile_y = (i / UDIV_UP(width, TILE_LENGTH)) * TILE_LENGTH;
 
-		int tile_width = width - tile_x >= 64 ? 64 : width - tile_x;
-		int tile_height = height - tile_y >= 64 ? 64 : height - tile_y;
+		int tile_width = width - tile_x >= TILE_LENGTH ? TILE_LENGTH : width - tile_x;
+		int tile_height = height - tile_y >= TILE_LENGTH ? TILE_LENGTH : height - tile_y;
 
 		int y_off = !(fb->nvnc_modifier & NVNC_MOD_Y_INVERT)
 			  ? y + tile_y

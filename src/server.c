@@ -29,6 +29,14 @@
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 
+#ifndef DRM_FORMAT_INVALID
+#define DRM_FORMAT_INVALID 0
+#endif
+
+#ifndef DRM_FORMAT_MOD_LINEAR
+#define DRM_FORMAT_MOD_LINEAR DRM_FORMAT_MOD_NONE
+#endif
+
 #define DEFAULT_NAME "Neat VNC"
 #define READ_BUFFER_SIZE 4096
 #define MSG_BUFFER_SIZE 4096

@@ -51,7 +51,7 @@ $(BENCH_DIR)/zrle-bench: $(OBJECTS) $(BUILD_DIR)/pngfb.o \
 install: $(DSO) $(BUILD_DIR)/neatvnc.pc
 	install $(INSTALL_STRIP) -Dt $(DESTDIR)$(PREFIX)/lib $(BUILD_DIR)/*.so*
 	install -Dt $(DESTDIR)$(PREFIX)/lib/pkgconfig $(BUILD_DIR)/neatvnc.pc
-	install -Dt $(DESTDIR)$(PREFIX)/include inc/neatvnc.h
+	install -Dt $(DESTDIR)$(PREFIX)/include include/neatvnc.h
 
 .PHONY: bench
 bench: $(BENCH_DIR)/zrle-bench

@@ -27,7 +27,7 @@ endif
 CFLAGS ?= -g -O3 $(ARCH_CFLAGS) -flto -DNDEBUG
 LDFLAGS ?= -flto
 
-CFLAGS += -std=gnu11 -D_GNU_SOURCE -Iinc 
+CFLAGS += -std=gnu11 -D_GNU_SOURCE -Iinclude
 
 CC_OBJ = $(CC) -c $(CFLAGS) $< -o $@ -MMD -MP -MF $(@:.o=.deps)
 LINK_EXE = $(CC) $^ $(LDFLAGS) -o $@

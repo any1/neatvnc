@@ -37,7 +37,7 @@ void on_fb_req(struct nvnc_client *client, bool incremental,
 
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, fb->width, fb->height);
-	nvnc_update_fb(server, fb, &region);
+	nvnc_update_fb(server, fb, &region, NULL);
 	pixman_region_fini(&region);
 }
 

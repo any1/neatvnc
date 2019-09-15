@@ -43,7 +43,7 @@ void on_fb_req(struct nvnc_client *client, bool incremental, uint16_t x, uint16_
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, draw->fb.width,
 				draw->fb.height);
-	nvnc_update_fb(server, &draw->fb, &region);
+	nvnc_update_fb(server, &draw->fb, &region, NULL);
 	pixman_region_fini(&region);
 }
 
@@ -67,7 +67,7 @@ void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
 	pixman_region_init_rect(&region, 0, 0, draw->fb.width,
 				draw->fb.height);
 	pixman_region_intersect_rect(&region, &region, x, y, 1, 1);
-	nvnc_update_fb(server, &draw->fb, &region);
+	nvnc_update_fb(server, &draw->fb, &region, NULL);
 	pixman_region_fini(&region);
 }
 

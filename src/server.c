@@ -28,6 +28,7 @@
 #include <uv.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
+#include <pthread.h>
 
 #ifndef DRM_FORMAT_INVALID
 #define DRM_FORMAT_INVALID 0
@@ -100,10 +101,21 @@ struct nvnc {
 	struct nvnc_client_list clients;
 	struct vnc_display display;
 	void *userdata;
+	int n_pending_updates;
 	nvnc_key_fn key_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
+};
+
+struct fb_update_work {
+	uv_work_t work;
+	struct nvnc_client *client;
+	struct pixman_region16 region;
+	struct rfb_pixel_format server_fmt;
+	struct vec frame;
+	const struct nvnc_fb *fb;
+	nvnc_update_done_fn on_done;
 };
 
 static const char* fourcc_to_string(uint32_t fourcc)
@@ -784,9 +796,78 @@ static void free_write_buffer(uv_write_t *req, int status)
 	free(rq->buffer.base);
 }
 
+void do_client_update_fb(uv_work_t *work)
+{
+	struct fb_update_work *update = (void*)work;
+	struct nvnc_client *client = update->client;
+	const struct nvnc_fb *fb = update->fb;
+
+	zrle_encode_frame(&client->z_stream, &update->frame, &client->pixfmt,
+			  fb, &update->server_fmt, &update->region);
+}
+
+void on_client_update_fb_done(uv_work_t *work, int status)
+{
+	(void)status;
+
+	struct fb_update_work *update = (void*)work;
+	struct nvnc_client *client = update->client;
+	struct nvnc *server = client->server;
+	struct vec *frame = &update->frame;
+
+	vnc__write((uv_stream_t*)&client->stream_handle,
+		   frame->data, frame->len, free_write_buffer);
+
+	if (--server->n_pending_updates == 0)
+		if (update->on_done)
+			update->on_done(server);
+}
+
+int schedule_client_update_fb(struct nvnc_client *client,
+			      const struct nvnc_fb *fb,
+			      struct pixman_region16 *region,
+			      nvnc_update_done_fn on_update_done)
+{
+	struct fb_update_work *work = calloc(1, sizeof(*work));
+	if (!work)
+		return -1;
+
+	if (rfb_pixfmt_from_fourcc(&work->server_fmt, fb->fourcc_format) < 0)
+		goto pixfmt_failure;
+
+	work->client = client;
+	work->fb = fb;
+	work->on_done = on_update_done;
+
+	/* The client's region is exchanged for an empty one */
+	work->region = client->requested_region;
+	pixman_region_init(&client->requested_region);
+
+	int rc = vec_init(&work->frame, fb->width * fb->height * 3 / 2);
+	if (rc < 0)
+		goto vec_failure;
+
+	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
+			   on_client_update_fb_done);
+	if (rc < 0)
+		goto queue_failure;
+
+	client->server->n_pending_updates++;
+
+	return 0;
+
+queue_failure:
+	vec_destroy(&work->frame);
+vec_failure:
+pixfmt_failure:
+	free(work);
+	return -1;
+}
+
 EXPORT
 int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
-		   const struct pixman_region16 *input_region)
+		   const struct pixman_region16 *input_region,
+		   nvnc_update_done_fn on_update_done)
 {
 	int rc = -1;
 
@@ -794,8 +875,8 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 	if (fb->fourcc_modifier != DRM_FORMAT_MOD_LINEAR)
 		return -1;
 
-	struct rfb_pixel_format server_fmt;
-	if (rfb_pixfmt_from_fourcc(&server_fmt, fb->fourcc_format) < 0)
+	/* Scheduling new updates would cause racing */
+	if (self->n_pending_updates > 0)
 		return -1;
 
 	struct pixman_region16 region;
@@ -818,18 +899,7 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 		if (!pixman_region_not_empty(cregion))
 			continue;
 
-		struct vec frame;
-		rc = vec_init(&frame, fb->width * fb->height * 3 / 2);
-		if (rc < 0)
-			goto failure;
-
-		zrle_encode_frame(&client->z_stream, &frame, &client->pixfmt,
-				  fb, &server_fmt, cregion);
-
-		pixman_region_clear(cregion);
-
-		vnc__write((uv_stream_t*)&client->stream_handle, frame.data,
-			   frame.len, free_write_buffer);
+		schedule_client_update_fb(client, fb, &region, on_update_done);
 	}
 
 	rc = 0;

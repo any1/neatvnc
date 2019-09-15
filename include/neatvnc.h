@@ -54,6 +54,7 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t width, uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16 *damage, void *userdata);
+typedef void (*nvnc_update_done_fn)(struct nvnc*);
 
 struct nvnc *nvnc_open(const char *addr, uint16_t port);
 void nvnc_close(struct nvnc *self);
@@ -80,7 +81,8 @@ void nvnc_set_client_cleanup_fn(struct nvnc_client *self, nvnc_client_fn fn);
  * Only the region specified by the region argument is updated.
  */
 int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb* fb,
-                   const struct pixman_region16* region);
+                   const struct pixman_region16* region,
+                   nvnc_update_done_fn on_update_done);
 
 /*
  * Find the regions that differ between fb0 and fb1. Regions outside the hinted

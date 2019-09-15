@@ -6,6 +6,7 @@ SOURCES := \
 	src/vec.c \
 	src/zrle.c \
 	src/pixels.c \
+	src/damage.c \
 
 include common.mk
 

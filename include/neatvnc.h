@@ -53,6 +53,7 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t x, uint16_t y,
                                uint16_t width, uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
+typedef void (*nvnc_damage_fn)(struct pixman_region16 *damage, void *userdata);
 
 struct nvnc *nvnc_open(const char *addr, uint16_t port);
 void nvnc_close(struct nvnc *self);
@@ -80,3 +81,13 @@ void nvnc_set_client_cleanup_fn(struct nvnc_client *self, nvnc_client_fn fn);
  */
 int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb* fb,
                    const struct pixman_region16* region);
+
+/*
+ * Find the regions that differ between fb0 and fb1. Regions outside the hinted
+ * rectangle region are not guaranteed to be checked.
+ *
+ * This is a utility function that may be used to reduce network traffic.
+ */
+int nvnc_check_damage(const struct nvnc_fb *fb0, const struct nvnc_fb *fb1,
+		      int x_hint, int y_hint, int width_hint, int height_hint,
+		      nvnc_damage_fn on_check_done, void *userdata);

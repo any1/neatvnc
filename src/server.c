@@ -821,6 +821,8 @@ void on_client_update_fb_done(uv_work_t *work, int status)
 	if (--server->n_pending_updates == 0)
 		if (update->on_done)
 			update->on_done(server);
+
+	assert(server->n_pending_updates >= 0);
 }
 
 int schedule_client_update_fb(struct nvnc_client *client,
@@ -902,7 +904,7 @@ int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
 		schedule_client_update_fb(client, fb, &region, on_update_done);
 	}
 
-	rc = 0;
+	rc = self->n_pending_updates > 0 ? 0 : -1;
 failure:
 	pixman_region_fini(&region);
 	return rc;

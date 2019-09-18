@@ -71,6 +71,7 @@ struct nvnc_common {
 
 struct nvnc_client {
 	struct nvnc_common common;
+	int ref;
 	uv_tcp_t stream_handle;
 	struct nvnc *server;
 	enum nvnc_client_state state;
@@ -157,9 +158,29 @@ static void cleanup_client(uv_handle_t* handle)
 	free(client);
 }
 
+static inline void client_close(struct nvnc_client *client)
+{
+	uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+}
+
+static inline void client_unref(struct nvnc_client *client)
+{
+	if (--client->ref == 0)
+		client_close(client);
+}
+
+static inline void client_ref(struct nvnc_client *client)
+{
+	++client->ref;
+}
+
 static void close_after_write(uv_write_t *req, int status)
 {
-	uv_close((uv_handle_t*)req->handle, cleanup_client);
+	struct nvnc_client* client =
+		container_of((uv_tcp_t*)req->handle, struct nvnc_client,
+			     stream_handle);
+
+	client_unref(client);
 }
 
 static int handle_unsupported_version(struct nvnc_client *client)
@@ -257,8 +278,7 @@ static void disconnect_all_other_clients(struct nvnc_client *client)
 	struct nvnc_client *node;
 	LIST_FOREACH(node, &client->server->clients, link)
 		if (node != client)
-			uv_close((uv_handle_t*)&node->stream_handle,
-				 cleanup_client);
+			client_unref(client);
 }
 
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
@@ -428,7 +448,7 @@ static void send_server_init_message(struct nvnc_client *client)
 
 	struct rfb_server_init_msg *msg = calloc(1, size);
 	if (!msg) {
-		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+		client_unref(client);
 		return;
 	}
 
@@ -439,7 +459,7 @@ static void send_server_init_message(struct nvnc_client *client)
 
 	int rc = rfb_pixfmt_from_fourcc(&msg->pixel_format, display->pixfmt);
 	if (rc < 0) {
-		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+		client_unref(client);
 		return;
 	}
 
@@ -483,7 +503,7 @@ static int on_client_set_pixel_format(struct nvnc_client *client)
 
 	if (!fmt->true_colour_flag) {
 		/* We don't really know what to do with color maps right now */
-		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+		client_unref(client);
 		return 0;
 	}
 
@@ -623,7 +643,7 @@ static int on_client_message(struct nvnc_client *client)
 		return on_client_cut_text(client);
 	}
 
-	uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+	client_unref(client);
 	return 0;
 }
 
@@ -631,7 +651,7 @@ static int try_read_client_message(struct nvnc_client *client)
 {
 	switch (client->state) {
 	case VNC_CLIENT_STATE_ERROR:
-		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+		client_unref(client);
 		return 0;
 	case VNC_CLIENT_STATE_WAITING_FOR_VERSION:
 		return on_version_message(client);
@@ -650,24 +670,24 @@ static int try_read_client_message(struct nvnc_client *client)
 static void on_client_read(uv_stream_t *stream, ssize_t n_read,
 			   const uv_buf_t *buf)
 {
+	struct nvnc_client *client =
+		container_of((uv_tcp_t*)stream, struct nvnc_client,
+			     stream_handle);
+
 	if (n_read == UV_EOF) {
-		uv_close((uv_handle_t*)stream, cleanup_client);
+		client_unref(client);
 		return;
 	}
 
 	if (n_read < 0)
 		return;
 
-	struct nvnc_client *client =
-		container_of((uv_tcp_t*)stream, struct nvnc_client,
-			     stream_handle);
-
 	assert(client->buffer_index == 0);
 
 	if (n_read > MSG_BUFFER_SIZE - client->buffer_len) {
 		/* Can't handle this. Let's just give up */
 		client->state = VNC_CLIENT_STATE_ERROR;
-		uv_close((uv_handle_t*)stream, cleanup_client);
+		client_unref(client);
 		return;
 	}
 
@@ -699,6 +719,7 @@ static void on_connection(uv_stream_t *server_stream, int status)
 	if (!client)
 		return;
 
+	client->ref = 1;
 	client->server = server;
 
 	if (deflateInit(&client->z_stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
@@ -784,7 +805,7 @@ void nvnc_close(struct nvnc *self)
 	struct nvnc_client *client;
 
 	LIST_FOREACH(client, &self->clients, link)
-		uv_close((uv_handle_t*)&client->stream_handle, cleanup_client);
+		client_unref(client);
 
 	uv_unref((uv_handle_t*)&self->tcp_handle);
 	free(self);
@@ -815,14 +836,16 @@ void on_client_update_fb_done(uv_work_t *work, int status)
 	struct nvnc *server = client->server;
 	struct vec *frame = &update->frame;
 
-	vnc__write((uv_stream_t*)&client->stream_handle,
-		   frame->data, frame->len, free_write_buffer);
+	if (!uv_is_closing((uv_handle_t*)&client->stream_handle))
+		vnc__write((uv_stream_t*)&client->stream_handle,
+			   frame->data, frame->len, free_write_buffer);
 
 	if (--server->n_pending_updates == 0)
 		if (update->on_done)
 			update->on_done(server);
 
 	assert(server->n_pending_updates >= 0);
+	client_unref(client);
 }
 
 int schedule_client_update_fb(struct nvnc_client *client,
@@ -849,6 +872,8 @@ int schedule_client_update_fb(struct nvnc_client *client,
 	if (rc < 0)
 		goto vec_failure;
 
+	client_ref(client);
+
 	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
 			   on_client_update_fb_done);
 	if (rc < 0)
@@ -859,6 +884,7 @@ int schedule_client_update_fb(struct nvnc_client *client,
 	return 0;
 
 queue_failure:
+	client_unref(client);
 	vec_destroy(&work->frame);
 vec_failure:
 pixfmt_failure:

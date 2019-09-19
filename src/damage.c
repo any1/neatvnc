@@ -57,6 +57,8 @@ int check_damage_linear(struct pixman_region16 *damage,
 	int width = fb0->width;
 	int height = fb0->height;
 
+	bool y_invert = !!(fb0->nvnc_modifier & NVNC_MOD_Y_INVERT);
+
 	assert(x_hint + width_hint <= width);
 	assert(y_hint + height_hint <= height);
 
@@ -75,6 +77,9 @@ int check_damage_linear(struct pixman_region16 *damage,
 					    b1 + x + y * width,
 					    width, tile_width, tile_height))
 				continue;
+
+			if (y_invert)
+				y = height - y - tile_height;
 
 			pixman_region_union_rect(damage, damage, x, y,
 						 tile_width, tile_height);

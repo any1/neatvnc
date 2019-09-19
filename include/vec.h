@@ -52,7 +52,8 @@ static inline void vec_fast_append_32(struct vec* vec, uint32_t value)
 {
         assert(vec->len + sizeof(value) <= vec->cap);
         assert(vec->len % sizeof(value) == 0);
-        ((uint32_t*)vec->data)[vec->len] = value;
+        uint32_t* p = (uint32_t*)((uint8_t*)vec->data + vec->len);
+        *p = value;
         vec->len += sizeof(value);
 }
 

@@ -17,6 +17,7 @@
 #include "rfb-proto.h"
 #include "util.h"
 #include "zrle.h"
+#include "raw-encoding.h"
 #include "vec.h"
 #include "type-macros.h"
 #include "neatvnc.h"
@@ -42,18 +43,9 @@
 #define READ_BUFFER_SIZE 4096
 #define MSG_BUFFER_SIZE 4096
 
-#define EXPORT __attribute__((visibility("default")))
+#define MAX_ENCODINGS 32
 
-enum vnc_encodings {
-	VNC_ENCODING_RAW = 1 << 0,
-	VNC_ENCODING_COPYRECT = 1 << 1,
-	VNC_ENCODING_RRE = 1 << 2,
-	VNC_ENCODING_HEXTILE = 1 << 3,
-	VNC_ENCODING_TRLE = 1 << 4,
-	VNC_ENCODING_ZRLE = 1 << 5,
-	VNC_ENCODING_CURSOR = 1 << 6,
-	VNC_ENCODING_DESKTOPSIZE = 1 << 7,
-};
+#define EXPORT __attribute__((visibility("default")))
 
 enum nvnc_client_state {
 	VNC_CLIENT_STATE_ERROR = -1,
@@ -77,7 +69,8 @@ struct nvnc_client {
 	enum nvnc_client_state state;
 	uint32_t fourcc;
 	struct rfb_pixel_format pixfmt;
-	enum vnc_encodings encodings;
+	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
+	size_t n_encodings;
 	LIST_ENTRY(nvnc_client) link;
 	struct pixman_region16 requested_region;
 	nvnc_client_fn cleanup_fn;
@@ -524,23 +517,23 @@ static int on_client_set_encodings(struct nvnc_client *client)
 		(struct rfb_client_set_encodings_msg*)(client->msg_buffer +
 				client->buffer_index);
 
-	int n_encodings = ntohs(msg->n_encodings);
-
-	uint32_t e = 0;
+	int n_encodings = MIN(MAX_ENCODINGS, ntohs(msg->n_encodings));
+	int n = 0;
 
 	for (int i = 0; i < n_encodings; ++i)
 		switch (msg->encodings[i]) {
-		case RFB_ENCODING_RAW: e |= VNC_ENCODING_RAW;
-		case RFB_ENCODING_COPYRECT: e |= VNC_ENCODING_COPYRECT;
-		case RFB_ENCODING_RRE: e |= VNC_ENCODING_RRE;
-		case RFB_ENCODING_HEXTILE: e |= VNC_ENCODING_HEXTILE;
-		case RFB_ENCODING_TRLE: e |= VNC_ENCODING_TRLE;
-		case RFB_ENCODING_ZRLE: e |= VNC_ENCODING_ZRLE;
-		case RFB_ENCODING_CURSOR: e |= VNC_ENCODING_CURSOR;
-		case RFB_ENCODING_DESKTOPSIZE: e |= VNC_ENCODING_COPYRECT;
+		case RFB_ENCODING_RAW:
+		case RFB_ENCODING_COPYRECT:
+		case RFB_ENCODING_RRE:
+		case RFB_ENCODING_HEXTILE:
+		case RFB_ENCODING_TRLE:
+		case RFB_ENCODING_ZRLE:
+		case RFB_ENCODING_CURSOR:
+		case RFB_ENCODING_DESKTOPSIZE:
+			client->encodings[n++] = msg->encodings[i];
 		}
 
-	client->encodings = e;
+	client->n_encodings = n;
 
 	return sizeof(*msg) + 4 * n_encodings;
 }
@@ -817,14 +810,42 @@ static void free_write_buffer(uv_write_t *req, int status)
 	free(rq->buffer.base);
 }
 
+enum rfb_encodings choose_frame_encoding(struct nvnc_client *client)
+{
+	for (int i = 0; i < client->n_encodings; ++i)
+		switch (client->encodings[i]) {
+		case RFB_ENCODING_RAW:
+		case RFB_ENCODING_ZRLE:
+			return client->encodings[i];
+		default:
+			break;
+		}
+
+	return -1;
+}
+
 void do_client_update_fb(uv_work_t *work)
 {
 	struct fb_update_work *update = (void*)work;
 	struct nvnc_client *client = update->client;
 	const struct nvnc_fb *fb = update->fb;
 
-	zrle_encode_frame(&client->z_stream, &update->frame, &client->pixfmt,
-			  fb, &update->server_fmt, &update->region);
+	enum rfb_encodings encoding = choose_frame_encoding(client);
+	assert(encoding != -1);
+
+	switch (encoding) {
+	case RFB_ENCODING_RAW:
+		raw_encode_frame(&update->frame, &client->pixfmt, fb,
+				 &update->server_fmt, &update->region);
+		break;
+	case RFB_ENCODING_ZRLE:
+		zrle_encode_frame(&client->z_stream, &update->frame,
+				  &client->pixfmt, fb, &update->server_fmt,
+				  &update->region);
+		break;
+	default:
+		break;
+	}
 }
 
 void on_client_update_fb_done(uv_work_t *work, int status)

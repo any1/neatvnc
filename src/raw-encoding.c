@@ -29,13 +29,15 @@ int raw_encode_box(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 
 	uint32_t* b = fb->addr;
 
-	if (fb->nvnc_modifier & NVNC_MOD_Y_INVERT)
-		y_start = fb->height - y_start - height;
-
-	/* TODO: Pixel format conversion */
-	for (int y = y_start; y < y_start + height; ++y)
-		for (int x = x_start; x < x_start + width; ++x)
-			vec_fast_append_32(dst, b[x + y * stride]);
+	if (fb->nvnc_modifier & NVNC_MOD_Y_INVERT) {
+		for (int y = y_start; y < y_start + height; ++y)
+			for (int x = x_start; x < x_start + width; ++x)
+				vec_fast_append_32(dst, b[x + (fb->height - y - 1) * stride]);
+	} else {
+		for (int y = y_start; y < y_start + height; ++y)
+			for (int x = x_start; x < x_start + width; ++x)
+				vec_fast_append_32(dst, b[x + y * stride]);
+	}
 
 	return 0;
 }

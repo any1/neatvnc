@@ -73,13 +73,12 @@ int check_damage_linear(struct pixman_region16 *damage,
 		     x += TILE_SIDE_LENGTH) {
 			int tile_width = MIN(TILE_SIDE_LENGTH, width - x);
 
-			if (are_tiles_equal(b0 + x + y * width,
-					    b1 + x + y * width,
+			int offset = y_invert ? x + (height - y - tile_height) * width
+					      : x + y * width;
+
+			if (are_tiles_equal(b0 + offset, b1 + offset,
 					    width, tile_width, tile_height))
 				continue;
-
-			if (y_invert)
-				y = height - y - tile_height;
 
 			pixman_region_union_rect(damage, damage, x, y,
 						 tile_width, tile_height);

@@ -19,10 +19,6 @@ int raw_encode_box(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 		.height = htons(height),
 	};
 
-	rc = vec_reserve(dst, width * height * 4 + 256);
-	if (rc < 0)
-		return -1;
-
 	rc = vec_append(dst, &rect, sizeof(rect));
 	if (rc < 0)
 		return -1;
@@ -61,6 +57,10 @@ int raw_encode_frame(struct vec *dst,
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
 		.n_rects = htons(n_rects),
 	};
+
+	rc = vec_reserve(dst, src->width * src->height * 4 + 256);
+	if (rc < 0)
+		return -1;
 
 	rc = vec_append(dst, &head, sizeof(head));
 	if (rc < 0)

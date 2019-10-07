@@ -42,16 +42,19 @@ void memcpy_unoptimized(void* dst, const void* src, size_t len)
 }
 #pragma pop_options
 
-int read_png_file(struct nvnc_fb* fb, const char *filename);
+struct nvnc_fb* read_png_file(const char *filename);
 
 int run_benchmark(const char *image)
 {
 	int rc = -1;
 
-	struct nvnc_fb fb = { 0 };
-	rc = read_png_file(&fb, image);
-	if (rc < 0)
+	struct nvnc_fb* fb = read_png_file(image);
+	if (!fb)
 		return -1;
+
+	void *addr = nvnc_fb_get_addr(fb);
+	int width = nvnc_fb_get_width(fb);
+	int height = nvnc_fb_get_height(fb);
 
 	struct rfb_pixel_format pixfmt;
 	rfb_pixfmt_from_fourcc(&pixfmt, DRM_FORMAT_ARGB8888);
@@ -59,22 +62,22 @@ int run_benchmark(const char *image)
 	struct pixman_region16 region;
 	pixman_region_init(&region);
 
-	pixman_region_union_rect(&region, &region, 0, 0, fb.width, fb.height);
+	pixman_region_union_rect(&region, &region, 0, 0, width, height);
 
 	struct vec frame;
-	vec_init(&frame, fb.width * fb.height * 3 / 2);
+	vec_init(&frame, width * height * 3 / 2);
 
 	z_stream zs = { 0 };
 
 	deflateInit(&zs, Z_DEFAULT_COMPRESSION);
 
-	void *dummy = malloc(fb.width * fb.height * 4);
+	void *dummy = malloc(width * height * 4);
 	if (!dummy)
 		goto failure;
 
 	uint64_t start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 
-	memcpy_unoptimized(dummy, fb.addr, fb.width * fb.height * 4);
+	memcpy_unoptimized(dummy, addr, width * height * 4);
 
 	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("memcpy baseline for %s took %"PRIu64" micro seconds\n", image,
@@ -83,7 +86,7 @@ int run_benchmark(const char *image)
 	free(dummy);
 
 	start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
-	rc = zrle_encode_frame(&zs, &frame, &pixfmt, &fb, &pixfmt, &region);
+	rc = zrle_encode_frame(&zs, &frame, &pixfmt, fb, &pixfmt, &region);
 
 	end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
@@ -98,7 +101,7 @@ int run_benchmark(const char *image)
 failure:
 	pixman_region_fini(&region);
 	vec_destroy(&frame);
-	free(fb.addr);
+	nvnc_fb_unref(fb);
 	return 0;
 }
 

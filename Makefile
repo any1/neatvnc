@@ -8,6 +8,7 @@ SOURCES := \
 	src/raw-encoding.c \
 	src/pixels.c \
 	src/damage.c \
+	src/fb.c \
 
 include common.mk
 

@@ -21,6 +21,7 @@
 #include "miniz.h"
 #include "neatvnc.h"
 #include "pixels.h"
+#include "fb.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -250,14 +251,12 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		int tile_width = width - tile_x >= TILE_LENGTH ? TILE_LENGTH : width - tile_x;
 		int tile_height = height - tile_y >= TILE_LENGTH ? TILE_LENGTH : height - tile_y;
 
-		int y_off = !(fb->nvnc_modifier & NVNC_MOD_Y_INVERT)
-			  ? y + tile_y
-			  : fb->height - y - tile_y - tile_height;
+		int y_off = y + tile_y;
 
 		zrle_copy_tile(tile,
 			       ((uint32_t*)fb->addr) + x + tile_x + y_off * stride,
 			       stride, tile_width, tile_height,
-			       fb->nvnc_modifier);
+			       0);
 
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
 				 tile_width * tile_height);

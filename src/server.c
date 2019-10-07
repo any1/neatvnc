@@ -20,6 +20,7 @@
 #include "raw-encoding.h"
 #include "vec.h"
 #include "type-macros.h"
+#include "fb.h"
 #include "neatvnc.h"
 
 #include <stdlib.h>

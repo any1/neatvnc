@@ -1,4 +1,5 @@
 #include "neatvnc.h"
+#include "fb.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -30,8 +31,6 @@ static bool fbs_are_compatible(const struct nvnc_fb *fb0,
 			       const struct nvnc_fb *fb1)
 {
 	return fb0->fourcc_format == fb1->fourcc_format
-	    && fb0->fourcc_modifier == fb1->fourcc_modifier
-	    && fb0->nvnc_modifier == fb1->nvnc_modifier
 	    && fb0->width == fb1->width
 	    && fb0->height == fb1->height;
 }
@@ -57,7 +56,7 @@ int check_damage_linear(struct pixman_region16 *damage,
 	int width = fb0->width;
 	int height = fb0->height;
 
-	bool y_invert = !!(fb0->nvnc_modifier & NVNC_MOD_Y_INVERT);
+	bool y_invert = false;
 
 	assert(x_hint + width_hint <= width);
 	assert(y_hint + height_hint <= height);

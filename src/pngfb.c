@@ -13,7 +13,7 @@
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>
 
-int read_png_file(struct nvnc_fb* fb, const char *filename) {
+struct nvnc_fb* read_png_file(const char *filename) {
 	int width, height;
 	png_byte color_type;
 	png_byte bit_depth;
@@ -67,8 +67,11 @@ int read_png_file(struct nvnc_fb* fb, const char *filename) {
 	png_read_update_info(png, info);
 
 	size_t row_bytes = png_get_rowbytes(png, info);
-	uint8_t *addr = malloc(row_bytes * height);
-	assert(addr);
+	assert(row_bytes == width * 4);
+	struct nvnc_fb* fb = nvnc_fb_new(width, height, DRM_FORMAT_ARGB8888);
+	assert(fb);
+
+	uint8_t *addr = nvnc_fb_get_addr(fb);
 
 	row_pointers = malloc(sizeof(png_bytep) * height);
 	assert(row_pointers);
@@ -83,12 +86,5 @@ int read_png_file(struct nvnc_fb* fb, const char *filename) {
 
 	png_destroy_read_struct(&png, &info, NULL);
 
-	fb->addr = addr;
-	fb->size = width * height * 4;
-	fb->width = width;
-	fb->height = height;
-	fb->fourcc_format = DRM_FORMAT_ABGR8888;
-	fb->fourcc_modifier = DRM_FORMAT_MOD_LINEAR;
-
-	return 0;
+	return fb;
 }

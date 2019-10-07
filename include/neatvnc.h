@@ -21,6 +21,7 @@
 
 struct nvnc;
 struct nvnc_client;
+struct nvnc_fb;
 struct pixman_region16;
 
 enum nvnc_button_mask {
@@ -33,17 +34,6 @@ enum nvnc_button_mask {
 
 enum nvnc_modifier {
         NVNC_MOD_Y_INVERT = 1 << 0,
-};
-
-struct nvnc_fb {
-        void *addr;
-        uint32_t size;
-        uint16_t width;
-        uint16_t height;
-        uint32_t fourcc_format;
-        uint64_t fourcc_modifier;
-        enum nvnc_modifier nvnc_modifier;
-        uint32_t reserved[4];
 };
 
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t keysym, bool is_pressed);
@@ -74,6 +64,17 @@ void nvnc_set_pointer_fn(struct nvnc *self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc *self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc *self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client *self, nvnc_client_fn fn);
+
+struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
+                            uint32_t fourcc_format);
+
+void nvnc_fb_ref(struct nvnc_fb* fb);
+void nvnc_fb_unref(struct nvnc_fb* fb);
+
+void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
+uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
+uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
+uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 
 /*
  * Send an updated framebuffer to all clients with pending update requests.

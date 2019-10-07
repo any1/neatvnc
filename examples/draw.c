@@ -25,7 +25,7 @@
 #include <libdrm/drm_fourcc.h>
 
 struct draw {
-	struct nvnc_fb fb;
+	struct nvnc_fb* fb;
 };
 
 void on_fb_req(struct nvnc_client *client, bool incremental, uint16_t x, uint16_t y,
@@ -40,10 +40,12 @@ void on_fb_req(struct nvnc_client *client, bool incremental, uint16_t x, uint16_
 	struct draw *draw = nvnc_get_userdata(server);
 	assert(draw);
 
+	int fbwidth = nvnc_fb_get_width(draw->fb);
+	int fbheight = nvnc_fb_get_height(draw->fb);
+
 	struct pixman_region16 region;
-	pixman_region_init_rect(&region, 0, 0, draw->fb.width,
-				draw->fb.height);
-	nvnc_update_fb(server, &draw->fb, &region, NULL);
+	pixman_region_init_rect(&region, 0, 0, fbwidth, fbheight);
+	nvnc_update_fb(server, draw->fb, &region, NULL);
 	pixman_region_fini(&region);
 }
 
@@ -59,15 +61,16 @@ void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
 	struct draw *draw = nvnc_get_userdata(server);
 	assert(draw);
 
-	uint32_t *image = draw->fb.addr;
+	uint32_t *image = nvnc_fb_get_addr(draw->fb);
+	int width = nvnc_fb_get_width(draw->fb);
+	int height = nvnc_fb_get_height(draw->fb);
 
-	image[x + y * draw->fb.width] = 0;
+	image[x + y * width] = 0;
 
 	struct pixman_region16 region;
-	pixman_region_init_rect(&region, 0, 0, draw->fb.width,
-				draw->fb.height);
+	pixman_region_init_rect(&region, 0, 0, width, height);
 	pixman_region_intersect_rect(&region, &region, x, y, 1, 1);
-	nvnc_update_fb(server, &draw->fb, &region, NULL);
+	nvnc_update_fb(server, draw->fb, &region, NULL);
 	pixman_region_fini(&region);
 }
 
@@ -75,21 +78,18 @@ int main(int argc, char *argv[])
 {
 	struct draw draw; 
 
-	draw.fb.width = 500;
-	draw.fb.height = 500;
-	draw.fb.size = draw.fb.width * draw.fb.height * 4;
-	draw.fb.fourcc_format = DRM_FORMAT_RGBX8888;
-	draw.fb.fourcc_modifier = DRM_FORMAT_MOD_LINEAR;
+	int width = 500, height = 500;
+	uint32_t format = DRM_FORMAT_RGBX8888;
+	draw.fb = nvnc_fb_new(width, height, format);
+	assert(draw.fb);
 
-	draw.fb.addr = malloc(draw.fb.size);
-	assert(draw.fb.addr);
+	void* addr = nvnc_fb_get_addr(draw.fb);
 
-	memset(draw.fb.addr, 0xff, draw.fb.size);
+	memset(addr, 0xff, width * height * 4);
 
 	struct nvnc *server = nvnc_open("127.0.0.1", 5900);
 
-	nvnc_set_dimensions(server, draw.fb.width, draw.fb.height,
-			    draw.fb.fourcc_format);
+	nvnc_set_dimensions(server, width, height, format);
 	nvnc_set_name(server, "Draw");
 	nvnc_set_fb_req_fn(server, on_fb_req);
 	nvnc_set_pointer_fn(server, on_pointer_event);

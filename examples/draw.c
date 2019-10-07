@@ -28,27 +28,6 @@ struct draw {
 	struct nvnc_fb* fb;
 };
 
-void on_fb_req(struct nvnc_client *client, bool incremental, uint16_t x, uint16_t y,
-	       uint16_t width, uint16_t height)
-{
-	if (incremental)
-		return;
-
-	struct nvnc* server = nvnc_get_server(client);
-	assert(server);
-
-	struct draw *draw = nvnc_get_userdata(server);
-	assert(draw);
-
-	int fbwidth = nvnc_fb_get_width(draw->fb);
-	int fbheight = nvnc_fb_get_height(draw->fb);
-
-	struct pixman_region16 region;
-	pixman_region_init_rect(&region, 0, 0, fbwidth, fbheight);
-	nvnc_update_fb(server, draw->fb, &region, NULL);
-	pixman_region_fini(&region);
-}
-
 void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
 		      enum nvnc_button_mask buttons)
 {
@@ -70,7 +49,7 @@ void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, width, height);
 	pixman_region_intersect_rect(&region, &region, x, y, 1, 1);
-	nvnc_update_fb(server, draw->fb, &region, NULL);
+	nvnc_feed_frame(server, draw->fb, &region);
 	pixman_region_fini(&region);
 }
 
@@ -91,7 +70,6 @@ int main(int argc, char *argv[])
 
 	nvnc_set_dimensions(server, width, height, format);
 	nvnc_set_name(server, "Draw");
-	nvnc_set_fb_req_fn(server, on_fb_req);
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw);
 

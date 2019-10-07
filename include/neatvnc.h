@@ -44,7 +44,6 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t width, uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16 *damage, void *userdata);
-typedef void (*nvnc_update_done_fn)(struct nvnc*);
 
 struct nvnc *nvnc_open(const char *addr, uint16_t port);
 void nvnc_close(struct nvnc *self);
@@ -77,13 +76,11 @@ uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 
 /*
- * Send an updated framebuffer to all clients with pending update requests.
- *
- * Only the region specified by the region argument is updated.
+ * Feed a new frame to the server. The damaged region is sent to clients
+ * immediately.
  */
-int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb* fb,
-                   const struct pixman_region16* region,
-                   nvnc_update_done_fn on_update_done);
+int nvnc_feed_frame(struct nvnc *self, struct nvnc_fb* fb,
+                    const struct pixman_region16* damage);
 
 /*
  * Find the regions that differ between fb0 and fb1. Regions outside the hinted

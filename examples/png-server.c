@@ -23,25 +23,6 @@
 
 struct nvnc_fb* read_png_file(const char *filename);
 
-void on_fb_req(struct nvnc_client *client, bool incremental,
-	       uint16_t x, uint16_t y, uint16_t width, uint16_t height)
-{
-	if (incremental)
-		return;
-
-	struct nvnc *server = nvnc_get_server(client);
-	assert(server);
-
-	struct nvnc_fb *fb = nvnc_get_userdata(server);
-	assert(fb);
-
-	struct pixman_region16 region;
-	pixman_region_init_rect(&region, 0, 0, nvnc_fb_get_width(fb),
-				nvnc_fb_get_height(fb));
-	nvnc_update_fb(server, fb, &region, NULL);
-	pixman_region_fini(&region);
-}
-
 int main(int argc, char *argv[])
 {
 	const char *file = argv[1];
@@ -65,8 +46,12 @@ int main(int argc, char *argv[])
 
 	nvnc_set_dimensions(server, width, height, fourcc_format);
 	nvnc_set_name(server, file);
-	nvnc_set_fb_req_fn(server, on_fb_req);
-	nvnc_set_userdata(server, &fb);
+
+	struct pixman_region16 region;
+	pixman_region_init_rect(&region, 0, 0, nvnc_fb_get_width(fb),
+				nvnc_fb_get_height(fb));
+	nvnc_feed_frame(server, fb, &region);
+	pixman_region_fini(&region);
 
 	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 

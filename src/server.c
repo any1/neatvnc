@@ -73,7 +73,9 @@ struct nvnc_client {
 	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
 	size_t n_encodings;
 	LIST_ENTRY(nvnc_client) link;
-	struct pixman_region16 requested_region;
+	struct pixman_region16 damage;
+	int n_pending_requests;
+	bool is_updating;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
 	size_t buffer_index;
@@ -96,11 +98,11 @@ struct nvnc {
 	struct nvnc_client_list clients;
 	struct vnc_display display;
 	void *userdata;
-	int n_pending_updates;
 	nvnc_key_fn key_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
+	struct nvnc_fb* frame;
 };
 
 struct fb_update_work {
@@ -110,8 +112,9 @@ struct fb_update_work {
 	struct rfb_pixel_format server_fmt;
 	struct vec frame;
 	const struct nvnc_fb *fb;
-	nvnc_update_done_fn on_done;
 };
+
+int schedule_client_update_fb(struct nvnc_client *client);
 
 static const char* fourcc_to_string(uint32_t fourcc)
 {
@@ -148,7 +151,7 @@ static void cleanup_client(uv_handle_t* handle)
 	deflateEnd(&client->z_stream);
 
 	LIST_REMOVE(client, link);
-	pixman_region_fini(&client->requested_region);
+	pixman_region_fini(&client->damage);
 	free(client);
 }
 
@@ -539,6 +542,25 @@ static int on_client_set_encodings(struct nvnc_client *client)
 	return sizeof(*msg) + 4 * n_encodings;
 }
 
+static void process_fb_update_requests(struct nvnc_client *client)
+{
+	if (!client->server->frame)
+		return;
+
+	if (uv_is_closing((uv_handle_t*)&client->stream_handle))
+		return;
+
+	if (!pixman_region_not_empty(&client->damage))
+		return;
+
+	if (client->is_updating)
+		return;
+
+	client->is_updating = true;
+
+	schedule_client_update_fb(client);
+}
+
 static int on_client_fb_update_request(struct nvnc_client *client)
 {
 	struct nvnc *server = client->server;
@@ -553,13 +575,20 @@ static int on_client_fb_update_request(struct nvnc_client *client)
 	int width = ntohs(msg->width);
 	int height = ntohs(msg->height);
 
-	pixman_region_union_rect(&client->requested_region,
-				 &client->requested_region,
-				 x, y, width, height);
+	client->n_pending_requests++;
+
+	/* Note: The region sent from the client is ignored for incremental
+	 * updates. This avoids superfluous complexity.
+	 */
+	if (!incremental)
+		pixman_region_union_rect(&client->damage, &client->damage,
+					 x, y, width, height);
 
 	nvnc_fb_req_fn fn = server->fb_req_fn;
 	if (fn)
 		fn(client, incremental, x, y, width, height);
+
+	process_fb_update_requests(client);
 
 	return sizeof(*msg);
 }
@@ -721,7 +750,7 @@ static void on_connection(uv_stream_t *server_stream, int status)
 		return;
 	}
 
-	pixman_region_init(&client->requested_region);
+	pixman_region_init(&client->damage);
 
 	uv_tcp_init(uv_default_loop(), &client->stream_handle);
 
@@ -798,6 +827,9 @@ void nvnc_close(struct nvnc *self)
 {
 	struct nvnc_client *client;
 
+	if (self->frame)
+		nvnc_fb_unref(self->frame);
+
 	LIST_FOREACH(client, &self->clients, link)
 		client_unref(client);
 
@@ -862,19 +894,17 @@ void on_client_update_fb_done(uv_work_t *work, int status)
 		vnc__write((uv_stream_t*)&client->stream_handle,
 			   frame->data, frame->len, free_write_buffer);
 
-	if (--server->n_pending_updates == 0)
-		if (update->on_done)
-			update->on_done(server);
-
-	assert(server->n_pending_updates >= 0);
+	client->is_updating = false;
+	client->n_pending_requests--;
+	process_fb_update_requests(client);
 	client_unref(client);
 }
 
-int schedule_client_update_fb(struct nvnc_client *client,
-			      const struct nvnc_fb *fb,
-			      struct pixman_region16 *region,
-			      nvnc_update_done_fn on_update_done)
+int schedule_client_update_fb(struct nvnc_client *client)
 {
+	struct nvnc_fb* fb = client->server->frame;
+	assert(fb);
+
 	struct fb_update_work *work = calloc(1, sizeof(*work));
 	if (!work)
 		return -1;
@@ -884,11 +914,10 @@ int schedule_client_update_fb(struct nvnc_client *client,
 
 	work->client = client;
 	work->fb = fb;
-	work->on_done = on_update_done;
 
-	/* The client's region is exchanged for an empty one */
-	work->region = client->requested_region;
-	pixman_region_init(&client->requested_region);
+	/* The client's damage is exchanged for an empty one */
+	work->region = client->damage;
+	pixman_region_init(&client->damage);
 
 	int rc = vec_init(&work->frame, fb->width * fb->height * 3 / 2);
 	if (rc < 0)
@@ -900,8 +929,6 @@ int schedule_client_update_fb(struct nvnc_client *client,
 			   on_client_update_fb_done);
 	if (rc < 0)
 		goto queue_failure;
-
-	client->server->n_pending_updates++;
 
 	return 0;
 
@@ -915,47 +942,30 @@ pixfmt_failure:
 }
 
 EXPORT
-int nvnc_update_fb(struct nvnc *self, const struct nvnc_fb *fb,
-		   const struct pixman_region16 *input_region,
-		   nvnc_update_done_fn on_update_done)
+int nvnc_feed_frame(struct nvnc *self, struct nvnc_fb *fb,
+		    const struct pixman_region16 *damage)
 {
-	int rc = -1;
-
-	/* TODO: Support some more tiling modes */
-	if (fb->fourcc_modifier != DRM_FORMAT_MOD_LINEAR)
-		return -1;
-
-	/* Scheduling new updates would cause racing */
-	if (self->n_pending_updates > 0)
-		return -1;
-
-	struct pixman_region16 region;
-	pixman_region_init(&region);
-
-	pixman_region_intersect_rect(&region,
-				     (struct pixman_region16*)input_region,
-				     0, 0, fb->width, fb->height);
-
 	struct nvnc_client *client;
+
+	if (self->frame)
+		nvnc_fb_unref(self->frame);
+
+	self->frame = fb;
+	nvnc_fb_ref(self->frame);
 
 	LIST_FOREACH(client, &self->clients, link) {
 		if (uv_is_closing((uv_handle_t*)&client->stream_handle))
 			continue;
 
-		struct pixman_region16* cregion = &client->requested_region;
+		pixman_region_union(&client->damage, &client->damage,
+				    (struct pixman_region16*)damage);
+		pixman_region_intersect_rect(&client->damage, &client->damage,
+					     0, 0, fb->width, fb->height);
 
-		pixman_region_intersect(cregion, cregion, &region);
-
-		if (!pixman_region_not_empty(cregion))
-			continue;
-
-		schedule_client_update_fb(client, fb, &region, on_update_done);
+		process_fb_update_requests(client);
 	}
 
-	rc = self->n_pending_updates > 0 ? 0 : -1;
-failure:
-	pixman_region_fini(&region);
-	return rc;
+	return 0;
 }
 
 EXPORT

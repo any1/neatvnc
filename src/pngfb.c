@@ -68,7 +68,7 @@ struct nvnc_fb* read_png_file(const char *filename) {
 
 	size_t row_bytes = png_get_rowbytes(png, info);
 	assert(row_bytes == width * 4);
-	struct nvnc_fb* fb = nvnc_fb_new(width, height, DRM_FORMAT_ARGB8888);
+	struct nvnc_fb* fb = nvnc_fb_new(width, height, DRM_FORMAT_ABGR8888);
 	assert(fb);
 
 	uint8_t *addr = nvnc_fb_get_addr(fb);

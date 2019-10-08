@@ -32,10 +32,6 @@ enum nvnc_button_mask {
         NVNC_SCROLL_DOWN = 1 << 4,
 };
 
-enum nvnc_modifier {
-        NVNC_MOD_Y_INVERT = 1 << 0,
-};
-
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t keysym, bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
                                 enum nvnc_button_mask);

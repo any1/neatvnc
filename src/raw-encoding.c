@@ -26,15 +26,9 @@ int raw_encode_box(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 
 	uint32_t* b = fb->addr;
 
-	if (false) {
-		for (int y = y_start; y < y_start + height; ++y)
-			for (int x = x_start; x < x_start + width; ++x)
-				vec_fast_append_32(dst, b[x + (fb->height - y - 1) * stride]);
-	} else {
-		for (int y = y_start; y < y_start + height; ++y)
-			for (int x = x_start; x < x_start + width; ++x)
-				vec_fast_append_32(dst, b[x + y * stride]);
-	}
+	for (int y = y_start; y < y_start + height; ++y)
+		for (int x = x_start; x < x_start + width; ++x)
+			vec_fast_append_32(dst, b[x + y * stride]);
 
 	return 0;
 }

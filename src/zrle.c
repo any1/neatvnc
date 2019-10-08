@@ -139,15 +139,10 @@ void zrle_encode_packed_tile(struct vec *dst,
 }
 
 void zrle_copy_tile(uint32_t *dst, const uint32_t *src, int stride,
-		    int width, int height, enum nvnc_modifier mod)
+		    int width, int height)
 {
-	for (int y = 0; y < height; ++y) {
-		if (!(mod & NVNC_MOD_Y_INVERT))
-			memcpy(dst + y * width, src + y * stride, width * 4);
-		else
-			memcpy(dst + (height - y - 1) * width, src + y * stride,
-			       width * 4);
-	}
+	for (int y = 0; y < height; ++y)
+		memcpy(dst + y * width, src + y * stride, width * 4);
 }
 
 void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
@@ -255,8 +250,7 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 
 		zrle_copy_tile(tile,
 			       ((uint32_t*)fb->addr) + x + tile_x + y_off * stride,
-			       stride, tile_width, tile_height,
-			       0);
+			       stride, tile_width, tile_height);
 
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
 				 tile_width * tile_height);

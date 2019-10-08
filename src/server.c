@@ -524,8 +524,10 @@ static int on_client_set_encodings(struct nvnc_client *client)
 	int n_encodings = MIN(MAX_ENCODINGS, ntohs(msg->n_encodings));
 	int n = 0;
 
-	for (int i = 0; i < n_encodings; ++i)
-		switch (msg->encodings[i]) {
+	for (int i = 0; i < n_encodings; ++i) {
+		enum rfb_encodings encoding = htonl(msg->encodings[i]);
+
+		switch (encoding) {
 		case RFB_ENCODING_RAW:
 		case RFB_ENCODING_COPYRECT:
 		case RFB_ENCODING_RRE:
@@ -534,8 +536,9 @@ static int on_client_set_encodings(struct nvnc_client *client)
 		case RFB_ENCODING_ZRLE:
 		case RFB_ENCODING_CURSOR:
 		case RFB_ENCODING_DESKTOPSIZE:
-			client->encodings[n++] = msg->encodings[i];
+			client->encodings[n++] = encoding;
 		}
+	}
 
 	client->n_encodings = n;
 

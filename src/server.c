@@ -111,7 +111,7 @@ struct fb_update_work {
 	struct pixman_region16 region;
 	struct rfb_pixel_format server_fmt;
 	struct vec frame;
-	const struct nvnc_fb *fb;
+	struct nvnc_fb *fb;
 };
 
 int schedule_client_update_fb(struct nvnc_client *client);
@@ -897,6 +897,7 @@ void on_client_update_fb_done(uv_work_t *work, int status)
 	client->is_updating = false;
 	client->n_pending_requests--;
 	process_fb_update_requests(client);
+	nvnc_fb_unref(update->fb);
 	client_unref(client);
 }
 
@@ -924,6 +925,7 @@ int schedule_client_update_fb(struct nvnc_client *client)
 		goto vec_failure;
 
 	client_ref(client);
+	nvnc_fb_ref(fb);
 
 	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
 			   on_client_update_fb_done);
@@ -933,6 +935,7 @@ int schedule_client_update_fb(struct nvnc_client *client)
 	return 0;
 
 queue_failure:
+	nvnc_fb_unref(fb);
 	client_unref(client);
 	vec_destroy(&work->frame);
 vec_failure:

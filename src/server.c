@@ -748,7 +748,14 @@ static void on_connection(uv_stream_t *server_stream, int status)
 	client->ref = 1;
 	client->server = server;
 
-	if (deflateInit(&client->z_stream, Z_BEST_SPEED) != Z_OK) {
+	int rc = deflateInit2(&client->z_stream,
+			      /* compression level: */ 1,
+			      /*            method: */ Z_DEFLATED,
+			      /*       window bits: */ 15,
+			      /*         mem level: */ 9,
+			      /*          strategy: */ Z_DEFAULT_STRATEGY);
+
+	if (rc != Z_OK) {
 		free(client);
 		return;
 	}

@@ -69,7 +69,11 @@ int run_benchmark(const char *image)
 
 	z_stream zs = { 0 };
 
-	deflateInit(&zs, Z_DEFAULT_COMPRESSION);
+	deflateInit2(&zs, /* compression level: */ 1,
+			  /*            method: */ Z_DEFLATED,
+			  /*       window bits: */ 15,
+			  /*         mem level: */ 9,
+			  /*          strategy: */ Z_DEFAULT_STRATEGY);
 
 	void *dummy = malloc(width * height * 4);
 	if (!dummy)
@@ -91,6 +95,12 @@ int run_benchmark(const char *image)
 	end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
 	       end_time - start_time);
+
+	double orig_size = width * height * 4;
+	double compressed_size = frame.len;
+
+	double reduction = (orig_size - compressed_size) / orig_size;
+	printf("Size reduction: %.1f %%\n", reduction * 100.0);
 
 	deflateEnd(&zs);
 

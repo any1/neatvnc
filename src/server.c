@@ -556,7 +556,7 @@ static void process_fb_update_requests(struct nvnc_client *client)
 	if (!pixman_region_not_empty(&client->damage))
 		return;
 
-	if (client->is_updating)
+	if (client->is_updating || client->n_pending_requests == 0)
 		return;
 
 	client->is_updating = true;

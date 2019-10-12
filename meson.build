@@ -40,12 +40,22 @@ dependencies = [
 	libuv,
 ]
 
-shared_library(
+lib = shared_library(
 	'neatvnc',
 	sources,
+	version: '0.0.0',
 	dependencies: dependencies,
 	include_directories: inc,
 	install: true,
 )
 
 install_headers('include/neatvnc.h')
+
+pkgconfig = import('pkgconfig')
+pkgconfig.generate(
+	libraries: lib,
+	version: meson.project_version(),
+	filebase: meson.project_name(),
+	name: meson.project_name(),
+	description: 'A Neat VNC server library'
+)

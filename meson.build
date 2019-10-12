@@ -40,7 +40,7 @@ dependencies = [
 	libuv,
 ]
 
-lib = shared_library(
+neatvnc = shared_library(
 	'neatvnc',
 	sources,
 	version: '0.0.0',
@@ -49,11 +49,16 @@ lib = shared_library(
 	install: true,
 )
 
+neatvnc_dep = declare_dependency(
+	include_directories: inc,
+	link_with: neatvnc,
+)
+
 install_headers('include/neatvnc.h')
 
 pkgconfig = import('pkgconfig')
 pkgconfig.generate(
-	libraries: lib,
+	libraries: neatvnc,
 	version: meson.project_version(),
 	filebase: meson.project_name(),
 	name: meson.project_name(),

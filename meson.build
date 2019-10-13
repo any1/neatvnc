@@ -13,6 +13,22 @@ add_project_arguments([
 	'-fvisibility=hidden',
 ], language: 'c')
 
+cpu = host_machine.cpu_family()
+
+if cpu == 'x86_64'
+	arch_args = [
+		'-mavx',
+	]
+elif cpu == 'arm' or cpu == 'aarch64'
+	arch_args = [
+		'-mfpu=neon',
+	]
+else
+	arch_args = []
+endif
+
+add_project_arguments(arch_args, language: 'c')
+
 cc = meson.get_compiler('c')
 
 libm = cc.find_library('m', required: false)

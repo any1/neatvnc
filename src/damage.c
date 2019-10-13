@@ -56,8 +56,6 @@ int check_damage_linear(struct pixman_region16 *damage,
 	int width = fb0->width;
 	int height = fb0->height;
 
-	bool y_invert = false;
-
 	assert(x_hint + width_hint <= width);
 	assert(y_hint + height_hint <= height);
 
@@ -72,8 +70,7 @@ int check_damage_linear(struct pixman_region16 *damage,
 		     x += TILE_SIDE_LENGTH) {
 			int tile_width = MIN(TILE_SIDE_LENGTH, width - x);
 
-			int offset = y_invert ? x + (height - y - tile_height) * width
-					      : x + y * width;
+			int offset = x + y * width;
 
 			if (are_tiles_equal(b0 + offset, b1 + offset,
 					    width, tile_width, tile_height))

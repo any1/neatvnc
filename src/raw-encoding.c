@@ -2,6 +2,7 @@
 #include "rfb-proto.h"
 #include "vec.h"
 #include "fb.h"
+#include "pixels.h"
 
 #include <pixman.h>
 
@@ -26,9 +27,11 @@ int raw_encode_box(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 
 	uint32_t* b = fb->addr;
 
+	int bytes_per_pixel = dst_fmt->depth / 8;
+
 	for (int y = y_start; y < y_start + height; ++y)
-		for (int x = x_start; x < x_start + width; ++x)
-			vec_fast_append_32(dst, b[x + y * stride]);
+		pixel32_to_cpixel(dst->data, dst_fmt, b + y * stride, src_fmt,
+				  bytes_per_pixel, width);
 
 	return 0;
 }

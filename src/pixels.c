@@ -32,7 +32,7 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 	assert(dst_fmt->true_colour_flag);
 	assert(dst_fmt->bits_per_pixel <= 32);
 	assert(dst_fmt->depth <= 24);
-	assert(bytes_per_cpixel <= 3 && bytes_per_cpixel >= 1);
+	assert(bytes_per_cpixel <= 4 && bytes_per_cpixel >= 1);
 
 	uint32_t src_red_shift = src_fmt->red_shift;
 	uint32_t src_green_shift = src_fmt->green_shift;
@@ -86,6 +86,8 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 			dst_blue_shift -= min_dst_shift;
 		}
 
+		/* fallthrough */
+	case 4:
 		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
 
 		while (len--) {

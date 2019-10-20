@@ -1,0 +1,24 @@
+---
+BasedOnStyle: LLVM
+SortIncludes: false
+
+IndentWidth: 8
+ContinuationIndentWidth: 8
+
+UseTab: ForIndentation
+BreakBeforeBraces: Linux
+
+AllowShortIfStatementsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+
+IndentCaseLabels: false
+#IndentGotoLabels: false
+
+PointerAlignment: Left
+
+ForEachMacros:
+  - LIST_FOREACH
+
+PenaltyBreakAssignment: 2
+PenaltyExcessCharacter: 10
+...

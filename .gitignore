@@ -2,4 +2,5 @@
 vgcore.*
 perf.data
 perf.data.old
-build-*
+build
+experiments

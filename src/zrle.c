@@ -36,8 +36,8 @@
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
-static inline int find_colour_in_palette(uint32_t *palette, int len,
-					 uint32_t colour)
+static inline int find_colour_in_palette(uint32_t* palette, int len,
+                                         uint32_t colour)
 {
 	for (int i = 0; i < len; ++i)
 		if (palette[i] == colour)
@@ -46,7 +46,7 @@ static inline int find_colour_in_palette(uint32_t *palette, int len,
 	return -1;
 }
 
-int zrle_get_tile_palette(uint32_t *palette, const uint32_t *src, size_t length)
+int zrle_get_tile_palette(uint32_t* palette, const uint32_t* src, size_t length)
 {
 	int n = 0;
 
@@ -67,22 +67,22 @@ int zrle_get_tile_palette(uint32_t *palette, const uint32_t *src, size_t length)
 	return n;
 }
 
-void zrle_encode_unichrome_tile(struct vec *dst,
-				const struct rfb_pixel_format *dst_fmt,
-				uint32_t colour,
-				const struct rfb_pixel_format *src_fmt)
+void zrle_encode_unichrome_tile(struct vec* dst,
+                                const struct rfb_pixel_format* dst_fmt,
+                                uint32_t colour,
+                                const struct rfb_pixel_format* src_fmt)
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 
 	vec_fast_append_8(dst, 1);
 
 	pixel32_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, &colour, src_fmt,
-			  bytes_per_cpixel, 1);
+	                  bytes_per_cpixel, 1);
 
 	dst->len += bytes_per_cpixel;
 }
 
-void encode_run_length(struct vec *dst, uint8_t index, int run_length)
+void encode_run_length(struct vec* dst, uint8_t index, int run_length)
 {
 	if (run_length == 1) {
 		vec_fast_append_8(dst, index);
@@ -99,18 +99,17 @@ void encode_run_length(struct vec *dst, uint8_t index, int run_length)
 	vec_fast_append_8(dst, run_length - 1);
 }
 
-void zrle_encode_packed_tile(struct vec *dst,
-			     const struct rfb_pixel_format *dst_fmt,
-			     const uint32_t *src,
-			     const struct rfb_pixel_format *src_fmt,
-			     size_t length,
-			     uint32_t *palette, int palette_size)
+void zrle_encode_packed_tile(struct vec* dst,
+                             const struct rfb_pixel_format* dst_fmt,
+                             const uint32_t* src,
+                             const struct rfb_pixel_format* src_fmt,
+                             size_t length, uint32_t* palette, int palette_size)
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 
 	uint8_t cpalette[16 * 3];
-	pixel32_to_cpixel((uint8_t*)cpalette, dst_fmt, palette,
-			  src_fmt, bytes_per_cpixel, palette_size);
+	pixel32_to_cpixel((uint8_t*)cpalette, dst_fmt, palette, src_fmt,
+	                  bytes_per_cpixel, palette_size);
 
 	vec_fast_append_8(dst, 128 | palette_size);
 
@@ -125,30 +124,28 @@ void zrle_encode_packed_tile(struct vec *dst,
 			continue;
 		}
 
-		index = find_colour_in_palette(palette, palette_size,
-					       src[i - 1]);
+		index = find_colour_in_palette(palette, palette_size, src[i - 1]);
 		encode_run_length(dst, index, run_length);
 		run_length = 1;
 	}
 
 	if (run_length > 0) {
 		index = find_colour_in_palette(palette, palette_size,
-					       src[length - 1]);
+		                               src[length - 1]);
 		encode_run_length(dst, index, run_length);
 	}
 }
 
-void zrle_copy_tile(uint32_t *dst, const uint32_t *src, int stride,
-		    int width, int height)
+void zrle_copy_tile(uint32_t* dst, const uint32_t* src, int stride, int width,
+                    int height)
 {
 	for (int y = 0; y < height; ++y)
 		memcpy(dst + y * width, src + y * stride, width * 4);
 }
 
-void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
-		      const uint32_t *src,
-		      const struct rfb_pixel_format *src_fmt,
-		      size_t length)
+void zrle_encode_tile(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
+                      const uint32_t* src,
+                      const struct rfb_pixel_format* src_fmt, size_t length)
 {
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 
@@ -164,20 +161,19 @@ void zrle_encode_tile(struct vec *dst, const struct rfb_pixel_format *dst_fmt,
 
 	if (palette_size > 1) {
 		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt, length,
-					palette, palette_size);
+		                        palette, palette_size);
 		return;
 	}
 
 	vec_fast_append_8(dst, 0);
 
 	pixel32_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, src, src_fmt,
-			  bytes_per_cpixel, length);
+	                  bytes_per_cpixel, length);
 
 	dst->len += bytes_per_cpixel * length;
 }
 
-int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
-		 bool flush)
+int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs, bool flush)
 {
 	int r = Z_STREAM_ERROR;
 
@@ -202,18 +198,17 @@ int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
 	return 0;
 }
 
-int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
-		    const struct nvnc_fb *fb,
-		    const struct rfb_pixel_format *src_fmt,
-		    int x, int y, int stride, int width, int height,
-		    z_stream* zs)
+int zrle_encode_box(struct vec* out, const struct rfb_pixel_format* dst_fmt,
+                    const struct nvnc_fb* fb,
+                    const struct rfb_pixel_format* src_fmt, int x, int y,
+                    int stride, int width, int height, z_stream* zs)
 {
 	int r = -1;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
 	int chunk_size = 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH;
 	struct vec in;
 
-	uint32_t *tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);
+	uint32_t* tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);
 	if (!tile)
 		goto failure;
 
@@ -221,11 +216,11 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 		goto failure;
 
 	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_ZRLE),
-		.x = htons(x),
-		.y = htons(y),
-		.width = htons(width),
-		.height = htons(height),
+	        .encoding = htonl(RFB_ENCODING_ZRLE),
+	        .x = htons(x),
+	        .y = htons(y),
+	        .width = htons(width),
+	        .height = htons(height),
 	};
 
 	r = vec_append(out, &rect, sizeof(rect));
@@ -236,24 +231,26 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format *dst_fmt,
 	size_t size_index = out->len;
 	vec_append_zero(out, 4);
 
-	int n_tiles =
-		UDIV_UP(width, TILE_LENGTH) * UDIV_UP(height, TILE_LENGTH);
+	int n_tiles = UDIV_UP(width, TILE_LENGTH) * UDIV_UP(height, TILE_LENGTH);
 
 	for (int i = 0; i < n_tiles; ++i) {
 		int tile_x = (i % UDIV_UP(width, TILE_LENGTH)) * TILE_LENGTH;
 		int tile_y = (i / UDIV_UP(width, TILE_LENGTH)) * TILE_LENGTH;
 
-		int tile_width = width - tile_x >= TILE_LENGTH ? TILE_LENGTH : width - tile_x;
-		int tile_height = height - tile_y >= TILE_LENGTH ? TILE_LENGTH : height - tile_y;
+		int tile_width = width - tile_x >= TILE_LENGTH ? TILE_LENGTH
+		                                               : width - tile_x;
+		int tile_height = height - tile_y >= TILE_LENGTH
+		                          ? TILE_LENGTH
+		                          : height - tile_y;
 
 		int y_off = y + tile_y;
 
 		zrle_copy_tile(tile,
-			       ((uint32_t*)fb->addr) + x + tile_x + y_off * stride,
-			       stride, tile_width, tile_height);
+		               ((uint32_t*)fb->addr) + x + tile_x + y_off * stride,
+		               stride, tile_width, tile_height);
 
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
-				 tile_width * tile_height);
+		                 tile_width * tile_height);
 
 		r = zrle_deflate(out, &in, zs, i == n_tiles - 1);
 		if (r < 0)
@@ -270,25 +267,24 @@ failure:
 #undef CHUNK
 }
 
-int zrle_encode_frame(z_stream *zs,
-		      struct vec* dst,
-		      const struct rfb_pixel_format *dst_fmt,
-		      const struct nvnc_fb *src,
-		      const struct rfb_pixel_format *src_fmt,
-		      struct pixman_region16 *region)
+int zrle_encode_frame(z_stream* zs, struct vec* dst,
+                      const struct rfb_pixel_format* dst_fmt,
+                      const struct nvnc_fb* src,
+                      const struct rfb_pixel_format* src_fmt,
+                      struct pixman_region16* region)
 {
 	int rc = -1;
 
 	int n_rects = 0;
-	struct pixman_box16 *box = pixman_region_rectangles(region, &n_rects);
+	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
 	if (n_rects > UINT16_MAX) {
 		box = pixman_region_extents(region);
 		n_rects = 1;
 	}
 
 	struct rfb_server_fb_update_msg head = {
-		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(n_rects),
+	        .type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+	        .n_rects = htons(n_rects),
 	};
 
 	rc = vec_append(dst, &head, sizeof(head));
@@ -302,7 +298,7 @@ int zrle_encode_frame(z_stream *zs,
 		int box_height = box[i].y2 - y;
 
 		rc = zrle_encode_box(dst, dst_fmt, src, src_fmt, x, y,
-				     src->width, box_width, box_height, zs);
+		                     src->width, box_width, box_height, zs);
 		if (rc < 0)
 			return -1;
 	}

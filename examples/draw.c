@@ -28,19 +28,19 @@ struct draw {
 	struct nvnc_fb* fb;
 };
 
-void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
-		      enum nvnc_button_mask buttons)
+void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
+                      enum nvnc_button_mask buttons)
 {
 	if (!(buttons & NVNC_BUTTON_LEFT))
 		return;
 
-	struct nvnc *server = nvnc_get_server(client);
+	struct nvnc* server = nvnc_get_server(client);
 	assert(server);
 
-	struct draw *draw = nvnc_get_userdata(server);
+	struct draw* draw = nvnc_get_userdata(server);
 	assert(draw);
 
-	uint32_t *image = nvnc_fb_get_addr(draw->fb);
+	uint32_t* image = nvnc_fb_get_addr(draw->fb);
 	int width = nvnc_fb_get_width(draw->fb);
 	int height = nvnc_fb_get_height(draw->fb);
 
@@ -53,9 +53,9 @@ void on_pointer_event(struct nvnc_client *client, uint16_t x, uint16_t y,
 	pixman_region_fini(&region);
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-	struct draw draw; 
+	struct draw draw;
 
 	int width = 500, height = 500;
 	uint32_t format = DRM_FORMAT_RGBX8888;
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
 	memset(addr, 0xff, width * height * 4);
 
-	struct nvnc *server = nvnc_open("127.0.0.1", 5900);
+	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 
 	nvnc_set_dimensions(server, width, height, format);
 	nvnc_set_name(server, "Draw");

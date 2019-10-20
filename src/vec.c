@@ -50,7 +50,7 @@ static int vec__grow(struct vec* vec, size_t size)
 {
 	if (likely(vec->len + size < vec->cap))
 		return 0;
-	
+
 	return vec_reserve(vec, 2 * (vec->len + size));
 }
 

@@ -18,13 +18,13 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define POPCOUNT(x) __builtin_popcount(x)   
+#define POPCOUNT(x) __builtin_popcount(x)
 
-void pixel32_to_cpixel(uint8_t *restrict dst,
-		       const struct rfb_pixel_format* dst_fmt,
-		       const uint32_t *restrict src,
-		       const struct rfb_pixel_format* src_fmt,
-		       size_t bytes_per_cpixel, size_t len)
+void pixel32_to_cpixel(uint8_t* restrict dst,
+                       const struct rfb_pixel_format* dst_fmt,
+                       const uint32_t* restrict src,
+                       const struct rfb_pixel_format* src_fmt,
+                       size_t bytes_per_cpixel, size_t len)
 {
 	assert(src_fmt->true_colour_flag);
 	assert(src_fmt->bits_per_pixel == 32);
@@ -60,16 +60,16 @@ void pixel32_to_cpixel(uint8_t *restrict dst,
 
 	uint32_t dst_endian_correction;
 
-#define CONVERT_PIXELS(cpx, px) \
-	{ \
-		uint32_t r, g, b; \
-		r = ((px >> src_red_shift) & src_red_max) << dst_red_bits \
-			>> src_red_bits << dst_red_shift; \
-		g = ((px >> src_green_shift) & src_green_max) << dst_green_bits \
-			>> src_green_bits << dst_green_shift; \
-		b = ((px >> src_blue_shift) & src_blue_max) << dst_blue_bits \
-			>> src_blue_bits << dst_blue_shift; \
-		cpx = r | g | b; \
+#define CONVERT_PIXELS(cpx, px)                                                \
+	{                                                                      \
+		uint32_t r, g, b;                                              \
+		r = ((px >> src_red_shift) & src_red_max) << dst_red_bits      \
+		        >> src_red_bits << dst_red_shift;                      \
+		g = ((px >> src_green_shift) & src_green_max) << dst_green_bits\
+		        >> src_green_bits << dst_green_shift;                  \
+		b = ((px >> src_blue_shift) & src_blue_max) << dst_blue_bits   \
+		        >> src_blue_bits << dst_blue_shift;                    \
+		cpx = r | g | b;                                               \
 	}
 
 	switch (bytes_per_cpixel) {

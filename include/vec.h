@@ -44,30 +44,30 @@ void* vec_append_zero(struct vec* vec, size_t size);
 
 static inline void vec_fast_append_8(struct vec* vec, uint8_t value)
 {
-        assert(vec->len < vec->cap);
-        ((uint8_t*)vec->data)[vec->len++] = value;
+	assert(vec->len < vec->cap);
+	((uint8_t*)vec->data)[vec->len++] = value;
 }
 
 static inline void vec_fast_append_32(struct vec* vec, uint32_t value)
 {
-        assert(vec->len + sizeof(value) <= vec->cap);
-        assert(vec->len % sizeof(value) == 0);
-        uint32_t* p = (uint32_t*)((uint8_t*)vec->data + vec->len);
-        *p = value;
-        vec->len += sizeof(value);
+	assert(vec->len + sizeof(value) <= vec->cap);
+	assert(vec->len % sizeof(value) == 0);
+	uint32_t* p = (uint32_t*)((uint8_t*)vec->data + vec->len);
+	*p = value;
+	vec->len += sizeof(value);
 }
 
-#define vec_for(elem, vec) \
-	for (elem = (vec)->data; \
-	     ((ptrdiff_t)elem - (ptrdiff_t)(vec)->data) < (ptrdiff_t)(vec)->len; \
+#define vec_for(elem, vec)                                                     \
+	for (elem = (vec)->data;                                               \
+             ((ptrdiff_t)elem - (ptrdiff_t)(vec)->data) < (ptrdiff_t)(vec)->len;\
 	     ++elem)
 
-#define vec_for_tail(elem, vec) \
-	for (elem = (vec)->data, ++elem; \
-	     ((ptrdiff_t)elem - (ptrdiff_t)(vec)->data) < (ptrdiff_t)(vec)->len; \
+#define vec_for_tail(elem, vec)                                                \
+	for (elem = (vec)->data, ++elem;                                       \
+	     ((ptrdiff_t)elem - (ptrdiff_t)(vec)->data) < (ptrdiff_t)(vec)->len;\
 	     ++elem)
 
-#define vec_for_ptr(elem, vec) \
-	__typeof__(elem)* ptr_; \
-	vec_for(ptr_, vec) \
-		if ((elem = *ptr_))
+#define vec_for_ptr(elem, vec)                                                 \
+	__typeof__(elem)* ptr_;                                                \
+	vec_for(ptr_, vec)                                                     \
+                if ((elem = *ptr_))

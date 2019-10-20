@@ -21,11 +21,11 @@
 #include <assert.h>
 #include <pixman.h>
 
-struct nvnc_fb* read_png_file(const char *filename);
+struct nvnc_fb* read_png_file(const char* filename);
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-	const char *file = argv[1];
+	const char* file = argv[1];
 
 	if (!file) {
 		printf("Missing argument\n");
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	struct nvnc *server = nvnc_open("127.0.0.1", 5900);
+	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 
 	int width = nvnc_fb_get_width(fb);
 	int height = nvnc_fb_get_height(fb);
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, nvnc_fb_get_width(fb),
-				nvnc_fb_get_height(fb));
+	                        nvnc_fb_get_height(fb));
 	nvnc_feed_frame(server, fb, &region);
 	pixman_region_fini(&region);
 

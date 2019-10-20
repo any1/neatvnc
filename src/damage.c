@@ -16,27 +16,26 @@
 
 struct damage_check {
 	uv_work_t work;
-	const struct nvnc_fb *fb0;
-	const struct nvnc_fb *fb1;
+	const struct nvnc_fb* fb0;
+	const struct nvnc_fb* fb1;
 	int x_hint;
 	int y_hint;
 	int width_hint;
 	int height_hint;
 	nvnc_damage_fn on_done;
 	struct pixman_region16 damage;
-	void *userdata;
+	void* userdata;
 };
 
-static bool fbs_are_compatible(const struct nvnc_fb *fb0,
-			       const struct nvnc_fb *fb1)
+static bool fbs_are_compatible(const struct nvnc_fb* fb0,
+                               const struct nvnc_fb* fb1)
 {
-	return fb0->fourcc_format == fb1->fourcc_format
-	    && fb0->width == fb1->width
-	    && fb0->height == fb1->height;
+	return fb0->fourcc_format == fb1->fourcc_format &&
+	       fb0->width == fb1->width && fb0->height == fb1->height;
 }
 
 static inline bool are_tiles_equal(const uint32_t* a, const uint32_t* b,
-				   int stride, int width, int height)
+                                   int stride, int width, int height)
 {
 	for (int y = 0; y < height; ++y)
 		if (memcmp(a + y * stride, b + y * stride, width * 4) != 0)
@@ -46,12 +45,12 @@ static inline bool are_tiles_equal(const uint32_t* a, const uint32_t* b,
 }
 
 #define TILE_SIDE_LENGTH 32
-int check_damage_linear(struct pixman_region16 *damage,
-			const struct nvnc_fb *fb0, const struct nvnc_fb *fb1,
-			int x_hint, int y_hint, int width_hint, int height_hint)
+int check_damage_linear(struct pixman_region16* damage,
+                        const struct nvnc_fb* fb0, const struct nvnc_fb* fb1,
+                        int x_hint, int y_hint, int width_hint, int height_hint)
 {
-	uint32_t *b0 = fb0->addr;
-	uint32_t *b1 = fb1->addr;
+	uint32_t* b0 = fb0->addr;
+	uint32_t* b1 = fb1->addr;
 
 	int width = fb0->width;
 	int height = fb0->height;
@@ -61,9 +60,8 @@ int check_damage_linear(struct pixman_region16 *damage,
 
 	int x_start = ALIGN_DOWN(x_hint, TILE_SIDE_LENGTH);
 	int y_start = ALIGN_DOWN(y_hint, TILE_SIDE_LENGTH);
-	
-	for (int y = y_start; y < y_start + height_hint;
-	     y += TILE_SIDE_LENGTH) {
+
+	for (int y = y_start; y < y_start + height_hint; y += TILE_SIDE_LENGTH) {
 		int tile_height = MIN(TILE_SIDE_LENGTH, height - y);
 
 		for (int x = x_start; x < x_start + width_hint;
@@ -72,12 +70,12 @@ int check_damage_linear(struct pixman_region16 *damage,
 
 			int offset = x + y * width;
 
-			if (are_tiles_equal(b0 + offset, b1 + offset,
-					    width, tile_width, tile_height))
+			if (are_tiles_equal(b0 + offset, b1 + offset, width,
+			                    tile_width, tile_height))
 				continue;
 
 			pixman_region_union_rect(damage, damage, x, y,
-						 tile_width, tile_height);
+			                         tile_width, tile_height);
 		}
 	}
 
@@ -85,20 +83,20 @@ int check_damage_linear(struct pixman_region16 *damage,
 }
 #undef TILE_SIDE_LENGTH
 
-void do_damage_check_linear(uv_work_t *work)
+void do_damage_check_linear(uv_work_t* work)
 {
-	struct damage_check *check = (void*)work;
+	struct damage_check* check = (void*)work;
 
 	check_damage_linear(&check->damage, check->fb0, check->fb1,
-			    check->x_hint, check->y_hint,
-			    check->width_hint, check->height_hint);
+	                    check->x_hint, check->y_hint, check->width_hint,
+	                    check->height_hint);
 }
 
-void on_damage_check_done_linear(uv_work_t *work, int status)
+void on_damage_check_done_linear(uv_work_t* work, int status)
 {
 	(void)status;
 
-	struct damage_check *check = (void*)work;
+	struct damage_check* check = (void*)work;
 
 	check->on_done(&check->damage, check->userdata);
 
@@ -106,14 +104,12 @@ void on_damage_check_done_linear(uv_work_t *work, int status)
 	free(check);
 }
 
-int check_damage_linear_threaded(const struct nvnc_fb *fb0,
-				 const struct nvnc_fb *fb1,
-				 int x_hint, int y_hint,
-				 int width_hint, int height_hint,
-				 nvnc_damage_fn on_check_done,
-				 void *userdata)
+int check_damage_linear_threaded(const struct nvnc_fb* fb0,
+                                 const struct nvnc_fb* fb1, int x_hint,
+                                 int y_hint, int width_hint, int height_hint,
+                                 nvnc_damage_fn on_check_done, void* userdata)
 {
-	struct damage_check *work = calloc(1, sizeof(*work));
+	struct damage_check* work = calloc(1, sizeof(*work));
 	if (!work)
 		return -1;
 
@@ -129,8 +125,8 @@ int check_damage_linear_threaded(const struct nvnc_fb *fb0,
 
 	/* TODO: Spread the work into more tasks */
 	int rc = uv_queue_work(uv_default_loop(), &work->work,
-			       do_damage_check_linear,
-			       on_damage_check_done_linear);
+	                       do_damage_check_linear,
+	                       on_damage_check_done_linear);
 	if (rc < 0)
 		free(work);
 
@@ -138,9 +134,9 @@ int check_damage_linear_threaded(const struct nvnc_fb *fb0,
 }
 
 EXPORT
-int nvnc_check_damage(const struct nvnc_fb *fb0, const struct nvnc_fb *fb1,
-		      int x_hint, int y_hint, int width_hint, int height_hint,
-		      nvnc_damage_fn on_check_done, void *userdata)
+int nvnc_check_damage(const struct nvnc_fb* fb0, const struct nvnc_fb* fb1,
+                      int x_hint, int y_hint, int width_hint, int height_hint,
+                      nvnc_damage_fn on_check_done, void* userdata)
 {
 	if (!fbs_are_compatible(fb0, fb1))
 		return -1;
@@ -148,8 +144,8 @@ int nvnc_check_damage(const struct nvnc_fb *fb0, const struct nvnc_fb *fb1,
 	switch (fb0->fourcc_modifier) {
 	case DRM_FORMAT_MOD_LINEAR:
 		return check_damage_linear_threaded(fb0, fb1, x_hint, y_hint,
-						    width_hint, height_hint,
-						    on_check_done, userdata);
+		                                    width_hint, height_hint,
+		                                    on_check_done, userdata);
 	}
 
 	return -1;

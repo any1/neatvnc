@@ -26,9 +26,9 @@
 #define RFB_PACKED __attribute__((packed))
 
 enum rfb_security_type {
-        RFB_SECURITY_TYPE_INVALID = 0,
-        RFB_SECURITY_TYPE_NONE = 1,
-        RFB_SECURITY_TYPE_VNC_AUTH = 2,
+	RFB_SECURITY_TYPE_INVALID = 0,
+	RFB_SECURITY_TYPE_NONE = 1,
+	RFB_SECURITY_TYPE_VNC_AUTH = 2,
 };
 
 enum rfb_security_handshake_result {
@@ -57,15 +57,15 @@ enum rfb_encodings {
 };
 
 enum rfb_server_to_client_msg_type {
-        RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE = 0,
-        RFB_SERVER_TO_CLIENT_SET_COLOUR_MAP_ENTRIES = 1,
-        RFB_SERVER_TO_CLIENT_BELL = 2,
-        RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT = 3,
+	RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE = 0,
+	RFB_SERVER_TO_CLIENT_SET_COLOUR_MAP_ENTRIES = 1,
+	RFB_SERVER_TO_CLIENT_BELL = 2,
+	RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT = 3,
 };
 
 struct rfb_security_types_msg {
-        uint8_t n;
-        uint8_t types[1];
+	uint8_t n;
+	uint8_t types[1];
 } RFB_PACKED;
 
 struct rfb_error_reason {
@@ -96,52 +96,52 @@ struct rfb_server_init_msg {
 } RFB_PACKED;
 
 struct rfb_client_set_encodings_msg {
-        uint8_t type;
-        uint8_t padding;
-        uint16_t n_encodings;
-        int32_t encodings[0];
+	uint8_t type;
+	uint8_t padding;
+	uint16_t n_encodings;
+	int32_t encodings[0];
 } RFB_PACKED;
 
 struct rfb_client_fb_update_req_msg {
 	uint8_t type;
-        uint8_t incremental;
-        uint16_t x;
-        uint16_t y;
-        uint16_t width;
-        uint16_t height;
+	uint8_t incremental;
+	uint16_t x;
+	uint16_t y;
+	uint16_t width;
+	uint16_t height;
 } RFB_PACKED;
 
 struct rfb_client_key_event_msg {
-        uint8_t type;
-        uint8_t down_flag;
-        uint16_t padding;
-        uint32_t key;
+	uint8_t type;
+	uint8_t down_flag;
+	uint16_t padding;
+	uint32_t key;
 } RFB_PACKED;
 
 struct rfb_client_pointer_event_msg {
-        uint8_t type;
-        uint8_t button_mask;
-        uint16_t x;
-        uint16_t y;
+	uint8_t type;
+	uint8_t button_mask;
+	uint16_t x;
+	uint16_t y;
 } RFB_PACKED;
 
 struct rfb_client_cut_text_msg {
 	uint8_t type;
-        uint8_t padding[3];
-        uint32_t length;
-        char test[0];
+	uint8_t padding[3];
+	uint32_t length;
+	char test[0];
 } RFB_PACKED;
 
 struct rfb_server_fb_rect {
-        uint16_t x;
-        uint16_t y;
-        uint16_t width;
-        uint16_t height;
-        int32_t encoding;
+	uint16_t x;
+	uint16_t y;
+	uint16_t width;
+	uint16_t height;
+	int32_t encoding;
 } RFB_PACKED;
 
 struct rfb_server_fb_update_msg {
-        uint8_t type;
-        uint8_t padding;
-        uint16_t n_rects;
+	uint8_t type;
+	uint8_t padding;
+	uint16_t n_rects;
 } RFB_PACKED;

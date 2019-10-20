@@ -26,9 +26,8 @@ struct rfb_pixel_format;
 struct pixman_region16;
 struct vec;
 
-int zrle_encode_frame(z_stream *zs,
-		      struct vec *dst,
-		      const struct rfb_pixel_format *dst_fmt,
-		      const struct nvnc_fb *src,
-		      const struct rfb_pixel_format *src_fmt,
-		      struct pixman_region16 *region);
+int zrle_encode_frame(z_stream* zs, struct vec* dst,
+                      const struct rfb_pixel_format* dst_fmt,
+                      const struct nvnc_fb* src,
+                      const struct rfb_pixel_format* src_fmt,
+                      struct pixman_region16* region);

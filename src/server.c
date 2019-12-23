@@ -45,6 +45,7 @@
 #define MSG_BUFFER_SIZE 4096
 
 #define MAX_ENCODINGS 32
+#define MAX_OUTGOING_FRAMES 4
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -75,6 +76,7 @@ struct nvnc_client {
 	LIST_ENTRY(nvnc_client) link;
 	struct pixman_region16 damage;
 	int n_pending_requests;
+	int n_outgoing_frames;
 	bool is_updating;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
@@ -526,6 +528,10 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	int n_encodings = MIN(MAX_ENCODINGS, ntohs(msg->n_encodings));
 	int n = 0;
 
+	if (client->buffer_len - client->buffer_index <
+	    sizeof(*msg) + n_encodings * 4)
+		return 0;
+
 	for (int i = 0; i < n_encodings; ++i) {
 		enum rfb_encodings encoding = htonl(msg->encodings[i]);
 
@@ -574,6 +580,9 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	        (struct rfb_client_fb_update_req_msg*)(client->msg_buffer +
 	                                               client->buffer_index);
 
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
 	int incremental = msg->incremental;
 	int x = ntohs(msg->x);
 	int y = ntohs(msg->y);
@@ -606,6 +615,9 @@ static int on_client_key_event(struct nvnc_client* client)
 	        (struct rfb_client_key_event_msg*)(client->msg_buffer +
 	                                           client->buffer_index);
 
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
 	int down_flag = msg->down_flag;
 	uint32_t keysym = ntohl(msg->key);
 
@@ -624,6 +636,9 @@ static int on_client_pointer_event(struct nvnc_client* client)
 	        (struct rfb_client_pointer_event_msg*)(client->msg_buffer +
 	                                               client->buffer_index);
 
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
 	int button_mask = msg->button_mask;
 	uint16_t x = ntohs(msg->x);
 	uint16_t y = ntohs(msg->y);
@@ -640,6 +655,9 @@ static int on_client_cut_text(struct nvnc_client* client)
 	struct rfb_client_cut_text_msg* msg =
 	        (struct rfb_client_cut_text_msg*)(client->msg_buffer +
 	                                          client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
 
 	uint32_t length = ntohl(msg->length);
 
@@ -848,9 +866,11 @@ void nvnc_close(struct nvnc* self)
 	free(self);
 }
 
-static void free_write_buffer(uv_write_t* req, int status)
+static void on_write_frame_done(uv_write_t* req, int status)
 {
 	struct vnc_write_request* rq = (struct vnc_write_request*)req;
+	struct nvnc_client* client = rq->userdata;
+	client->n_outgoing_frames--;
 	free(rq->buffer.base);
 }
 
@@ -901,9 +921,12 @@ void on_client_update_fb_done(uv_work_t* work, int status)
 	struct nvnc* server = client->server;
 	struct vec* frame = &update->frame;
 
-	if (!uv_is_closing((uv_handle_t*)&client->stream_handle))
-		vnc__write((uv_stream_t*)&client->stream_handle, frame->data,
-		           frame->len, free_write_buffer);
+	if (client->n_outgoing_frames <= MAX_OUTGOING_FRAMES &&
+	    !uv_is_closing((uv_handle_t*)&client->stream_handle))
+		vnc__write2((uv_stream_t*)&client->stream_handle, frame->data,
+		            frame->len, on_write_frame_done, client);
+	else
+		client->n_outgoing_frames--;
 
 	client->is_updating = false;
 	client->n_pending_requests--;
@@ -938,6 +961,8 @@ int schedule_client_update_fb(struct nvnc_client* client)
 	client_ref(client);
 	nvnc_fb_ref(fb);
 
+	client->n_outgoing_frames++;
+
 	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
 	                   on_client_update_fb_done);
 	if (rc < 0)
@@ -946,6 +971,7 @@ int schedule_client_update_fb(struct nvnc_client* client)
 	return 0;
 
 queue_failure:
+	client->n_outgoing_frames--;
 	nvnc_fb_unref(fb);
 	client_unref(client);
 	vec_destroy(&work->frame);

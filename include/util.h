@@ -25,9 +25,13 @@ struct vnc_write_request {
 	uv_write_t request;
 	uv_write_cb on_done;
 	uv_buf_t buffer;
+	void* userdata;
 };
 
 int vnc__write(uv_stream_t* stream, const void* payload, size_t size,
                uv_write_cb on_done);
+
+int vnc__write2(uv_stream_t* stream, const void* payload, size_t size,
+                uv_write_cb on_done, void* userdata);
 
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format* dst, uint32_t src);

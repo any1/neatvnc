@@ -28,8 +28,8 @@ static void on_write_req_done(uv_write_t* req, int status)
 	free(self);
 }
 
-int vnc__write(uv_stream_t* stream, const void* payload, size_t size,
-               uv_write_cb on_done)
+int vnc__write2(uv_stream_t* stream, const void* payload, size_t size,
+                uv_write_cb on_done, void* userdata)
 {
 	struct vnc_write_request* req = calloc(1, sizeof(*req));
 	if (!req)
@@ -38,7 +38,14 @@ int vnc__write(uv_stream_t* stream, const void* payload, size_t size,
 	req->buffer.base = (char*)payload;
 	req->buffer.len = size;
 	req->on_done = on_done;
+	req->userdata = userdata;
 
 	return uv_write(&req->request, stream, &req->buffer, 1,
 	                on_write_req_done);
+}
+
+int vnc__write(uv_stream_t* stream, const void* payload, size_t size,
+               uv_write_cb on_done)
+{
+	return vnc__write2(stream, payload, size, on_done, NULL);
 }

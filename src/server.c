@@ -76,7 +76,6 @@ struct nvnc_client {
 	LIST_ENTRY(nvnc_client) link;
 	struct pixman_region16 damage;
 	int n_pending_requests;
-	int n_outgoing_frames;
 	bool is_updating;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
@@ -870,7 +869,7 @@ static void on_write_frame_done(uv_write_t* req, int status)
 {
 	struct vnc_write_request* rq = (struct vnc_write_request*)req;
 	struct nvnc_client* client = rq->userdata;
-	client->n_outgoing_frames--;
+	client->is_updating = false;
 	free(rq->buffer.base);
 }
 
@@ -921,14 +920,12 @@ void on_client_update_fb_done(uv_work_t* work, int status)
 	struct nvnc* server = client->server;
 	struct vec* frame = &update->frame;
 
-	if (client->n_outgoing_frames <= MAX_OUTGOING_FRAMES &&
-	    !uv_is_closing((uv_handle_t*)&client->stream_handle))
+	if (!uv_is_closing((uv_handle_t*)&client->stream_handle))
 		vnc__write2((uv_stream_t*)&client->stream_handle, frame->data,
 		            frame->len, on_write_frame_done, client);
 	else
-		client->n_outgoing_frames--;
+		client->is_updating = false;
 
-	client->is_updating = false;
 	client->n_pending_requests--;
 	process_fb_update_requests(client);
 	nvnc_fb_unref(update->fb);
@@ -961,8 +958,6 @@ int schedule_client_update_fb(struct nvnc_client* client)
 	client_ref(client);
 	nvnc_fb_ref(fb);
 
-	client->n_outgoing_frames++;
-
 	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
 	                   on_client_update_fb_done);
 	if (rc < 0)
@@ -971,7 +966,6 @@ int schedule_client_update_fb(struct nvnc_client* client)
 	return 0;
 
 queue_failure:
-	client->n_outgoing_frames--;
 	nvnc_fb_unref(fb);
 	client_unref(client);
 	vec_destroy(&work->frame);

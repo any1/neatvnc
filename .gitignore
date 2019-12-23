@@ -1,4 +1,5 @@
 .clang_complete
+.ycm_extra_conf.py
 vgcore.*
 perf.data
 perf.data.old

@@ -718,19 +718,21 @@ static void on_client_read(uv_stream_t* stream, ssize_t n_read,
 	struct nvnc_client* client = container_of(
 	        (uv_tcp_t*)stream, struct nvnc_client, stream_handle);
 
-	if (n_read == UV_EOF) {
+	if (n_read == 0)
+		return;
+
+	if (n_read < 0) {
+		uv_read_stop(stream);
 		client_unref(client);
 		return;
 	}
 
-	if (n_read < 0)
-		return;
-
 	assert(client->buffer_index == 0);
 
-	if (n_read > MSG_BUFFER_SIZE - client->buffer_len) {
+	if ((size_t)n_read > MSG_BUFFER_SIZE - client->buffer_len) {
 		/* Can't handle this. Let's just give up */
 		client->state = VNC_CLIENT_STATE_ERROR;
+		uv_read_stop(stream);
 		client_unref(client);
 		return;
 	}

@@ -719,12 +719,12 @@ static void on_client_read(uv_stream_t* stream, ssize_t n_read,
 	        (uv_tcp_t*)stream, struct nvnc_client, stream_handle);
 
 	if (n_read == 0)
-		return;
+		goto done;
 
 	if (n_read < 0) {
 		uv_read_stop(stream);
 		client_unref(client);
-		return;
+		goto done;
 	}
 
 	assert(client->buffer_index == 0);
@@ -734,7 +734,7 @@ static void on_client_read(uv_stream_t* stream, ssize_t n_read,
 		client->state = VNC_CLIENT_STATE_ERROR;
 		uv_read_stop(stream);
 		client_unref(client);
-		return;
+		goto done;
 	}
 
 	memcpy(client->msg_buffer + client->buffer_len, buf->base, n_read);
@@ -754,6 +754,9 @@ static void on_client_read(uv_stream_t* stream, ssize_t n_read,
 	        client->buffer_index);
 	client->buffer_len -= client->buffer_index;
 	client->buffer_index = 0;
+
+done:
+	free(buf->base);
 }
 
 static void on_connection(uv_stream_t* server_stream, int status)
@@ -932,6 +935,9 @@ void on_client_update_fb_done(uv_work_t* work, int status)
 	process_fb_update_requests(client);
 	nvnc_fb_unref(update->fb);
 	client_unref(client);
+
+	pixman_region_fini(&update->region);
+	free(update);
 }
 
 int schedule_client_update_fb(struct nvnc_client* client)

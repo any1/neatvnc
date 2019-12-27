@@ -61,6 +61,9 @@ int check_damage_linear(struct pixman_region16* damage,
 	int x_start = ALIGN_DOWN(x_hint, TILE_SIDE_LENGTH);
 	int y_start = ALIGN_DOWN(y_hint, TILE_SIDE_LENGTH);
 
+	width_hint += x_hint - x_start;
+	height_hint += y_hint - y_start;
+
 	for (int y = y_start; y < y_start + height_hint; y += TILE_SIDE_LENGTH) {
 		int tile_height = MIN(TILE_SIDE_LENGTH, height - y);
 

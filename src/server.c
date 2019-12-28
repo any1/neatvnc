@@ -239,7 +239,7 @@ static int handle_invalid_security_type(struct nvnc_client* client)
 	struct rfb_error_reason* reason =
 	        (struct rfb_error_reason*)(buffer + sizeof(*result));
 
-	static const char reason_string[] = "Unsupported version\n";
+	static const char reason_string[] = "Unsupported security type\n";
 
 	*result = htonl(RFB_SECURITY_HANDSHAKE_FAILED);
 	reason->length = htonl(strlen(reason_string));

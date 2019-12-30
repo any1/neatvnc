@@ -853,8 +853,7 @@ void do_client_update_fb(uv_work_t* work)
 		break;
 #ifdef ENABLE_TIGHT
 	case RFB_ENCODING_TIGHT:
-		tight_encode_frame(&update->frame, &client->pixfmt, fb,
-		                   fb->fourcc_format, &update->region);
+		tight_encode_frame(&update->frame, client, fb, &update->region);
 		break;
 #endif
 	case RFB_ENCODING_ZRLE:

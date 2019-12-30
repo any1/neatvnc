@@ -1,4 +1,4 @@
-DEPENDENCIES := pixman-1 libuv libturbojpeg
+DEPENDENCIES := pixman-1 libuv libturbojpeg libpng
 
 SOURCES := \
 	src/server.c \
@@ -19,7 +19,7 @@ DSO_NAME=libneatvnc
 DSO_MAJOR=0
 DSO_MINOR=0
 
-CFLAGS += -fvisibility=hidden -Icontrib/miniz
+CFLAGS += -fvisibility=hidden -Icontrib/miniz -DENABLE_TIGHT
 OBJECTS += $(BUILD_DIR)/miniz.o
 
 DSO_PATH := $(BUILD_DIR)/$(DSO_NAME)

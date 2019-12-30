@@ -11,6 +11,7 @@ project(
 add_project_arguments([
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
+	'-DENABLE_TIGHT',
 ], language: 'c')
 
 cpu = host_machine.cpu_family()
@@ -36,6 +37,7 @@ libm = cc.find_library('m', required: false)
 pixman = dependency('pixman-1')
 libuv = dependency('libuv')
 libturbojpeg = dependency('libturbojpeg')
+libpng = dependency('libpng')
 
 inc = include_directories('include', 'contrib/miniz')
 
@@ -57,6 +59,7 @@ dependencies = [
 	pixman,
 	libuv,
 	libturbojpeg,
+	libpng,
 ]
 
 neatvnc = shared_library(

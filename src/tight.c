@@ -4,9 +4,12 @@
 #include "fb.h"
 #include "tight.h"
 #include "common.h"
+#include "pixels.h"
+#include "rfb-proto.h"
 
 #include <pixman.h>
 #include <turbojpeg.h>
+#include <png.h>
 #include <stdlib.h>
 #include <libdrm/drm_fourcc.h>
 
@@ -44,9 +47,9 @@ static void tight_encode_size(struct vec* dst, size_t size)
 		vec_fast_append_8(dst, (size >> 14) & 0x7f);
 }
 
-int tight_encode_box(struct vec* dst, struct nvnc_client* client,
-                     const struct nvnc_fb* fb, uint32_t x, uint32_t y,
-                     uint32_t stride, uint32_t width, uint32_t height)
+int tight_encode_box_jpeg(struct vec* dst, struct nvnc_client* client,
+                          const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+                          uint32_t stride, uint32_t width, uint32_t height)
 {
 
 	unsigned char* buffer = NULL;
@@ -58,16 +61,6 @@ int tight_encode_box(struct vec* dst, struct nvnc_client* client,
 		return -1;
 
 	vec_reserve(dst, 4096);
-
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_TIGHT),
-		.x = htons(x),
-		.y = htons(y),
-		.width = htons(width),
-		.height = htons(height),
-	};
-
-	vec_append(dst, &rect, sizeof(rect));
 
 	tjhandle handle = tjInitCompress();
 
@@ -86,6 +79,94 @@ int tight_encode_box(struct vec* dst, struct nvnc_client* client,
 	tjDestroy(handle);
 
 	return 0;
+}
+
+static void tight_png_write(png_structp png_ptr, png_bytep data, png_size_t size)
+{
+	struct vec* out = png_get_io_ptr(png_ptr);
+	assert(out);
+
+	vec_append(out, data, size);
+}
+
+static void tight_png_flush(png_structp png_ptr)
+{
+}
+
+int tight_encode_box_png(struct vec* dst, struct nvnc_client* client,
+                         const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+                         uint32_t stride, uint32_t width, uint32_t height)
+{
+	png_structp png_ptr =
+		png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+
+	png_infop info_ptr = png_create_info_struct(png_ptr);
+
+	if (setjmp(png_jmpbuf(png_ptr)))
+		return -1;
+
+	int colour_type = PNG_COLOR_TYPE_RGB;
+
+	struct vec pngout;
+	vec_init(&pngout, 4096);
+
+	png_set_write_fn(png_ptr, &pngout, tight_png_write, tight_png_flush);
+
+	png_set_IHDR(png_ptr, info_ptr, width, height, 8, colour_type,
+	             PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
+		     PNG_COMPRESSION_TYPE_DEFAULT);
+
+	png_write_info(png_ptr, info_ptr);
+
+	png_byte* buffer = malloc(3 * width * sizeof(*buffer));
+
+	struct rfb_pixel_format dst_fmt = { 0 };
+	rfb_pixfmt_from_fourcc(&dst_fmt, DRM_FORMAT_RGB888 | DRM_FORMAT_BIG_ENDIAN);
+
+	struct rfb_pixel_format src_fmt = { 0 };
+	rfb_pixfmt_from_fourcc(&dst_fmt, fb->fourcc_format);
+
+	for (uint32_t r = 0; r < height; ++r) {
+		uint32_t* row = (uint32_t*)fb->addr + x + (y + r) * stride;
+
+		pixel32_to_cpixel(buffer, &dst_fmt, row, &src_fmt, 3, width);
+
+		png_write_row(png_ptr, buffer);
+	}
+
+	png_write_end(png_ptr, info_ptr);
+	png_write_flush(png_ptr);
+
+	free(buffer);
+	png_destroy_write_struct(&png_ptr, &info_ptr);
+
+	vec_reserve(dst, 4096);
+	vec_fast_append_8(dst, TIGHT_PNG);
+
+	tight_encode_size(dst, pngout.len);
+
+	vec_append(dst, pngout.data, pngout.len);
+
+	vec_destroy(&pngout);
+	return 0;
+}
+
+int tight_encode_box(struct vec* dst, struct nvnc_client* client,
+                     const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+                     uint32_t stride, uint32_t width, uint32_t height)
+{
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_TIGHT_PNG),
+		.x = htons(x),
+		.y = htons(y),
+		.width = htons(width),
+		.height = htons(height),
+	};
+
+	vec_append(dst, &rect, sizeof(rect));
+
+	return tight_encode_box_png(dst, client, fb, x, y, stride, width,
+	                             height);
 }
 
 int tight_encode_frame(struct vec* dst, struct nvnc_client* client,

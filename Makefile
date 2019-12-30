@@ -1,10 +1,11 @@
-DEPENDENCIES := pixman-1 libuv
+DEPENDENCIES := pixman-1 libuv libturbojpeg
 
 SOURCES := \
 	src/server.c \
 	src/util.c \
 	src/vec.c \
 	src/zrle.c \
+	src/tight.c \
 	src/raw-encoding.c \
 	src/pixels.c \
 	src/damage.c \

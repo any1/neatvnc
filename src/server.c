@@ -17,6 +17,7 @@
 #include "rfb-proto.h"
 #include "util.h"
 #include "zrle.h"
+#include "tight.h"
 #include "raw-encoding.h"
 #include "vec.h"
 #include "type-macros.h"
@@ -539,6 +540,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_COPYRECT:
 		case RFB_ENCODING_RRE:
 		case RFB_ENCODING_HEXTILE:
+		case RFB_ENCODING_TIGHT:
 		case RFB_ENCODING_TRLE:
 		case RFB_ENCODING_ZRLE:
 		case RFB_ENCODING_CURSOR:
@@ -883,6 +885,9 @@ enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 	for (int i = 0; i < client->n_encodings; ++i)
 		switch (client->encodings[i]) {
 		case RFB_ENCODING_RAW:
+#ifdef ENABLE_TIGHT
+		case RFB_ENCODING_TIGHT:
+#endif
 		case RFB_ENCODING_ZRLE:
 			return client->encodings[i];
 		default:
@@ -906,6 +911,12 @@ void do_client_update_fb(uv_work_t* work)
 		raw_encode_frame(&update->frame, &client->pixfmt, fb,
 		                 &update->server_fmt, &update->region);
 		break;
+#ifdef ENABLE_TIGHT
+	case RFB_ENCODING_TIGHT:
+		tight_encode_frame(&update->frame, &client->pixfmt, fb,
+		                   fb->fourcc_format, &update->region);
+		break;
+#endif
 	case RFB_ENCODING_ZRLE:
 		zrle_encode_frame(&client->z_stream, &update->frame,
 		                  &client->pixfmt, fb, &update->server_fmt,

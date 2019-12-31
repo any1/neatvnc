@@ -14,11 +14,10 @@ neat. Note: This is a beta release, so the interface is not yet stable.
 ### Runtime Dependencies
  * pixman
  * libuv
- * libpng (only needed for examples and benchmarks)
+ * libturbojpeg (optional)
 
 ### Build Dependencies
- * GNU Make
- * GCC or Clang
+ * meson
  * pkg-config
  * libdrm
 

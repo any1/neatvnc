@@ -35,7 +35,7 @@ libm = cc.find_library('m', required: false)
 
 pixman = dependency('pixman-1')
 libuv = dependency('libuv')
-libturbojpeg = dependency('libturbojpeg')
+libturbojpeg = dependency('libturbojpeg', required: get_option('tight-encoding'))
 
 inc = include_directories('include', 'contrib/miniz')
 
@@ -44,7 +44,6 @@ sources = [
 	'src/util.c',
 	'src/vec.c',
 	'src/zrle.c',
-	'src/tight.c',
 	'src/raw-encoding.c',
 	'src/pixels.c',
 	'src/damage.c',
@@ -56,8 +55,20 @@ dependencies = [
 	libm,
 	pixman,
 	libuv,
-	libturbojpeg,
 ]
+
+config = configuration_data()
+
+if libturbojpeg.found()
+	dependencies += libturbojpeg
+	sources += 'src/tight.c'
+	config.set('ENABLE_TIGHT', true)
+endif
+
+configure_file(
+	output: 'config.h',
+	configuration: config,
+)
 
 neatvnc = shared_library(
 	'neatvnc',

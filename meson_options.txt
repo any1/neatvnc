@@ -1,0 +1,1 @@
+option('tight-encoding', type: 'feature', value: 'disabled', description: 'Enable Tight encoding (experimental)')

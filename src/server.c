@@ -25,6 +25,7 @@
 #include "neatvnc.h"
 #include "common.h"
 #include "pixels.h"
+#include "config.h"
 
 #include <stdlib.h>
 #include <unistd.h>

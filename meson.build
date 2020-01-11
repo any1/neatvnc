@@ -19,7 +19,7 @@ if cpu == 'x86_64'
 	arch_args = [
 		'-mavx',
 	]
-elif cpu == 'arm' or cpu == 'aarch64'
+elif cpu == 'arm'
 	arch_args = [
 		'-mfpu=neon',
 	]

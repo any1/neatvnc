@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <endian.h>
 #include <stdbool.h>
 #include <assert.h>
 #include <uv.h>

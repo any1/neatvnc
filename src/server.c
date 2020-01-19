@@ -688,7 +688,11 @@ void do_client_update_fb(uv_work_t* work)
 	const struct nvnc_fb* fb = update->fb;
 
 	enum rfb_encodings encoding = choose_frame_encoding(client);
-	assert(encoding != -1);
+	if (encoding == -1) {
+		uv_read_stop((uv_stream_t*)&client->stream_handle);
+		client_unref(client);
+		return;
+	}
 
 	switch (encoding) {
 	case RFB_ENCODING_RAW:

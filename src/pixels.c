@@ -47,10 +47,6 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 	uint32_t src_green_max = src_fmt->green_max;
 	uint32_t src_blue_max = src_fmt->blue_max;
 
-	uint32_t dst_red_max = dst_fmt->red_max;
-	uint32_t dst_green_max = dst_fmt->green_max;
-	uint32_t dst_blue_max = dst_fmt->blue_max;
-
 	uint32_t src_red_bits = POPCOUNT(src_fmt->red_max);
 	uint32_t src_green_bits = POPCOUNT(src_fmt->green_max);
 	uint32_t src_blue_bits = POPCOUNT(src_fmt->blue_max);
@@ -74,6 +70,31 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 	}
 
 	switch (bytes_per_cpixel) {
+	case 4:
+		if (dst_fmt->big_endian_flag) {
+			while (len--) {
+				uint32_t cpx, px = *src++;
+
+				CONVERT_PIXELS(cpx, px)
+
+				*dst++ = (cpx >> 24) & 0xff;
+				*dst++ = (cpx >> 16) & 0xff;
+				*dst++ = (cpx >> 8) & 0xff;
+				*dst++ = (cpx >> 0) & 0xff;
+			}
+		} else {
+			while (len--) {
+				uint32_t cpx, px = *src++;
+
+				CONVERT_PIXELS(cpx, px)
+
+				*dst++ = (cpx >> 0) & 0xff;
+				*dst++ = (cpx >> 8) & 0xff;
+				*dst++ = (cpx >> 16) & 0xff;
+				*dst++ = (cpx >> 24) & 0xff;
+			}
+		}
+		break;
 	case 3:
 		if (dst_fmt->bits_per_pixel == 32 && dst_fmt->depth <= 24) {
 			uint32_t min_dst_shift = dst_red_shift;
@@ -87,8 +108,6 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 			dst_blue_shift -= min_dst_shift;
 		}
 
-		/* fallthrough */
-	case 4:
 		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
 
 		while (len--) {

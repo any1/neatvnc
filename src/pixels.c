@@ -115,9 +115,9 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (16 ^ dst_endian_correction)) & 0xff;
-			*dst++ = (cpx >> 8) & 0xff;
 			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
+			*dst++ = (cpx >> (16 ^ dst_endian_correction)) & 0xff;
 		}
 		break;
 	case 2:
@@ -128,8 +128,8 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
 			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
 		}
 		break;
 	case 1:
@@ -165,15 +165,15 @@ int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
 		goto bpp_32;
 	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
-		dst->red_shift = 0;
-		dst->green_shift = 8;
-		dst->blue_shift = 16;
-		goto bpp_32;
-	case DRM_FORMAT_ABGR8888:
-	case DRM_FORMAT_XBGR8888:
 		dst->red_shift = 16;
 		dst->green_shift = 8;
 		dst->blue_shift = 0;
+		goto bpp_32;
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_XBGR8888:
+		dst->red_shift = 0;
+		dst->green_shift = 8;
+		dst->blue_shift = 16;
 bpp_32:
 		dst->bits_per_pixel = 32;
 		dst->depth = 24;

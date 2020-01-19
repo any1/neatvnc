@@ -694,6 +694,11 @@ void do_client_update_fb(uv_work_t* work)
 		return;
 	}
 
+	if (client->fourcc == DRM_FORMAT_INVALID) {
+		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
+		client->fourcc = fb->fourcc_format;
+	}
+
 	switch (encoding) {
 	case RFB_ENCODING_RAW:
 		raw_encode_frame(&update->frame, &client->pixfmt, fb,

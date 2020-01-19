@@ -309,14 +309,14 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	        (struct rfb_client_set_encodings_msg*)(client->msg_buffer +
 	                                               client->buffer_index);
 
-	int n_encodings = MIN(MAX_ENCODINGS, ntohs(msg->n_encodings));
-	int n = 0;
+	size_t n_encodings = MIN(MAX_ENCODINGS, ntohs(msg->n_encodings));
+	size_t n = 0;
 
 	if (client->buffer_len - client->buffer_index <
 	    sizeof(*msg) + n_encodings * 4)
 		return 0;
 
-	for (int i = 0; i < n_encodings; ++i) {
+	for (size_t i = 0; i < n_encodings; ++i) {
 		enum rfb_encodings encoding = htonl(msg->encodings[i]);
 
 		switch (encoding) {
@@ -666,7 +666,7 @@ static void on_write_frame_done(uv_write_t* req, int status)
 
 enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 {
-	for (int i = 0; i < client->n_encodings; ++i)
+	for (size_t i = 0; i < client->n_encodings; ++i)
 		switch (client->encodings[i]) {
 		case RFB_ENCODING_RAW:
 #ifdef ENABLE_TIGHT

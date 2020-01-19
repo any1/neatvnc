@@ -14,11 +14,11 @@ int raw_encode_box(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 	int rc = -1;
 
 	struct rfb_server_fb_rect rect = {
-	        .encoding = htonl(RFB_ENCODING_RAW),
-	        .x = htons(x_start),
-	        .y = htons(y_start),
-	        .width = htons(width),
-	        .height = htons(height),
+		.encoding = htonl(RFB_ENCODING_RAW),
+		.x = htons(x_start),
+		.y = htons(y_start),
+		.width = htons(width),
+		.height = htons(height),
 	};
 
 	rc = vec_append(dst, &rect, sizeof(rect));
@@ -27,11 +27,20 @@ int raw_encode_box(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 
 	uint32_t* b = fb->addr;
 
-	int bytes_per_pixel = dst_fmt->depth / 8;
+	int bpp = dst_fmt->bits_per_pixel / 8;
 
-	for (int y = y_start; y < y_start + height; ++y)
-		pixel32_to_cpixel(dst->data, dst_fmt, b + y * stride, src_fmt,
-		                  bytes_per_pixel, width);
+	rc = vec_reserve(dst, width * height * bpp + dst->len);
+	if (rc < 0)
+		return -1;
+
+	uint8_t* d = dst->data;
+
+	for (int y = y_start; y < y_start + height; ++y) {
+		pixel32_to_cpixel(d + dst->len, dst_fmt,
+		                  b + x_start + y * stride, src_fmt,
+		                  bpp, width);
+		dst->len += width * bpp;
+	}
 
 	return 0;
 }
@@ -51,11 +60,11 @@ int raw_encode_frame(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 	}
 
 	struct rfb_server_fb_update_msg head = {
-	        .type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-	        .n_rects = htons(n_rects),
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(n_rects),
 	};
 
-	rc = vec_reserve(dst, src->width * src->height * 4 + 256);
+	rc = vec_reserve(dst, src->width * src->height * 4);
 	if (rc < 0)
 		return -1;
 

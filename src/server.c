@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/queue.h>
+#include <sys/param.h>
 #include <assert.h>
 #include <uv.h>
 #include <libdrm/drm_fourcc.h>

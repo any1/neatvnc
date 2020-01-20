@@ -20,16 +20,16 @@ enum TJPF get_jpeg_pixfmt(uint32_t fourcc)
 	switch (fourcc) {
 	case DRM_FORMAT_RGBA8888:
 	case DRM_FORMAT_RGBX8888:
-		return TJPF_XRGB;
+		return TJPF_XBGR;
 	case DRM_FORMAT_BGRA8888:
 	case DRM_FORMAT_BGRX8888:
-		return TJPF_XBGR;
+		return TJPF_XRGB;
 	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
-		return TJPF_RGBX;
+		return TJPF_BGRX;
 	case DRM_FORMAT_ABGR8888:
 	case DRM_FORMAT_XBGR8888:
-		return TJPF_BGRX;
+		return TJPF_RGBX;
 	}
 
 	return TJPF_UNKNOWN;

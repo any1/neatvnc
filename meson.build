@@ -8,26 +8,26 @@ project(
 	],
 )
 
-add_project_arguments([
+buildtype = get_option('buildtype')
+
+c_args = [
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
-], language: 'c')
+]
+
+if buildtype == 'release' or buildtype == 'plain'
+	c_args += '-DNDEBUG'
+endif
 
 cpu = host_machine.cpu_family()
 
 if cpu == 'x86_64'
-	arch_args = [
-		'-mavx',
-	]
+	c_args += '-mavx'
 elif cpu == 'arm'
-	arch_args = [
-		'-mfpu=neon',
-	]
-else
-	arch_args = []
+	c_args += '-mfpu=neon'
 endif
 
-add_project_arguments(arch_args, language: 'c')
+add_project_arguments(c_args, language: 'c')
 
 cc = meson.get_compiler('c')
 

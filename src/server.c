@@ -298,7 +298,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 
 	memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 
-	client->fourcc = rfb_pixfmt_to_fourcc(fmt);
+	client->has_pixfmt = true;
 
 	return 4 + sizeof(struct rfb_pixel_format);
 }
@@ -694,9 +694,9 @@ void do_client_update_fb(uv_work_t* work)
 		return;
 	}
 
-	if (client->fourcc == DRM_FORMAT_INVALID) {
+	if (!client->has_pixfmt) {
 		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
-		client->fourcc = fb->fourcc_format;
+		client->has_pixfmt = true;
 	}
 
 	switch (encoding) {

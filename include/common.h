@@ -34,7 +34,7 @@ struct nvnc_client {
 	struct uv_tcp_s stream_handle;
 	struct nvnc* server;
 	enum nvnc_client_state state;
-	uint32_t fourcc;
+	bool has_pixfmt;
 	struct rfb_pixel_format pixfmt;
 	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
 	size_t n_encodings;

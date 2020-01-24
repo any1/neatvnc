@@ -204,7 +204,6 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format* dst_fmt,
 {
 	int r = -1;
 	int bytes_per_cpixel = dst_fmt->depth / 8;
-	int chunk_size = 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH;
 	struct vec in;
 
 	uint32_t* tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);

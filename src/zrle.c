@@ -45,6 +45,12 @@ static inline int find_colour_in_palette(uint32_t* palette, int len,
 	return -1;
 }
 
+static inline int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
+{
+	return fmt->bits_per_pixel == 32 ? fmt->depth / 8
+	                                 : fmt->bits_per_pixel / 8;
+}
+
 int zrle_get_tile_palette(uint32_t* palette, const uint32_t* src, size_t length)
 {
 	int n = 0;
@@ -71,7 +77,7 @@ void zrle_encode_unichrome_tile(struct vec* dst,
                                 uint32_t colour,
                                 const struct rfb_pixel_format* src_fmt)
 {
-	int bytes_per_cpixel = dst_fmt->depth / 8;
+	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
 	vec_fast_append_8(dst, 1);
 
@@ -104,7 +110,7 @@ void zrle_encode_packed_tile(struct vec* dst,
                              const struct rfb_pixel_format* src_fmt,
                              size_t length, uint32_t* palette, int palette_size)
 {
-	int bytes_per_cpixel = dst_fmt->depth / 8;
+	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
 	uint8_t cpalette[16 * 3];
 	pixel32_to_cpixel((uint8_t*)cpalette, dst_fmt, palette, src_fmt,
@@ -146,7 +152,7 @@ void zrle_encode_tile(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
                       const uint32_t* src,
                       const struct rfb_pixel_format* src_fmt, size_t length)
 {
-	int bytes_per_cpixel = dst_fmt->depth / 8;
+	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
 	vec_clear(dst);
 
@@ -203,7 +209,7 @@ int zrle_encode_box(struct vec* out, const struct rfb_pixel_format* dst_fmt,
                     int stride, int width, int height, z_stream* zs)
 {
 	int r = -1;
-	int bytes_per_cpixel = dst_fmt->depth / 8;
+	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 	struct vec in;
 
 	uint32_t* tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);

@@ -51,7 +51,6 @@
 #endif
 
 #define DEFAULT_NAME "Neat VNC"
-#define READ_BUFFER_SIZE 4096
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -650,13 +649,14 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 		return;
 	}
 
-#define BUF_SIZE 16384
-	char* buf = malloc(BUF_SIZE);
-	ssize_t n_read = stream_read(stream, buf, BUF_SIZE);
-#undef BUF_SIZE
+	assert(client->buffer_index == 0);
+
+	void* start = client->msg_buffer + client->buffer_len;
+	size_t space = MSG_BUFFER_SIZE - client->buffer_len;
+	ssize_t n_read = stream_read(stream, start, space);
 
 	if (n_read == 0)
-		goto done;
+		return;
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
@@ -666,21 +666,9 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 			client_unref(client);
 		}
 
-		goto done;
+		return;
 	}
 
-	assert(client->buffer_index == 0);
-
-	if ((size_t)n_read > MSG_BUFFER_SIZE - client->buffer_len) {
-		/* Can't handle this. Let's just give up */
-		client->state = VNC_CLIENT_STATE_ERROR;
-		log_debug("Client whoops: %p (ref %d)\n", client, client->ref);
-		stream_close(client->net_stream);
-		client_unref(client);
-		goto done;
-	}
-
-	memcpy(client->msg_buffer + client->buffer_len, buf, n_read);
 	client->buffer_len += n_read;
 
 	while (1) {
@@ -698,9 +686,6 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	        client->buffer_index);
 	client->buffer_len -= client->buffer_index;
 	client->buffer_index = 0;
-
-done:
-	free(buf);
 }
 
 static void on_connection(uv_poll_t* poll_handle, int status, int events)

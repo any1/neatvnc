@@ -48,6 +48,7 @@ sources = [
 	'src/pixels.c',
 	'src/damage.c',
 	'src/fb.c',
+	'src/rcbuf.c',
 	'contrib/miniz/miniz.c',
 ]
 

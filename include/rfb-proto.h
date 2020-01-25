@@ -29,6 +29,8 @@ enum rfb_security_type {
 	RFB_SECURITY_TYPE_INVALID = 0,
 	RFB_SECURITY_TYPE_NONE = 1,
 	RFB_SECURITY_TYPE_VNC_AUTH = 2,
+	RFB_SECURITY_TYPE_TIGHT = 16,
+	RFB_SECURITY_TYPE_VENCRYPT = 19,
 };
 
 enum rfb_security_handshake_result {
@@ -62,6 +64,16 @@ enum rfb_server_to_client_msg_type {
 	RFB_SERVER_TO_CLIENT_SET_COLOUR_MAP_ENTRIES = 1,
 	RFB_SERVER_TO_CLIENT_BELL = 2,
 	RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT = 3,
+};
+
+enum rfb_vencrypt_subtype {
+	RFB_VENCRYPT_PLAIN = 256,
+	RFB_VENCRYPT_TLS_NONE,
+	RFB_VENCRYPT_TLS_VNC,
+	RFB_VENCRYPT_TLS_PLAIN,
+	RFB_VENCRYPT_X509_NONE,
+	RFB_VENCRYPT_X509_VNC,
+	RFB_VENCRYPT_X509_PLAIN,
 };
 
 struct rfb_security_types_msg {
@@ -145,4 +157,20 @@ struct rfb_server_fb_update_msg {
 	uint8_t type;
 	uint8_t padding;
 	uint16_t n_rects;
+} RFB_PACKED;
+
+struct rfb_vencrypt_version_msg {
+	uint8_t major;
+	uint8_t minor;
+} RFB_PACKED;
+
+struct rfb_vencrypt_subtypes_msg {
+	uint8_t n;
+	uint32_t types[1];
+} RFB_PACKED;
+
+struct rfb_vencrypt_plain_auth_msg {
+	uint32_t username_len;
+	uint32_t password_len;
+	char text[0];
 } RFB_PACKED;

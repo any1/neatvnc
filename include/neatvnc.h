@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Andri Yngvason
+ * Copyright (c) 2019 - 2020 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -41,6 +41,8 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
+typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
+                             void* userdata);
 
 struct nvnc* nvnc_open(const char* addr, uint16_t port);
 void nvnc_close(struct nvnc* self);
@@ -60,6 +62,10 @@ void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
+
+bool nvnc_has_auth(void);
+int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
+                     const char* cert_path, nvnc_auth_fn, void* userdata);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format);

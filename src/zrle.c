@@ -15,7 +15,6 @@
  */
 
 #include "rfb-proto.h"
-#include "util.h"
 #include "vec.h"
 #include "zrle.h"
 #include "miniz.h"

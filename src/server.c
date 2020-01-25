@@ -15,7 +15,6 @@
  */
 
 #include "rfb-proto.h"
-#include "util.h"
 #include "zrle.h"
 #include "tight.h"
 #include "raw-encoding.h"

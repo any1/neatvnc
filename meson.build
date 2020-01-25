@@ -42,7 +42,6 @@ inc = include_directories('include', 'contrib/miniz')
 
 sources = [
 	'src/server.c',
-	'src/util.c',
 	'src/vec.c',
 	'src/zrle.c',
 	'src/raw-encoding.c',

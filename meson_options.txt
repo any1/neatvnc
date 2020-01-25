@@ -1,1 +1,2 @@
 option('tight-encoding', type: 'feature', value: 'disabled', description: 'Enable Tight encoding (experimental)')
+option('tls', type: 'feature', value: 'auto', description: 'Enable encryption & authentication')

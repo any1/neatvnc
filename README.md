@@ -14,6 +14,7 @@ neat. Note: This is a beta release, so the interface is not yet stable.
 ### Runtime Dependencies
  * pixman
  * libuv
+ * gnutls (optional)
  * libturbojpeg (optional)
 
 ### Build Dependencies

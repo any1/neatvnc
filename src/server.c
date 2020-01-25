@@ -129,10 +129,9 @@ static int handle_unsupported_version(struct nvnc_client* client)
 	reason->length = htonl(strlen(reason_string));
 	(void)strcmp(reason->message, reason_string);
 
-	struct rcbuf* payload =
-		rcbuf_from_mem(buffer,
-		               1 + sizeof(*reason) + strlen(reason_string));
-	stream_write(client->net_stream, payload, close_after_write, client);
+	size_t len = 1 + sizeof(*reason) + strlen(reason_string);
+	stream_write(client->net_stream, buffer, len, close_after_write,
+	             client);
 
 	return 0;
 }
@@ -160,8 +159,8 @@ static int on_version_message(struct nvnc_client* client)
 		security.types[0] = RFB_SECURITY_TYPE_VENCRYPT;
 #endif
 
-	struct rcbuf* payload = rcbuf_from_mem(&security, sizeof(security));
-	stream_write(client->net_stream, payload, NULL, NULL);
+	stream_write(client->net_stream, &security, sizeof(security), NULL,
+	             NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_SECURITY;
 	return 12;
@@ -184,10 +183,9 @@ static int handle_invalid_security_type(struct nvnc_client* client)
 	reason->length = htonl(strlen(reason_string));
 	(void)strcmp(reason->message, reason_string);
 
-	struct rcbuf* payload =
-		rcbuf_from_mem(buffer, sizeof(*result) + sizeof(*reason) +
-			               strlen(reason_string));
-	stream_write(client->net_stream, payload, close_after_write, client);
+	size_t len = sizeof(*result) + sizeof(*reason) + strlen(reason_string);
+	stream_write(client->net_stream, buffer, len, close_after_write,
+	             client);
 
 	return 0;
 }
@@ -195,14 +193,13 @@ static int handle_invalid_security_type(struct nvnc_client* client)
 static int security_handshake_ok(struct nvnc_client* client)
 {
 	uint32_t result = htonl(RFB_SECURITY_HANDSHAKE_OK);
-	struct rcbuf* payload = rcbuf_from_mem(&result, sizeof(result));
-	return stream_write(client->net_stream, payload, NULL, NULL);
+	return stream_write(client->net_stream, &result, sizeof(result), NULL,
+	                    NULL);
 }
 
 static int send_byte(struct nvnc_client* client, uint8_t value)
 {
-	struct rcbuf* payload = rcbuf_from_mem(&value, sizeof(value));
-	return stream_write(client->net_stream, payload, NULL, NULL);
+	return stream_write(client->net_stream, &value, 1, NULL, NULL);
 }
 
 #ifdef ENABLE_TLS
@@ -213,8 +210,7 @@ static int vencrypt_send_version(struct nvnc_client* client)
 		.minor = 2,
 	};
 
-	struct rcbuf* payload = rcbuf_from_mem(&msg, sizeof(msg));
-	return stream_write(client->net_stream, payload, NULL, NULL);
+	return stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
 }
 
 static int on_vencrypt_version_message(struct nvnc_client* client)
@@ -236,8 +232,7 @@ static int on_vencrypt_version_message(struct nvnc_client* client)
 	struct rfb_vencrypt_subtypes_msg result = { .n = 1, };
 	result.types[0] = htonl(RFB_VENCRYPT_X509_PLAIN);
 
-	struct rcbuf* payload = rcbuf_from_mem(&result, sizeof(result));
-	stream_write(client->net_stream, payload, NULL, NULL);
+	stream_write(client->net_stream, &result, sizeof(result), NULL, NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_SUBTYPE;
 
@@ -383,7 +378,7 @@ static void send_server_init_message(struct nvnc_client* client)
 	msg->pixel_format.blue_max = htons(msg->pixel_format.blue_max);
 
 	struct rcbuf* payload = rcbuf_new(msg, size);
-	stream_write(client->net_stream, payload, NULL, NULL);
+	stream_send(client->net_stream, payload, NULL, NULL);
 }
 
 static int on_init_message(struct nvnc_client* client)
@@ -740,7 +735,7 @@ static void on_connection(uv_poll_t* poll_handle, int status, int events)
 	if (!payload)
 		goto payload_failure;
 
-	stream_write(client->net_stream, payload, NULL, NULL);
+	stream_send(client->net_stream, payload, NULL, NULL);
 
 	LIST_INSERT_HEAD(&server->clients, client, link);
 
@@ -902,8 +897,8 @@ void on_client_update_fb_done(uv_work_t* work, int status)
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
 		struct rcbuf* payload = rcbuf_new(frame->data, frame->len);
-		stream_write(client->net_stream, payload, on_write_frame_done,
-		             client);
+		stream_send(client->net_stream, payload, on_write_frame_done,
+		            client);
 	} else {
 		client->is_updating = false;
 		vec_destroy(frame);

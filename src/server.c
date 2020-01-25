@@ -166,7 +166,8 @@ static int on_version_message(struct nvnc_client* client)
 	return 12;
 }
 
-static int handle_invalid_security_type(struct nvnc_client* client)
+static int security_handshake_failed(struct nvnc_client* client,
+                                     const char* reason_string)
 {
 	char buffer[256];
 
@@ -176,8 +177,6 @@ static int handle_invalid_security_type(struct nvnc_client* client)
 
 	struct rfb_error_reason* reason =
 	        (struct rfb_error_reason*)(buffer + sizeof(*result));
-
-	static const char reason_string[] = "Unsupported security type\n";
 
 	*result = htonl(RFB_SECURITY_HANDSHAKE_FAILED);
 	reason->length = htonl(strlen(reason_string));
@@ -222,8 +221,7 @@ static int on_vencrypt_version_message(struct nvnc_client* client)
 		return 0;
 
 	if (msg->major != 0 || msg->minor != 2) {
-		// TODO: Say unsupported vencrypt type in message
-		handle_invalid_security_type(client);
+		security_handshake_failed(client, "Unsupported VeNCrypt version");
 		return sizeof(*msg);
 	}
 
@@ -299,7 +297,7 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	} else {
 		log_debug("User \"%s\" rejected\n", username);
-		handle_invalid_security_type(client); // TODO say wrong auth
+		security_handshake_failed(client, "Invalid username or password");
 	}
 
 	return sizeof(*msg) + ulen + plen;
@@ -325,7 +323,7 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 	default:
-		handle_invalid_security_type(client);
+		security_handshake_failed(client, "Unsupported security type");
 		break;
 	}
 

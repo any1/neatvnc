@@ -81,8 +81,10 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);
 int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);
 ssize_t stream_read(struct stream* self, void* dst, size_t size);
-int stream_write(struct stream* self, struct rcbuf* payload,
+int stream_write(struct stream* self, const void* payload, size_t len,
                  stream_req_fn on_done, void* userdata);
+int stream_send(struct stream* self, struct rcbuf* payload,
+                stream_req_fn on_done, void* userdata);
 
 #ifdef ENABLE_TLS
 int stream_upgrade_to_tls(struct stream* self, void* context);

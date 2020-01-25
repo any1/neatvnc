@@ -304,8 +304,8 @@ failure:
 	return NULL;
 }
 
-int stream_write(struct stream* self, struct rcbuf* payload,
-                 stream_req_fn on_done, void* userdata)
+int stream_send(struct stream* self, struct rcbuf* payload,
+                stream_req_fn on_done, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		return -1;
@@ -321,6 +321,13 @@ int stream_write(struct stream* self, struct rcbuf* payload,
 	TAILQ_INSERT_TAIL(&self->send_queue, req, link);
 
 	return stream__flush(self);
+}
+
+int stream_write(struct stream* self, const void* payload, size_t len,
+                 stream_req_fn on_done, void* userdata)
+{
+	struct rcbuf* buf = rcbuf_from_mem(payload, len);
+	return buf ? stream_send(self, buf, on_done, userdata) : -1;
 }
 
 ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)

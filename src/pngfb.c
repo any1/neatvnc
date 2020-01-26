@@ -3,7 +3,6 @@
  * benchmarks.
  */
 
-#include "util.h"
 #include "neatvnc.h"
 
 #include <stdlib.h>

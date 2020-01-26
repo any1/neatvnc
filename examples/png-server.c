@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "neatvnc.h"
+#include <neatvnc.h>
 
 #include <stdio.h>
 #include <uv.h>

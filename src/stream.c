@@ -229,11 +229,14 @@ static void stream__on_readable(struct stream* self)
 {
 	switch (self->state) {
 	case STREAM_STATE_NORMAL:
+		/* fallthrough */
 #ifdef ENABLE_TLS
 	case STREAM_STATE_TLS_READY:
+#endif
 		if (self->on_event)
 			self->on_event(self, STREAM_EVENT_READ);
 		break;
+#ifdef ENABLE_TLS
 	case STREAM_STATE_TLS_HANDSHAKE:
 		stream__try_tls_accept(self);
 		break;
@@ -248,10 +251,13 @@ static void stream__on_writable(struct stream* self)
 {
 	switch (self->state) {
 	case STREAM_STATE_NORMAL:
+		/* fallthrough */
 #ifdef ENABLE_TLS
 	case STREAM_STATE_TLS_READY:
+#endif
 		stream__flush(self);
 		break;
+#ifdef ENABLE_TLS
 	case STREAM_STATE_TLS_HANDSHAKE:
 		stream__try_tls_accept(self);
 		break;

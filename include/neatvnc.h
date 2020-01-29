@@ -91,6 +91,6 @@ int nvnc_feed_frame(struct nvnc* self, struct nvnc_fb* fb,
  *
  * This is a utility function that may be used to reduce network traffic.
  */
-int nvnc_check_damage(const struct nvnc_fb* fb0, const struct nvnc_fb* fb1,
+int nvnc_check_damage(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
                       int x_hint, int y_hint, int width_hint, int height_hint,
                       nvnc_damage_fn on_check_done, void* userdata);

@@ -16,8 +16,8 @@
 
 struct damage_check {
 	uv_work_t work;
-	const struct nvnc_fb* fb0;
-	const struct nvnc_fb* fb1;
+	struct nvnc_fb* fb0;
+	struct nvnc_fb* fb1;
 	int x_hint;
 	int y_hint;
 	int width_hint;
@@ -103,13 +103,16 @@ void on_damage_check_done_linear(uv_work_t* work, int status)
 
 	check->on_done(&check->damage, check->userdata);
 
+	nvnc_fb_unref(check->fb1);
+	nvnc_fb_unref(check->fb0);
+
 	pixman_region_fini(&check->damage);
 	free(check);
 }
 
-int check_damage_linear_threaded(const struct nvnc_fb* fb0,
-                                 const struct nvnc_fb* fb1, int x_hint,
-                                 int y_hint, int width_hint, int height_hint,
+int check_damage_linear_threaded(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
+                                 int x_hint, int y_hint,
+                                 int width_hint, int height_hint,
                                  nvnc_damage_fn on_check_done, void* userdata)
 {
 	struct damage_check* work = calloc(1, sizeof(*work));
@@ -130,14 +133,18 @@ int check_damage_linear_threaded(const struct nvnc_fb* fb0,
 	int rc = uv_queue_work(uv_default_loop(), &work->work,
 	                       do_damage_check_linear,
 	                       on_damage_check_done_linear);
-	if (rc < 0)
+	if (rc >= 0) {
+		nvnc_fb_ref(fb0);
+		nvnc_fb_ref(fb1);
+	} else {
 		free(work);
+	}
 
 	return rc;
 }
 
 EXPORT
-int nvnc_check_damage(const struct nvnc_fb* fb0, const struct nvnc_fb* fb1,
+int nvnc_check_damage(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
                       int x_hint, int y_hint, int width_hint, int height_hint,
                       nvnc_damage_fn on_check_done, void* userdata)
 {

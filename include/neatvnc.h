@@ -44,7 +44,8 @@ typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
 
-struct nvnc* nvnc_open(const char* addr, uint16_t port);
+struct nvnc* nvnc_create(void);
+int nvnc_open(struct nvnc*, const char* addr, uint16_t port);
 void nvnc_close(struct nvnc* self);
 
 void nvnc_set_userdata(void* self, void* userdata);

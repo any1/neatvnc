@@ -747,11 +747,16 @@ accept_failure:
 }
 
 EXPORT
-struct nvnc* nvnc_open(const char* address, uint16_t port)
+struct nvnc* nvnc_create(void)
 {
-	struct nvnc* self = calloc(1, sizeof(*self));
+	return calloc(1, sizeof(struct nvnc));
+}
+
+EXPORT
+int nvnc_open(struct nvnc* self, const char* address, uint16_t port)
+{
 	if (!self)
-		return NULL;
+		return -1;
 
 	strcpy(self->display.name, DEFAULT_NAME);
 
@@ -759,7 +764,7 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 
 	self->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (self->fd < 0)
-		return NULL;
+		return -1;
 
 	int one = 1;
 	if (setsockopt(self->fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
@@ -779,11 +784,11 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 	uv_poll_init(uv_default_loop(), &self->poll_handle, self->fd);
 	uv_poll_start(&self->poll_handle, UV_READABLE, on_connection);
 
-	return self;
+	return 0;
 
 failure:
 	close(self->fd);
-	return NULL;
+	return -1;
 }
 
 EXPORT

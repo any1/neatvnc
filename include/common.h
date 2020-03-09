@@ -76,6 +76,12 @@ struct nvnc_client {
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
 };
 
+struct nvnc_poll {
+	struct nvnc_common common;
+	nvnc_poll_callback_fn poll_callback_fn;
+	void *priv;
+};
+
 LIST_HEAD(nvnc_client_list, nvnc_client);
 
 struct vnc_display {
@@ -88,10 +94,12 @@ struct vnc_display {
 struct nvnc {
 	struct nvnc_common common;
 	int fd;
-	uv_poll_t poll_handle;
+	struct nvnc_poll poll;
 	struct nvnc_client_list clients;
 	struct vnc_display display;
 	void* userdata;
+	nvnc_poll_start_fn poll_start_fn;
+	nvnc_poll_stop_fn poll_stop_fn;
 	nvnc_key_fn key_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;

@@ -130,6 +130,7 @@ int check_damage_linear_threaded(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
 	pixman_region_init(&work->damage);
 
 	/* TODO: Spread the work into more tasks */
+	fprintf(stderr, "check_damage_linear_threaded, call uv_queue_work\n");
 	int rc = uv_queue_work(uv_default_loop(), &work->work,
 	                       do_damage_check_linear,
 	                       on_damage_check_done_linear);

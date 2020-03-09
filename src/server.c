@@ -33,7 +33,6 @@
 #include <sys/queue.h>
 #include <sys/param.h>
 #include <assert.h>
-#include <uv.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 #include <pthread.h>
@@ -687,11 +686,9 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
-static void on_connection(uv_poll_t* poll_handle, int status, int events)
+static void on_connection(struct nvnc_poll *poll, uint32_t mask)
 {
-	struct nvnc* server =
-	        container_of(poll_handle, struct nvnc, poll_handle);
-
+	struct nvnc* server = (struct nvnc*)poll->priv;
 	struct nvnc_client* client = calloc(1, sizeof(*client));
 	if (!client)
 		return;
@@ -703,7 +700,7 @@ static void on_connection(uv_poll_t* poll_handle, int status, int events)
 	if (fd < 0)
 		goto accept_failure;
 
-	client->net_stream = stream_new(fd, on_client_event, client);
+	client->net_stream = stream_new(fd, on_client_event, client, server);
 	if (!client->net_stream)
 		goto stream_failure;
 
@@ -757,6 +754,9 @@ int nvnc_open(struct nvnc* self, const char* address, uint16_t port)
 	if (!self)
 		return -1;
 
+	if (!self->poll_start_fn || !self->poll_stop_fn)
+		return -1;
+
 	strcpy(self->display.name, DEFAULT_NAME);
 
 	LIST_INIT(&self->clients);
@@ -780,8 +780,10 @@ int nvnc_open(struct nvnc* self, const char* address, uint16_t port)
 	if (listen(self->fd, 16) < 0)
 		goto failure;
 
-	uv_poll_init(uv_default_loop(), &self->poll_handle, self->fd);
-	uv_poll_start(&self->poll_handle, UV_READABLE, on_connection);
+	self->poll.poll_callback_fn = on_connection;
+	self->poll.priv = self;
+
+	self->poll_start_fn(self, &self->poll, self->fd, NVNC_EVENT_READABLE);
 
 	return 0;
 
@@ -802,7 +804,7 @@ void nvnc_close(struct nvnc* self)
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
 		client_unref(client);
 
-	uv_poll_stop(&self->poll_handle);
+	self->poll_stop_fn(self, &self->poll);
 	close(self->fd);
 
 #ifdef ENABLE_TLS
@@ -986,6 +988,24 @@ void* nvnc_get_userdata(const void* self)
 {
 	const struct nvnc_common* common = self;
 	return common->userdata;
+}
+
+EXPORT
+nvnc_poll_callback_fn nvnc_poll_get_cb(const struct nvnc_poll* poll)
+{
+	return poll->poll_callback_fn;
+}
+
+EXPORT
+void nvnc_set_poll_start_fn(struct nvnc* self, nvnc_poll_start_fn fn)
+{
+	self->poll_start_fn = fn;
+}
+
+EXPORT
+void nvnc_set_poll_stop_fn(struct nvnc* self, nvnc_poll_stop_fn fn)
+{
+	self->poll_stop_fn = fn;
 }
 
 EXPORT

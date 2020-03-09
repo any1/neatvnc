@@ -20,8 +20,9 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/uio.h>
-#include <uv.h>
+#include <limits.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -30,29 +31,29 @@
 #include "type-macros.h"
 #include "rcbuf.h"
 #include "stream.h"
+#include "common.h"
 #include "sys/queue.h"
 
-static void stream__on_event(uv_poll_t* uv_poll, int status, int events);
 #ifdef ENABLE_TLS
 static int stream__try_tls_accept(struct stream* self);
 #endif
 
 static inline void stream__poll_r(struct stream* self)
 {
-	uv_poll_start(&self->uv_poll, UV_READABLE | UV_DISCONNECT,
-	              stream__on_event);
+	self->server->poll_start_fn(self->server, &self->poll, self->fd,
+			    NVNC_EVENT_READABLE | NVNC_EVENT_HANGUP);
 }
 
 static inline void stream__poll_w(struct stream* self)
 {
-	uv_poll_start(&self->uv_poll, UV_WRITABLE | UV_DISCONNECT,
-	              stream__on_event);
+	self->server->poll_start_fn(self->server, &self->poll, self->fd,
+			    NVNC_EVENT_WRITABLE | NVNC_EVENT_HANGUP);
 }
 
 static inline void stream__poll_rw(struct stream* self)
 {
-	uv_poll_start(&self->uv_poll, UV_READABLE | UV_DISCONNECT | UV_WRITABLE,
-	              stream__on_event);
+	self->server->poll_start_fn(self->server, &self->poll, self->fd,
+		NVNC_EVENT_READABLE | NVNC_EVENT_WRITABLE | NVNC_EVENT_HANGUP);
 }
 
 static void stream_req__finish(struct stream_req* req, enum stream_req_status status)
@@ -83,24 +84,17 @@ int stream_close(struct stream* self)
 	self->tls_session = NULL;
 #endif
 
-	uv_poll_stop(&self->uv_poll);
+	self->server->poll_stop_fn(self->server, &self->poll);
 	close(self->fd);
 	self->fd = -1;
 
 	return 0;
 }
 
-void stream__free_poll_handle(uv_handle_t* handle)
-{
-	uv_poll_t* uv_poll = (uv_poll_t*)handle;
-	struct stream* self = container_of(uv_poll, struct stream, uv_poll);
-	free(self);
-}
-
 void stream_destroy(struct stream* self)
 {
 	stream_close(self);
-	uv_close((uv_handle_t*)&self->uv_poll, stream__free_poll_handle);
+	free(self);
 }
 
 static void stream__remote_closed(struct stream* self)
@@ -268,23 +262,29 @@ static void stream__on_writable(struct stream* self)
 	}
 }
 
-static void stream__on_event(uv_poll_t* uv_poll, int status, int events)
+static void stream__on_event(struct nvnc_poll *poll, uint32_t events)
 {
-	struct stream* self = container_of(uv_poll, struct stream, uv_poll);
+	struct stream* self = (struct stream*)poll->priv;
 
-	if (events & UV_DISCONNECT) {
+	if (events & NVNC_EVENT_HANGUP) {
+		fprintf(stderr, "stream__on_event, disconnect\n");
 		stream__remote_closed(self);
 		return;
 	}
 
-	if (events & UV_READABLE)
+	if (events & NVNC_EVENT_READABLE) {
+	//	fprintf(stderr, "stream__on_event, readable\n");
 		stream__on_readable(self);
+	}
 
-	if (events & UV_WRITABLE)
+	if (events & NVNC_EVENT_WRITABLE) {
+	//	fprintf(stderr, "stream__on_event, writeable\n");
 		stream__on_writable(self);
+	}
 }
 
-struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
+struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata,
+			  struct nvnc *server)
 {
 	struct stream* self = calloc(1, sizeof(*self));
 	if (!self)
@@ -293,13 +293,13 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 	self->fd = fd;
 	self->on_event = on_event;
 	self->userdata = userdata;
+	self->server = server;
+	self->poll.poll_callback_fn = stream__on_event;
+	self->poll.priv = self;
 
 	TAILQ_INIT(&self->send_queue);
 
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-
-	if (uv_poll_init(uv_default_loop(), &self->uv_poll, fd) < 0)
-		goto failure;
 
 	stream__poll_r(self);
 
@@ -393,7 +393,7 @@ static int stream__try_tls_accept(struct stream* self)
 	}
 
 	if (gnutls_error_is_fatal(rc)) {
-		uv_poll_stop(&self->uv_poll);
+		self->server->poll_stop_fn(self->server, &self->poll);
 		return -1;
 	}
 

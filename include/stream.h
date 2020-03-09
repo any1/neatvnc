@@ -14,11 +14,10 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <uv.h>
-
 #include "config.h"
 #include "sys/queue.h"
 #include "rcbuf.h"
+#include "common.h"
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -66,7 +65,8 @@ struct stream {
 	enum stream_state state;
 
 	int fd;
-	uv_poll_t uv_poll;
+	struct nvnc* server;
+	struct nvnc_poll poll;
 	stream_event_fn on_event;
 	void* userdata;
 
@@ -77,7 +77,8 @@ struct stream {
 #endif
 };
 
-struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);
+struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata,
+			  struct nvnc* server);
 int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);
 ssize_t stream_read(struct stream* self, void* dst, size_t size);

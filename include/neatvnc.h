@@ -22,6 +22,7 @@
 struct nvnc;
 struct nvnc_client;
 struct nvnc_fb;
+struct nvnc_poll;
 struct pixman_region16;
 
 enum nvnc_button_mask {
@@ -30,6 +31,13 @@ enum nvnc_button_mask {
 	NVNC_BUTTON_RIGHT = 1 << 2,
 	NVNC_SCROLL_UP = 1 << 3,
 	NVNC_SCROLL_DOWN = 1 << 4,
+};
+
+enum {
+	NVNC_EVENT_READABLE = 0x01,
+	NVNC_EVENT_WRITABLE = 0x02,
+	NVNC_EVENT_HANGUP   = 0x04,
+	NVNC_EVENT_ERROR    = 0x08
 };
 
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t keysym,
@@ -43,6 +51,12 @@ typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
+typedef void (*nvnc_poll_callback_fn)(struct nvnc_poll *poll, uint32_t mask);
+typedef void (*nvnc_poll_start_fn)(struct nvnc* self, struct nvnc_poll *poll,
+				   int fd, uint32_t mask);
+typedef void (*nvnc_poll_stop_fn)(struct nvnc* self, struct nvnc_poll *poll);
+
+nvnc_poll_callback_fn nvnc_poll_get_cb(const struct nvnc_poll* poll);
 
 struct nvnc* nvnc_create(void);
 int nvnc_open(struct nvnc*, const char* addr, uint16_t port);
@@ -58,6 +72,8 @@ void nvnc_set_dimensions(struct nvnc* self, uint16_t width, uint16_t height,
 
 void nvnc_set_name(struct nvnc* self, const char* name);
 
+void nvnc_set_poll_start_fn(struct nvnc* self, nvnc_poll_start_fn);
+void nvnc_set_poll_stop_fn(struct nvnc* self, nvnc_poll_stop_fn);
 void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);

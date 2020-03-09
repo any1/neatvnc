@@ -55,7 +55,6 @@
 #define EXPORT __attribute__((visibility("default")))
 
 struct fb_update_work {
-	uv_work_t work;
 	struct nvnc_client* client;
 	struct pixman_region16 region;
 	struct rfb_pixel_format server_fmt;
@@ -840,9 +839,8 @@ enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 	return -1;
 }
 
-void do_client_update_fb(uv_work_t* work)
+void do_client_update_fb(struct fb_update_work* update)
 {
-	struct fb_update_work* update = (void*)work;
 	struct nvnc_client* client = update->client;
 	const struct nvnc_fb* fb = update->fb;
 
@@ -878,11 +876,8 @@ void do_client_update_fb(uv_work_t* work)
 	}
 }
 
-void on_client_update_fb_done(uv_work_t* work, int status)
+void on_client_update_fb_done(struct fb_update_work* update)
 {
-	(void)status;
-
-	struct fb_update_work* update = (void*)work;
 	struct nvnc_client* client = update->client;
 	struct vec* frame = &update->frame;
 
@@ -935,10 +930,9 @@ int schedule_client_update_fb(struct nvnc_client* client)
 	client_ref(client);
 	nvnc_fb_ref(fb);
 
-	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
-	                   on_client_update_fb_done);
-	if (rc < 0)
-		goto queue_failure;
+	/* FIXME: make this threaded again */
+	do_client_update_fb(work);
+	on_client_update_fb_done(work);
 
 	return 0;
 

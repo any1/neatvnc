@@ -18,10 +18,16 @@
 
 #include <stdio.h>
 #include <aml.h>
+#include <signal.h>
 #include <assert.h>
 #include <pixman.h>
 
 struct nvnc_fb* read_png_file(const char* filename);
+
+void on_sigint()
+{
+	aml_exit(aml_get_default());
+}
 
 int main(int argc, char* argv[])
 {
@@ -56,8 +62,13 @@ int main(int argc, char* argv[])
 	nvnc_feed_frame(server, fb, &region);
 	pixman_region_fini(&region);
 
+	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
+	aml_start(aml_get_default(), sig);
+	aml_unref(sig);
+
 	aml_run(aml);
 
 	nvnc_close(server);
 	nvnc_fb_unref(fb);
+	aml_unref(aml);
 }

@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <aml.h>
+#include <signal.h>
 #include <assert.h>
 #include <pixman.h>
 #include <libdrm/drm_fourcc.h>
@@ -53,6 +54,11 @@ void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	pixman_region_fini(&region);
 }
 
+void on_sigint()
+{
+	aml_exit(aml_get_default());
+}
+
 int main(int argc, char* argv[])
 {
 	struct draw draw;
@@ -76,7 +82,13 @@ int main(int argc, char* argv[])
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw);
 
+	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
+	aml_start(aml_get_default(), sig);
+	aml_unref(sig);
+
 	aml_run(aml);
 
 	nvnc_close(server);
+	nvnc_fb_unref(draw.fb);
+	aml_unref(aml);
 }

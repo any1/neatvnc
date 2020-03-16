@@ -33,10 +33,11 @@
 #include <sys/queue.h>
 #include <sys/param.h>
 #include <assert.h>
-#include <uv.h>
+#include <aml.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 #include <pthread.h>
+#include <errno.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -55,7 +56,7 @@
 #define EXPORT __attribute__((visibility("default")))
 
 struct fb_update_work {
-	uv_work_t work;
+	struct aml_work* work;
 	struct nvnc_client* client;
 	struct pixman_region16 region;
 	struct rfb_pixel_format server_fmt;
@@ -64,19 +65,6 @@ struct fb_update_work {
 };
 
 int schedule_client_update_fb(struct nvnc_client* client);
-
-static const char* fourcc_to_string(uint32_t fourcc)
-{
-	static char buffer[5];
-
-	buffer[0] = (fourcc >> 0) & 0xff;
-	buffer[1] = (fourcc >> 8) & 0xff;
-	buffer[2] = (fourcc >> 16) & 0xff;
-	buffer[3] = (fourcc >> 24) & 0xff;
-	buffer[4] = '\0';
-
-	return buffer;
-}
 
 static void client_close(struct nvnc_client* client)
 {
@@ -688,10 +676,9 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
-static void on_connection(uv_poll_t* poll_handle, int status, int events)
+static void on_connection(void* obj)
 {
-	struct nvnc* server =
-	        container_of(poll_handle, struct nvnc, poll_handle);
+	struct nvnc* server = aml_get_userdata(obj);
 
 	struct nvnc_client* client = calloc(1, sizeof(*client));
 	if (!client)
@@ -749,6 +736,8 @@ accept_failure:
 EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
+	aml_require_workers(aml_get_default(), 4);
+
 	struct nvnc* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
@@ -776,11 +765,17 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 	if (listen(self->fd, 16) < 0)
 		goto failure;
 
-	uv_poll_init(uv_default_loop(), &self->poll_handle, self->fd);
-	uv_poll_start(&self->poll_handle, UV_READABLE, on_connection);
+	self->poll_handle = aml_handler_new(self->fd, on_connection, self, NULL);
+	if (!self->poll_handle)
+		goto failure;
+
+	if (aml_start(aml_get_default(), self->poll_handle) < 0)
+		goto start_failure;
 
 	return self;
 
+start_failure:
+	aml_unref(self->poll_handle);
 failure:
 	close(self->fd);
 	return NULL;
@@ -798,7 +793,7 @@ void nvnc_close(struct nvnc* self)
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
 		client_unref(client);
 
-	uv_poll_stop(&self->poll_handle);
+	aml_stop(aml_get_default(), self->poll_handle);
 	close(self->fd);
 
 #ifdef ENABLE_TLS
@@ -808,6 +803,7 @@ void nvnc_close(struct nvnc* self)
 	}
 #endif
 
+	aml_unref(self->poll_handle);
 	free(self);
 }
 
@@ -835,9 +831,9 @@ enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 	return -1;
 }
 
-void do_client_update_fb(uv_work_t* work)
+void do_client_update_fb(void* work)
 {
-	struct fb_update_work* update = (void*)work;
+	struct fb_update_work* update = aml_get_userdata(work);
 	struct nvnc_client* client = update->client;
 	const struct nvnc_fb* fb = update->fb;
 
@@ -873,11 +869,9 @@ void do_client_update_fb(uv_work_t* work)
 	}
 }
 
-void on_client_update_fb_done(uv_work_t* work, int status)
+void on_client_update_fb_done(void* work)
 {
-	(void)status;
-
-	struct fb_update_work* update = (void*)work;
+	struct fb_update_work* update = aml_get_userdata(work);
 	struct nvnc_client* client = update->client;
 	struct vec* frame = &update->frame;
 
@@ -901,7 +895,6 @@ void on_client_update_fb_done(uv_work_t* work, int status)
 	pixman_region_fini(&update->region);
 
 	client_unref(client);
-	free(update);
 }
 
 int schedule_client_update_fb(struct nvnc_client* client)
@@ -930,14 +923,25 @@ int schedule_client_update_fb(struct nvnc_client* client)
 	client_ref(client);
 	nvnc_fb_ref(fb);
 
-	rc = uv_queue_work(uv_default_loop(), &work->work, do_client_update_fb,
-	                   on_client_update_fb_done);
+	struct aml_work* obj =
+		aml_work_new(do_client_update_fb, on_client_update_fb_done,
+		             work, free);
+	if (!obj) {
+		goto oom_failure;
+	}
+
+	rc = aml_start(aml_get_default(), obj);
+	aml_unref(obj);
 	if (rc < 0)
-		goto queue_failure;
+		goto start_failure;
+
+	work->work = obj;
 
 	return 0;
 
-queue_failure:
+start_failure:
+	work = NULL; /* handled in unref */
+oom_failure:
 	nvnc_fb_unref(fb);
 	client_unref(client);
 	vec_destroy(&work->frame);

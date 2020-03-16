@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uv.h>
+#include <aml.h>
 #include <assert.h>
 #include <pixman.h>
 #include <libdrm/drm_fourcc.h>
@@ -66,6 +66,9 @@ int main(int argc, char* argv[])
 
 	memset(addr, 0xff, width * height * 4);
 
+	struct aml* aml = aml_new(NULL, 0);
+	aml_set_default(aml);
+
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 
 	nvnc_set_dimensions(server, width, height, format);
@@ -73,7 +76,7 @@ int main(int argc, char* argv[])
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw);
 
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	aml_run(aml);
 
 	nvnc_close(server);
 }

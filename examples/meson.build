@@ -8,7 +8,7 @@ executable(
 	dependencies: [
 		neatvnc_dep,
 		pixman,
-		libuv,
+		aml,
 	]
 )
 
@@ -22,7 +22,7 @@ if libpng.found()
 		dependencies: [
 			neatvnc_dep,
 			pixman,
-			libuv,
+			aml,
 			libpng,
 		]
 	)

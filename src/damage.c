@@ -105,7 +105,6 @@ void on_damage_check_done_linear(void* work)
 	nvnc_fb_unref(check->fb0);
 
 	pixman_region_fini(&check->damage);
-	free(check);
 }
 
 int check_damage_linear_threaded(struct nvnc_fb* fb0, struct nvnc_fb* fb1,

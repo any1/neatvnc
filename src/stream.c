@@ -21,38 +21,37 @@
 #include <assert.h>
 #include <errno.h>
 #include <sys/uio.h>
-#include <uv.h>
+#include <limits.h>
+#include <aml.h>
+#include <fcntl.h>
+#include <poll.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
 #endif
 
-#include "type-macros.h"
 #include "rcbuf.h"
 #include "stream.h"
 #include "sys/queue.h"
 
-static void stream__on_event(uv_poll_t* uv_poll, int status, int events);
+static void stream__on_event(void* obj);
 #ifdef ENABLE_TLS
 static int stream__try_tls_accept(struct stream* self);
 #endif
 
 static inline void stream__poll_r(struct stream* self)
 {
-	uv_poll_start(&self->uv_poll, UV_READABLE | UV_DISCONNECT,
-	              stream__on_event);
+	aml_set_event_mask(self->handler, POLLIN);
 }
 
 static inline void stream__poll_w(struct stream* self)
 {
-	uv_poll_start(&self->uv_poll, UV_WRITABLE | UV_DISCONNECT,
-	              stream__on_event);
+	aml_set_event_mask(self->handler, POLLOUT);
 }
 
 static inline void stream__poll_rw(struct stream* self)
 {
-	uv_poll_start(&self->uv_poll, UV_READABLE | UV_DISCONNECT | UV_WRITABLE,
-	              stream__on_event);
+	aml_set_event_mask(self->handler, POLLIN | POLLOUT);
 }
 
 static void stream_req__finish(struct stream_req* req, enum stream_req_status status)
@@ -83,24 +82,18 @@ int stream_close(struct stream* self)
 	self->tls_session = NULL;
 #endif
 
-	uv_poll_stop(&self->uv_poll);
+	// TODO: Maybe use explicit loop object instead of the default one?
+	aml_stop(aml_get_default(), self->handler);
 	close(self->fd);
 	self->fd = -1;
 
 	return 0;
 }
 
-void stream__free_poll_handle(uv_handle_t* handle)
-{
-	uv_poll_t* uv_poll = (uv_poll_t*)handle;
-	struct stream* self = container_of(uv_poll, struct stream, uv_poll);
-	free(self);
-}
-
 void stream_destroy(struct stream* self)
 {
 	stream_close(self);
-	uv_close((uv_handle_t*)&self->uv_poll, stream__free_poll_handle);
+	aml_unref(self->handler);
 }
 
 static void stream__remote_closed(struct stream* self)
@@ -268,19 +261,15 @@ static void stream__on_writable(struct stream* self)
 	}
 }
 
-static void stream__on_event(uv_poll_t* uv_poll, int status, int events)
+static void stream__on_event(void* obj)
 {
-	struct stream* self = container_of(uv_poll, struct stream, uv_poll);
+	struct stream* self = aml_get_userdata(obj);
+	uint32_t events = aml_get_revents(obj);
 
-	if (events & UV_DISCONNECT) {
-		stream__remote_closed(self);
-		return;
-	}
-
-	if (events & UV_READABLE)
+	if (events & POLLIN)
 		stream__on_readable(self);
 
-	if (events & UV_WRITABLE)
+	if (events & POLLOUT)
 		stream__on_writable(self);
 }
 
@@ -298,13 +287,20 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 
-	if (uv_poll_init(uv_default_loop(), &self->uv_poll, fd) < 0)
+	self->handler = aml_handler_new(fd, stream__on_event, self, free);
+	if (!self->handler)
 		goto failure;
+
+	if (aml_start(aml_get_default(), self->handler) < 0)
+		goto start_failure;
 
 	stream__poll_r(self);
 
 	return self;
 
+start_failure:
+	aml_unref(self->handler);
+	self = NULL; /* Handled in unref */
 failure:
 	free(self);
 	return NULL;
@@ -393,7 +389,7 @@ static int stream__try_tls_accept(struct stream* self)
 	}
 
 	if (gnutls_error_is_fatal(rc)) {
-		uv_poll_stop(&self->uv_poll);
+		aml_stop(aml_get_default(), &self->handler);
 		return -1;
 	}
 

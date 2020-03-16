@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <uv.h>
 #include <stdbool.h>
 #include <pixman.h>
 
@@ -50,6 +49,7 @@ enum nvnc_client_state {
 
 struct nvnc;
 struct stream;
+struct aml_handler;
 
 struct nvnc_common {
 	void* userdata;
@@ -88,7 +88,7 @@ struct vnc_display {
 struct nvnc {
 	struct nvnc_common common;
 	int fd;
-	uv_poll_t poll_handle;
+	struct aml_handler* poll_handle;
 	struct nvnc_client_list clients;
 	struct vnc_display display;
 	void* userdata;

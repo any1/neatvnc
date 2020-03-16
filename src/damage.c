@@ -8,14 +8,14 @@
 #include <string.h>
 #include <sys/param.h>
 #include <libdrm/drm_fourcc.h>
-#include <uv.h>
+#include <aml.h>
 #include <assert.h>
 
 #define EXPORT __attribute__((visibility("default")))
 #define ALIGN_DOWN(a, b) (((a) / (b)) * (b))
 
 struct damage_check {
-	uv_work_t work;
+	struct aml_work* work;
 	struct nvnc_fb* fb0;
 	struct nvnc_fb* fb1;
 	int x_hint;
@@ -86,20 +86,18 @@ int check_damage_linear(struct pixman_region16* damage,
 }
 #undef TILE_SIDE_LENGTH
 
-void do_damage_check_linear(uv_work_t* work)
+void do_damage_check_linear(void* work)
 {
-	struct damage_check* check = (void*)work;
+	struct damage_check* check = aml_get_userdata(work);
 
 	check_damage_linear(&check->damage, check->fb0, check->fb1,
 	                    check->x_hint, check->y_hint, check->width_hint,
 	                    check->height_hint);
 }
 
-void on_damage_check_done_linear(uv_work_t* work, int status)
+void on_damage_check_done_linear(void* work)
 {
-	(void)status;
-
-	struct damage_check* check = (void*)work;
+	struct damage_check* check = aml_get_userdata(work);
 
 	check->on_done(&check->damage, check->userdata);
 
@@ -130,17 +128,25 @@ int check_damage_linear_threaded(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
 	pixman_region_init(&work->damage);
 
 	/* TODO: Spread the work into more tasks */
-	int rc = uv_queue_work(uv_default_loop(), &work->work,
-	                       do_damage_check_linear,
-	                       on_damage_check_done_linear);
-	if (rc >= 0) {
-		nvnc_fb_ref(fb0);
-		nvnc_fb_ref(fb1);
-	} else {
+	struct aml_work* obj =
+		aml_work_new(do_damage_check_linear, on_damage_check_done_linear,
+		             work, free);
+	if (!obj) {
 		free(work);
+		return -1;
 	}
 
-	return rc;
+	int rc = aml_start(aml_get_default(), obj);
+	aml_unref(obj);
+	if (rc < 0)
+		return -1;
+
+	work->work = obj;
+
+	nvnc_fb_ref(fb0);
+	nvnc_fb_ref(fb1);
+
+	return 0;
 }
 
 EXPORT

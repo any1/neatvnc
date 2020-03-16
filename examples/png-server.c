@@ -17,7 +17,7 @@
 #include <neatvnc.h>
 
 #include <stdio.h>
-#include <uv.h>
+#include <aml.h>
 #include <assert.h>
 #include <pixman.h>
 
@@ -38,6 +38,9 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	struct aml* aml = aml_new(NULL, 0);
+	aml_set_default(aml);
+
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 
 	int width = nvnc_fb_get_width(fb);
@@ -53,7 +56,7 @@ int main(int argc, char* argv[])
 	nvnc_feed_frame(server, fb, &region);
 	pixman_region_fini(&region);
 
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+	aml_run(aml);
 
 	nvnc_close(server);
 	nvnc_fb_unref(fb);

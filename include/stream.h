@@ -14,8 +14,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <uv.h>
-
 #include "config.h"
 #include "sys/queue.h"
 #include "rcbuf.h"
@@ -66,7 +64,7 @@ struct stream {
 	enum stream_state state;
 
 	int fd;
-	uv_poll_t uv_poll;
+	struct aml_handler* handler;
 	stream_event_fn on_event;
 	void* userdata;
 

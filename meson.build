@@ -34,9 +34,15 @@ cc = meson.get_compiler('c')
 libm = cc.find_library('m', required: false)
 
 pixman = dependency('pixman-1')
-libuv = dependency('libuv')
 libturbojpeg = dependency('libturbojpeg', required: get_option('tight-encoding'))
 gnutls = dependency('gnutls', required: get_option('tls'))
+
+aml_project = subproject('aml', required: false)
+if aml_project.found()
+	aml = aml_project.get_variable('aml_dep')
+else
+	aml = dependency('aml')
+endif
 
 inc = include_directories('include', 'contrib/miniz')
 
@@ -56,7 +62,7 @@ sources = [
 dependencies = [
 	libm,
 	pixman,
-	libuv,
+	aml,
 ]
 
 config = configuration_data()

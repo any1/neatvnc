@@ -736,7 +736,7 @@ accept_failure:
 EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
-	aml_require_workers(aml_get_default(), 4);
+	aml_require_workers(aml_get_default(), -1);
 
 	struct nvnc* self = calloc(1, sizeof(*self));
 	if (!self)

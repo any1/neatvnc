@@ -13,7 +13,7 @@ neat. Note: This is a beta release, so the interface is not yet stable.
 
 ### Runtime Dependencies
  * pixman
- * libuv
+ * aml - https://github.com/any1/aml/
  * gnutls (optional)
  * libturbojpeg (optional)
 

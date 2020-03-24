@@ -334,7 +334,10 @@ int stream_write(struct stream* self, const void* payload, size_t len,
 
 ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
 {
-	return read(self->fd, dst, size);
+	ssize_t rc = read(self->fd, dst, size);
+	if (rc == 0)
+		stream__remote_closed(self);
+	return rc;
 }
 
 #ifdef ENABLE_TLS

@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <uv.h>
 #include <pixman.h>
 
 #define TILE_LENGTH 64

@@ -3,7 +3,10 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/param.h>
 
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+#define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
@@ -20,11 +23,14 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->fourcc_format = fourcc_format;
 	fb->size = width * height * 4; /* Assume 4 byte format for now */
 
+	size_t alignment = MAX(4, sizeof(void*));
+	size_t aligned_size = ALIGN_UP(fb->size, alignment);
+
 	/* fb could be allocated in single allocation, but I want to reserve
 	 * the possiblity to create an fb with a pixel buffer passed from the
 	 * user.
 	 */
-	fb->addr = malloc(fb->size);
+	fb->addr = aligned_alloc(alignment, aligned_size);
 	if (!fb->addr) {
 		free(fb);
 		fb = NULL;

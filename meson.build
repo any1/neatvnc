@@ -9,6 +9,7 @@ project(
 )
 
 buildtype = get_option('buildtype')
+host_system = host_machine.system()
 
 c_args = [
 	'-D_GNU_SOURCE',
@@ -76,6 +77,10 @@ endif
 if gnutls.found()
 	dependencies += gnutls
 	config.set('ENABLE_TLS', true)
+endif
+
+if host_system == 'linux' and cc.has_header('sys/sdt.h')
+	config.set('HAVE_USDT', true)
 endif
 
 configure_file(

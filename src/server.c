@@ -27,6 +27,7 @@
 #include "stream.h"
 #include "config.h"
 #include "logging.h"
+#include "usdt.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -499,6 +500,8 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 		pixman_region_union_rect(&client->damage, &client->damage, x, y,
 		                         width, height);
 
+	DTRACE_PROBE1(neatvnc, update_fb_request, client);
+
 	nvnc_fb_req_fn fn = server->fb_req_fn;
 	if (fn)
 		fn(client, incremental, x, y, width, height);
@@ -892,6 +895,8 @@ void on_client_update_fb_done(void* work)
 	process_fb_update_requests(client);
 	nvnc_fb_unref(update->fb);
 
+	DTRACE_PROBE1(neatvnc, update_fb_done, client);
+
 	pixman_region_fini(&update->region);
 
 	client_unref(client);
@@ -901,6 +906,8 @@ int schedule_client_update_fb(struct nvnc_client* client)
 {
 	struct nvnc_fb* fb = client->server->frame;
 	assert(fb);
+
+	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
 	struct fb_update_work* work = calloc(1, sizeof(*work));
 	if (!work)

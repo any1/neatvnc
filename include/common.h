@@ -24,6 +24,7 @@
 
 #include "neatvnc.h"
 #include "miniz.h"
+#include "tight.h"
 #include "config.h"
 
 #ifdef ENABLE_TLS
@@ -71,6 +72,7 @@ struct nvnc_client {
 	bool is_updating;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
+	struct tight_encoder tight_encoder;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];

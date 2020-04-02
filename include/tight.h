@@ -16,11 +16,20 @@
 
 #pragma once
 
+#include "miniz.h"
+
 struct vec;
 struct nvnc_client;
 struct nvnc_fb;
 struct pixman_region16;
 
-int tight_encode_frame(struct vec* dst, struct nvnc_client* client,
+struct tight_encoder {
+	z_stream zs[4];
+};
+
+int tight_encoder_init(struct tight_encoder*);
+void tight_encoder_destroy(struct tight_encoder*);
+
+int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
                        const struct nvnc_fb* fb,
                        struct pixman_region16* region);

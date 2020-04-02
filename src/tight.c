@@ -35,6 +35,17 @@
 
 #define TIGHT_MAX_WIDTH 2048
 
+int tight_encoder_init(struct tight_encoder* self)
+{
+	// TODO
+	return 0;
+}
+
+void tight_encoder_destroy(struct tight_encoder* self)
+{
+	// TODO
+}
+
 enum TJPF get_jpeg_pixfmt(uint32_t fourcc)
 {
 	switch (fourcc) {
@@ -64,9 +75,9 @@ static void tight_encode_size(struct vec* dst, size_t size)
 		vec_fast_append_8(dst, (size >> 14) & 0x7f);
 }
 
-int tight_encode_box(struct vec* dst, struct nvnc_client* client,
-                     const struct nvnc_fb* fb, uint32_t x, uint32_t y,
-                     uint32_t stride, uint32_t width, uint32_t height)
+int tight_encode_box_jpeg(struct tight_encoder* self, struct vec* dst,
+                          const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+                          uint32_t stride, uint32_t width, uint32_t height)
 {
 
 	unsigned char* buffer = NULL;
@@ -117,7 +128,14 @@ compress_failure:
 	return rc;
 }
 
-int tight_encode_frame(struct vec* dst, struct nvnc_client* client,
+int tight_encode_box(struct tight_encoder* self, struct vec* dst,
+                     const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+                     uint32_t stride, uint32_t width, uint32_t height)
+{
+	return tight_encode_box_jpeg(self, dst, fb, x, y, stride, width, height);
+}
+
+int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
                        const struct nvnc_fb* fb, struct pixman_region16* region)
 {
 	int rc = -1;
@@ -148,7 +166,7 @@ int tight_encode_frame(struct vec* dst, struct nvnc_client* client,
 			int w = MIN(TIGHT_MAX_WIDTH, box_width);
 			box_width -= w;
 
-			rc = tight_encode_box(dst, client, fb, x, y, fb->width,
+			rc = tight_encode_box(self, dst, fb, x, y, fb->width,
 			                      w, box_height);
 			if (rc < 0)
 				return -1;

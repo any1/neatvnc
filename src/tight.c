@@ -20,6 +20,7 @@
 #include "fb.h"
 #include "tight.h"
 #include "common.h"
+#include "logging.h"
 
 #include <pixman.h>
 #include <turbojpeg.h>
@@ -86,11 +87,18 @@ int tight_encode_box(struct vec* dst, struct nvnc_client* client,
 	vec_append(dst, &rect, sizeof(rect));
 
 	tjhandle handle = tjInitCompress();
+	if (!handle)
+		return -1;
 
 	void* img = (uint32_t*)fb->addr + x + y * stride;
 
-	tjCompress2(handle, img, width, stride * 4, height, tjfmt, &buffer,
-	            &size, TJSAMP_422, quality, TJFLAG_FASTDCT);
+	int rc = -1;
+	rc = tjCompress2(handle, img, width, stride * 4, height, tjfmt, &buffer,
+	                 &size, TJSAMP_422, quality, TJFLAG_FASTDCT);
+	if (rc < 0) {
+		log_error("Failed to encode tight JPEG box: %s\n", tjGetErrorStr());
+		goto compress_failure;
+	}
 
 	vec_fast_append_8(dst, TIGHT_JPEG);
 
@@ -98,10 +106,12 @@ int tight_encode_box(struct vec* dst, struct nvnc_client* client,
 
 	vec_append(dst, buffer, size);
 
+	rc = 0;
 	tjFree(buffer);
+compress_failure:
 	tjDestroy(handle);
 
-	return 0;
+	return rc;
 }
 
 int tight_encode_frame(struct vec* dst, struct nvnc_client* client,

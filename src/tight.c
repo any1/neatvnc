@@ -25,12 +25,15 @@
 #include <pixman.h>
 #include <turbojpeg.h>
 #include <stdlib.h>
+#include <sys/param.h>
 #include <libdrm/drm_fourcc.h>
 
 #define TIGHT_FILL 0x80
 #define TIGHT_JPEG 0x90
 #define TIGHT_PNG 0xA0
 #define TIGHT_BASIC 0x00
+
+#define TIGHT_MAX_WIDTH 2048
 
 enum TJPF get_jpeg_pixfmt(uint32_t fourcc)
 {
@@ -141,10 +144,17 @@ int tight_encode_frame(struct vec* dst, struct nvnc_client* client,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		rc = tight_encode_box(dst, client, fb, x, y,
-		                      fb->width, box_width, box_height);
-		if (rc < 0)
-			return -1;
+		while (box_width > 0) {
+			int w = MIN(TIGHT_MAX_WIDTH, box_width);
+			box_width -= w;
+
+			rc = tight_encode_box(dst, client, fb, x, y, fb->width,
+			                      w, box_height);
+			if (rc < 0)
+				return -1;
+
+			x += w;
+		}
 	}
 
 	return 0;

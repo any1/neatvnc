@@ -14,13 +14,16 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "miniz.h"
 #include "neatvnc.h"
 #include "rfb-proto.h"
 #include "vec.h"
 #include "fb.h"
 #include "tight.h"
 #include "common.h"
+#include "pixels.h"
 #include "logging.h"
+#include "type-macros.h"
 
 #include <pixman.h>
 #include <turbojpeg.h>
@@ -35,15 +38,32 @@
 
 #define TIGHT_MAX_WIDTH 2048
 
+int tight_init_zstream(z_stream* zx)
+{
+	int rc = deflateInit2(zx,
+	                      /* compression level: */ 1,
+	                      /*            method: */ Z_DEFLATED,
+	                      /*       window bits: */ 15,
+	                      /*         mem level: */ 9,
+	                      /*          strategy: */ Z_DEFAULT_STRATEGY);
+	return rc == Z_OK ? 0 : -1;
+}
+
 int tight_encoder_init(struct tight_encoder* self)
 {
-	// TODO
-	return 0;
+	// TODO: Implement more stream channels
+	return tight_init_zstream(&self->zs[0]);
 }
 
 void tight_encoder_destroy(struct tight_encoder* self)
 {
-	// TODO
+	deflateEnd(&self->zs[0]);
+}
+
+static int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
+{
+	return fmt->bits_per_pixel == 32 ? fmt->depth / 8
+	                                 : fmt->bits_per_pixel / 8;
 }
 
 enum TJPF get_jpeg_pixfmt(uint32_t fourcc)
@@ -128,15 +148,114 @@ compress_failure:
 	return rc;
 }
 
+int tight_deflate(struct vec* dst, const void* src, size_t len, z_stream* zs, bool flush)
+{
+	int r = Z_STREAM_ERROR;
+
+	zs->next_in = src;
+	zs->avail_in = len;
+
+	do {
+		if (dst->len == dst->cap && vec_reserve(dst, dst->cap * 2) < 0)
+			return -1;
+
+		zs->next_out = ((Bytef*)dst->data) + dst->len;
+		zs->avail_out = dst->cap - dst->len;
+
+		r = deflate(zs, flush ? Z_SYNC_FLUSH : Z_NO_FLUSH);
+		assert(r != Z_STREAM_ERROR);
+
+		dst->len = zs->next_out - (Bytef*)dst->data;
+	} while (zs->avail_out == 0);
+
+	assert(zs->avail_in == 0);
+
+	return 0;
+}
+
+int tight_encode_box_basic(struct tight_encoder* self, struct vec* dst,
+                           const struct nvnc_fb* fb,
+                           const struct rfb_pixel_format* src_fmt,
+                           uint32_t x, uint32_t y_start,
+                           uint32_t stride, uint32_t width, uint32_t height)
+{
+	printf("Encode %u %u %u %u\n", x, y_start, width, height);
+	struct nvnc_client* client =
+		container_of(self, struct nvnc_client, tight_encoder);
+
+	vec_reserve(dst, 4096);
+
+	int bytes_per_cpixel = calc_bytes_per_cpixel(&client->pixfmt);
+	uint8_t* row = malloc(bytes_per_cpixel * width);
+	if (!row)
+		return -1;
+
+	struct vec buffer;
+	if (vec_init(&buffer, 4096) < 0)
+		goto buffer_failure;
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_TIGHT),
+		.x = htons(x),
+		.y = htons(y_start),
+		.width = htons(width),
+		.height = htons(height),
+	};
+
+	vec_append(dst, &rect, sizeof(rect));
+
+	vec_fast_append_8(dst, TIGHT_BASIC);
+
+	struct rfb_pixel_format cfmt = { 0 };
+	if (bytes_per_cpixel == 3)
+		rfb_pixfmt_from_fourcc(&cfmt, DRM_FORMAT_RGBX8888 | DRM_FORMAT_BIG_ENDIAN);
+	else
+		memcpy(&cfmt, &client->pixfmt, sizeof(cfmt));
+
+	if (width * height * bytes_per_cpixel < 12) {
+		for (uint32_t y = y_start; y < y_start + height; ++y) {
+			void* img = (uint32_t*)fb->addr + x + y * stride;
+			pixel32_to_cpixel(row, &cfmt, img, src_fmt,
+			                  bytes_per_cpixel, width);
+			vec_append(&buffer, row, width * bytes_per_cpixel);
+		}
+	} else {
+		for (uint32_t y = y_start; y < y_start + height; ++y) {
+			void* img = (uint32_t*)fb->addr + x + y * stride;
+			pixel32_to_cpixel(row, &cfmt, img, src_fmt,
+			                  bytes_per_cpixel, width);
+			tight_deflate(&buffer, row, bytes_per_cpixel * width,
+					&self->zs[0], y == y_start + height - 1);
+		}
+
+		tight_encode_size(dst, buffer.len);
+	}
+
+	vec_append(dst, buffer.data, buffer.len);
+
+	vec_destroy(&buffer);
+	free(row);
+	return 0;
+
+buffer_failure:
+	free(row);
+	return -1;
+}
+
 int tight_encode_box(struct tight_encoder* self, struct vec* dst,
-                     const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+                     const struct nvnc_fb* fb,
+                     const struct rfb_pixel_format* src_fmt,
+                     uint32_t x, uint32_t y,
                      uint32_t stride, uint32_t width, uint32_t height)
 {
+//	return tight_encode_box_basic(self, dst, fb, src_fmt, x, y, stride, width, height);
 	return tight_encode_box_jpeg(self, dst, fb, x, y, stride, width, height);
 }
 
 int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
-                       const struct nvnc_fb* fb, struct pixman_region16* region)
+                       const struct nvnc_fb* fb,
+                       const struct rfb_pixel_format* src_fmt,
+                       struct pixman_region16* region)
 {
 	int rc = -1;
 
@@ -166,8 +285,8 @@ int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
 			int w = MIN(TIGHT_MAX_WIDTH, box_width);
 			box_width -= w;
 
-			rc = tight_encode_box(self, dst, fb, x, y, fb->width,
-			                      w, box_height);
+			rc = tight_encode_box(self, dst, fb, src_fmt, x, y,
+			                      fb->width, w, box_height);
 			if (rc < 0)
 				return -1;
 

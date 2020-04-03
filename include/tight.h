@@ -22,6 +22,7 @@ struct vec;
 struct nvnc_client;
 struct nvnc_fb;
 struct pixman_region16;
+struct rfb_pixel_format;
 
 struct tight_encoder {
 	z_stream zs[4];
@@ -32,4 +33,5 @@ void tight_encoder_destroy(struct tight_encoder*);
 
 int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
                        const struct nvnc_fb* fb,
+                       const struct rfb_pixel_format* src_fmt,
                        struct pixman_region16* region);

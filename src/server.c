@@ -77,7 +77,9 @@ static void client_close(struct nvnc_client* client)
 
 	LIST_REMOVE(client, link);
 	stream_destroy(client->net_stream);
+#ifdef ENABLE_TIGHT
 	tight_encoder_destroy(&client->tight_encoder);
+#endif
 	deflateEnd(&client->z_stream);
 	pixman_region_fini(&client->damage);
 	free(client);
@@ -709,8 +711,10 @@ static void on_connection(void* obj)
 	if (rc != Z_OK)
 		goto deflate_failure;
 
+#ifdef ENABLE_TIGHT
 	if (tight_encoder_init(&client->tight_encoder) < 0)
 		goto tight_failure;
+#endif
 
 	pixman_region_init(&client->damage);
 
@@ -729,9 +733,13 @@ static void on_connection(void* obj)
 	return;
 
 payload_failure:
+#ifdef ENABLE_TIGHT
 	tight_encoder_destroy(&client->tight_encoder);
+#endif
 	pixman_region_fini(&client->damage);
+#ifdef ENABLE_TIGHT
 tight_failure:
+#endif
 	deflateEnd(&client->z_stream);
 deflate_failure:
 	stream_destroy(client->net_stream);
@@ -867,7 +875,7 @@ void do_client_update_fb(void* work)
 #ifdef ENABLE_TIGHT
 	case RFB_ENCODING_TIGHT:
 		tight_encode_frame(&client->tight_encoder, &update->frame, fb,
-		                   &update->region);
+		                   &update->server_fmt, &update->region);
 		break;
 #endif
 	case RFB_ENCODING_ZRLE:

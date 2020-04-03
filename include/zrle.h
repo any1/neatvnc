@@ -18,8 +18,7 @@
 
 #include <stdint.h>
 #include <unistd.h>
-
-#include "miniz.h"
+#include <zlib.h>
 
 struct nvnc_fb;
 struct rfb_pixel_format;

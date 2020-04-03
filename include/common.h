@@ -18,12 +18,12 @@
 
 #include <stdbool.h>
 #include <pixman.h>
+#include <zlib.h>
 
 #include "rfb-proto.h"
 #include "sys/queue.h"
 
 #include "neatvnc.h"
-#include "miniz.h"
 #include "tight.h"
 #include "config.h"
 

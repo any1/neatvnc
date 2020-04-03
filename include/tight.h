@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "miniz.h"
+#include <zlib.h>
 
 struct vec;
 struct nvnc_client;

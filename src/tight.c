@@ -14,7 +14,6 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "miniz.h"
 #include "neatvnc.h"
 #include "rfb-proto.h"
 #include "vec.h"
@@ -30,6 +29,7 @@
 #include <stdlib.h>
 #include <sys/param.h>
 #include <libdrm/drm_fourcc.h>
+#include <zlib.h>
 
 #define TIGHT_FILL 0x80
 #define TIGHT_JPEG 0x90
@@ -176,7 +176,7 @@ compress_failure:
 	return rc;
 }
 
-int tight_deflate(struct vec* dst, const void* src, size_t len, z_stream* zs, bool flush)
+int tight_deflate(struct vec* dst, void* src, size_t len, z_stream* zs, bool flush)
 {
 	int r = Z_STREAM_ERROR;
 

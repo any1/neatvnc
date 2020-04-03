@@ -37,6 +37,7 @@ libm = cc.find_library('m', required: false)
 pixman = dependency('pixman-1')
 libturbojpeg = dependency('libturbojpeg', required: get_option('tight-encoding'))
 gnutls = dependency('gnutls', required: get_option('tls'))
+zlib = dependency('zlib')
 
 aml_project = subproject('aml', required: false)
 if aml_project.found()
@@ -45,7 +46,7 @@ else
 	aml = dependency('aml')
 endif
 
-inc = include_directories('include', 'contrib/miniz')
+inc = include_directories('include')
 
 sources = [
 	'src/server.c',
@@ -57,13 +58,13 @@ sources = [
 	'src/fb.c',
 	'src/rcbuf.c',
 	'src/stream.c',
-	'contrib/miniz/miniz.c',
 ]
 
 dependencies = [
 	libm,
 	pixman,
 	aml,
+	zlib,
 ]
 
 config = configuration_data()

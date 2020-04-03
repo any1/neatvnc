@@ -17,7 +17,6 @@
 #include "rfb-proto.h"
 #include "vec.h"
 #include "zrle.h"
-#include "miniz.h"
 #include "neatvnc.h"
 #include "pixels.h"
 #include "fb.h"
@@ -28,6 +27,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <pixman.h>
+#include <zlib.h>
 
 #define TILE_LENGTH 64
 

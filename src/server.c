@@ -901,8 +901,10 @@ void on_client_update_fb_done(void* work)
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
 		struct rcbuf* payload = rcbuf_new(frame->data, frame->len);
+		DTRACE_PROBE1(neatvnc, send_fb_start, client);
 		stream_send(client->net_stream, payload, on_write_frame_done,
 		            client);
+		DTRACE_PROBE1(neatvnc, send_fb_done, client);
 	} else {
 		client->is_updating = false;
 		vec_destroy(frame);

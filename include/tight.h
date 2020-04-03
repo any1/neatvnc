@@ -24,8 +24,16 @@ struct nvnc_fb;
 struct pixman_region16;
 struct rfb_pixel_format;
 
+enum tight_quality {
+	TIGHT_QUALITY_UNSPEC = 0,
+	TIGHT_QUALITY_LOSSLESS,
+	TIGHT_QUALITY_LOW,
+	TIGHT_QUALITY_HIGH,
+};
+
 struct tight_encoder {
 	z_stream zs[4];
+	enum tight_quality quality;
 };
 
 int tight_encoder_init(struct tight_encoder*);

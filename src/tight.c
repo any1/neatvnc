@@ -38,6 +38,27 @@
 
 #define TIGHT_MAX_WIDTH 2048
 
+enum tight_quality tight_get_quality(struct tight_encoder* self)
+{
+	struct nvnc_client* client =
+		container_of(self, struct nvnc_client, tight_encoder);
+
+	/* Note: The standard specifies that 16 is OK too, but we can only
+	 * handle 32
+	 */
+	if (client->pixfmt.bits_per_pixel != 32)
+		return TIGHT_QUALITY_LOSSLESS;
+
+	for (size_t i = 0; i < client->n_encodings; ++i)
+		switch (client->encodings[i]) {
+		case RFB_ENCODING_JPEG_HIGHQ: return TIGHT_QUALITY_HIGH;
+		case RFB_ENCODING_JPEG_LOWQ: return TIGHT_QUALITY_LOW;
+		default:;
+		}
+
+	return TIGHT_QUALITY_LOSSLESS;
+}
+
 int tight_init_zstream(z_stream* zx)
 {
 	int rc = deflateInit2(zx,
@@ -103,7 +124,14 @@ int tight_encode_box_jpeg(struct tight_encoder* self, struct vec* dst,
 	unsigned char* buffer = NULL;
 	size_t size = 0;
 
-	int quality = 50; /* 1 - 100 */
+	int quality; /* 1 - 100 */
+
+	switch (self->quality) {
+	case TIGHT_QUALITY_HIGH: quality = 66; break;
+	case TIGHT_QUALITY_LOW: quality = 33; break;
+	default: abort();
+	}
+
 	enum TJPF tjfmt = get_jpeg_pixfmt(fb->fourcc_format);
 	if (tjfmt == TJPF_UNKNOWN)
 		return -1;
@@ -179,7 +207,6 @@ int tight_encode_box_basic(struct tight_encoder* self, struct vec* dst,
                            uint32_t x, uint32_t y_start,
                            uint32_t stride, uint32_t width, uint32_t height)
 {
-	printf("Encode %u %u %u %u\n", x, y_start, width, height);
 	struct nvnc_client* client =
 		container_of(self, struct nvnc_client, tight_encoder);
 
@@ -248,8 +275,22 @@ int tight_encode_box(struct tight_encoder* self, struct vec* dst,
                      uint32_t x, uint32_t y,
                      uint32_t stride, uint32_t width, uint32_t height)
 {
-//	return tight_encode_box_basic(self, dst, fb, src_fmt, x, y, stride, width, height);
-	return tight_encode_box_jpeg(self, dst, fb, x, y, stride, width, height);
+	if (self->quality == TIGHT_QUALITY_UNSPEC)
+		self->quality = tight_get_quality(self);
+
+	switch (self->quality) {
+	case TIGHT_QUALITY_LOSSLESS:
+		return tight_encode_box_basic(self, dst, fb, src_fmt, x, y,
+		                              stride, width, height);
+	case TIGHT_QUALITY_HIGH:
+	case TIGHT_QUALITY_LOW:
+		return tight_encode_box_jpeg(self, dst, fb, x, y, stride,
+		                             width, height);
+	case TIGHT_QUALITY_UNSPEC:;
+	}
+
+	abort();
+	return -1;
 }
 
 int tight_encode_frame(struct tight_encoder* self, struct vec* dst,

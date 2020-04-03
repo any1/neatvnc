@@ -449,6 +449,8 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_ZRLE:
 		case RFB_ENCODING_CURSOR:
 		case RFB_ENCODING_DESKTOPSIZE:
+		case RFB_ENCODING_JPEG_HIGHQ:
+		case RFB_ENCODING_JPEG_LOWQ:
 			client->encodings[n++] = encoding;
 		}
 	}

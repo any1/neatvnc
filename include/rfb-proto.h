@@ -57,6 +57,8 @@ enum rfb_encodings {
 	RFB_ENCODING_ZRLE = 16,
 	RFB_ENCODING_CURSOR = -239,
 	RFB_ENCODING_DESKTOPSIZE = -223,
+	RFB_ENCODING_JPEG_HIGHQ = -23,
+	RFB_ENCODING_JPEG_LOWQ = -32,
 };
 
 enum rfb_server_to_client_msg_type {

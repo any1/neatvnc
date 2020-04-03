@@ -275,9 +275,6 @@ int tight_encode_box(struct tight_encoder* self, struct vec* dst,
                      uint32_t x, uint32_t y,
                      uint32_t stride, uint32_t width, uint32_t height)
 {
-	if (self->quality == TIGHT_QUALITY_UNSPEC)
-		self->quality = tight_get_quality(self);
-
 	switch (self->quality) {
 	case TIGHT_QUALITY_LOSSLESS:
 		return tight_encode_box_basic(self, dst, fb, src_fmt, x, y,
@@ -298,6 +295,8 @@ int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
                        const struct rfb_pixel_format* src_fmt,
                        struct pixman_region16* region)
 {
+	self->quality = tight_get_quality(self);
+
 	int rc = -1;
 
 	int n_rects = 0;

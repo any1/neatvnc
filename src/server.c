@@ -39,6 +39,9 @@
 #include <pixman.h>
 #include <pthread.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -770,6 +773,40 @@ accept_failure:
 	log_debug("Failed to accept a connection\n");
 }
 
+int bind_address(const char* name, int port)
+{
+	struct addrinfo hints = {
+		.ai_socktype = SOCK_STREAM,
+		.ai_flags = AI_PASSIVE,
+	};
+
+	struct addrinfo* result;
+
+	char service[256];
+	snprintf(service, sizeof(service), "%d", port);
+
+	int rc = getaddrinfo(name, service, &hints, &result);
+	if (rc != 0)
+		return -1;
+
+	int fd = -1;
+
+	for (struct addrinfo* p = result; p != NULL; p = p->ai_next) {
+		fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (fd < 0)
+			continue;
+
+		if (bind(fd, p->ai_addr, p->ai_addrlen) == 0)
+			break;
+
+		close(fd);
+		fd = -1;
+	}
+
+	freeaddrinfo(result);
+	return fd;
+}
+
 EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
@@ -783,20 +820,8 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 
 	LIST_INIT(&self->clients);
 
-	self->fd = socket(AF_INET, SOCK_STREAM, 0);
+	self->fd = bind_address(address, port);
 	if (self->fd < 0)
-		return NULL;
-
-	int one = 1;
-	if (setsockopt(self->fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
-		goto failure;
-
-	struct sockaddr_in addr = {0};
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(address);
-	addr.sin_port = htons(port);
-
-	if (bind(self->fd, (const struct sockaddr*)&addr, sizeof(addr)) < 0)
 		goto failure;
 
 	if (listen(self->fd, 16) < 0)

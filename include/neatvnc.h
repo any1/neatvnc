@@ -73,6 +73,9 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 void nvnc_fb_ref(struct nvnc_fb* fb);
 void nvnc_fb_unref(struct nvnc_fb* fb);
 
+bool nvnc_fb_lock(struct nvnc_fb*);
+void nvnc_fb_unlock(struct nvnc_fb*);
+
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);

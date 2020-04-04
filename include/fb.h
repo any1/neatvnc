@@ -2,10 +2,12 @@
 
 #include <unistd.h>
 #include <stdint.h>
+#include <stdatomic.h>
 
 struct nvnc_fb {
 	int ref;
 	void* addr;
+	atomic_bool is_locked;
 	size_t size;
 	uint16_t width;
 	uint16_t height;

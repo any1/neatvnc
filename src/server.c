@@ -474,9 +474,13 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (client->is_updating || client->n_pending_requests == 0)
 		return;
 
+	if (!nvnc_fb_lock(client->server->frame))
+		return;
+
 	client->is_updating = true;
 
-	schedule_client_update_fb(client);
+	if (schedule_client_update_fb(client) < 0)
+		nvnc_fb_unlock(client->server->frame);
 }
 
 static int on_client_fb_update_request(struct nvnc_client* client)
@@ -855,7 +859,7 @@ void do_client_update_fb(void* work)
 {
 	struct fb_update_work* update = aml_get_userdata(work);
 	struct nvnc_client* client = update->client;
-	const struct nvnc_fb* fb = update->fb;
+	struct nvnc_fb* fb = update->fb;
 
 	enum rfb_encodings encoding = choose_frame_encoding(client);
 	if (encoding == -1) {
@@ -896,8 +900,10 @@ void on_client_update_fb_done(void* work)
 	struct nvnc_client* client = update->client;
 	struct vec* frame = &update->frame;
 
-	client_ref(client);
+	nvnc_fb_unlock(update->fb);
+	nvnc_fb_unref(update->fb);
 
+	client_ref(client);
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
 		struct rcbuf* payload = rcbuf_new(frame->data, frame->len);
@@ -913,7 +919,6 @@ void on_client_update_fb_done(void* work)
 
 	client->n_pending_requests--;
 	process_fb_update_requests(client);
-	nvnc_fb_unref(update->fb);
 
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 

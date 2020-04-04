@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/param.h>
+#include <stdatomic.h>
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 #define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
@@ -37,6 +38,19 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	}
 
 	return fb;
+}
+
+EXPORT
+bool nvnc_fb_lock(struct nvnc_fb* fb)
+{
+	bool expected = false;
+	return atomic_compare_exchange_strong(&fb->is_locked, &expected, true);
+}
+
+EXPORT
+void nvnc_fb_unlock(struct nvnc_fb* fb)
+{
+	fb->is_locked = false;
 }
 
 EXPORT

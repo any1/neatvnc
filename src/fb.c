@@ -54,6 +54,18 @@ void nvnc_fb_unlock(struct nvnc_fb* fb)
 }
 
 EXPORT
+enum nvnc_fb_flags nvnc_fb_get_flags(const struct nvnc_fb* fb)
+{
+	return fb->flags;
+}
+
+EXPORT
+void nvnc_fb_set_flags(struct nvnc_fb* fb, enum nvnc_fb_flags flags)
+{
+	fb->flags = flags;
+}
+
+EXPORT
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb)
 {
 	return fb->addr;

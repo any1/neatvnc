@@ -474,13 +474,23 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (client->is_updating || client->n_pending_requests == 0)
 		return;
 
-	if (!nvnc_fb_lock(client->server->frame))
+	struct nvnc_fb* fb = client->server->frame;
+
+	if (!nvnc_fb_lock(fb))
 		return;
 
-	client->is_updating = true;
+	if (client->needs_whole_frame && (fb->flags & NVNC_FB_PARTIAL))
+		goto abort;
 
+	client->is_updating = true;
 	if (schedule_client_update_fb(client) < 0)
-		nvnc_fb_unlock(client->server->frame);
+		goto abort;
+
+	return;
+
+abort:
+	nvnc_fb_unlock(fb);
+	client->is_updating = false;
 }
 
 static int on_client_fb_update_request(struct nvnc_client* client)
@@ -499,6 +509,9 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	int y = ntohs(msg->y);
 	int width = ntohs(msg->width);
 	int height = ntohs(msg->height);
+
+	if (!incremental)
+		client->needs_whole_frame = true;
 
 	client->n_pending_requests++;
 
@@ -911,6 +924,7 @@ void on_client_update_fb_done(void* work)
 		stream_send(client->net_stream, payload, on_write_frame_done,
 		            client);
 		DTRACE_PROBE1(neatvnc, send_fb_done, client);
+		client->needs_whole_frame = false;
 	} else {
 		client->is_updating = false;
 		vec_destroy(frame);

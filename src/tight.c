@@ -321,17 +321,10 @@ int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		while (box_width > 0) {
-			int w = MIN(TIGHT_MAX_WIDTH, box_width);
-			box_width -= w;
-
-			rc = tight_encode_box(self, dst, fb, src_fmt, x, y,
-			                      fb->width, w, box_height);
-			if (rc < 0)
-				return -1;
-
-			x += w;
-		}
+		rc = tight_encode_box(self, dst, fb, src_fmt, x, y,
+		                      fb->width, box_width, box_height);
+		if (rc < 0)
+			return -1;
 	}
 
 	return 0;

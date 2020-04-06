@@ -796,9 +796,14 @@ int bind_address(const char* name, int port)
 		if (fd < 0)
 			continue;
 
+		int one = 1;
+		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
+			goto failure;
+
 		if (bind(fd, p->ai_addr, p->ai_addrlen) == 0)
 			break;
 
+failure:
 		close(fd);
 		fd = -1;
 	}

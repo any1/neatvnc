@@ -465,7 +465,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 static void process_fb_update_requests(struct nvnc_client* client)
 {
-	if (!client->server->frame)
+	if (!client->server->buffer)
 		return;
 
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
@@ -477,23 +477,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (client->is_updating || client->n_pending_requests == 0)
 		return;
 
-	struct nvnc_fb* fb = client->server->frame;
-
-	if (!nvnc_fb_lock(fb))
-		return;
-
-	if (client->needs_whole_frame && (fb->flags & NVNC_FB_PARTIAL))
-		goto abort;
-
 	client->is_updating = true;
 	if (schedule_client_update_fb(client) < 0)
-		goto abort;
-
-	return;
-
-abort:
-	nvnc_fb_unlock(fb);
-	client->is_updating = false;
+		client->is_updating = false;
 }
 
 static int on_client_fb_update_request(struct nvnc_client* client)
@@ -513,9 +499,6 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	int width = ntohs(msg->width);
 	int height = ntohs(msg->height);
 
-	if (!incremental)
-		client->needs_whole_frame = true;
-
 	client->n_pending_requests++;
 
 	/* Note: The region sent from the client is ignored for incremental
@@ -530,8 +513,6 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	nvnc_fb_req_fn fn = server->fb_req_fn;
 	if (fn)
 		fn(client, incremental, x, y, width, height);
-
-	process_fb_update_requests(client);
 
 	return sizeof(*msg);
 }
@@ -812,6 +793,31 @@ failure:
 	return fd;
 }
 
+bool nvnc__is_damaged(struct nvnc* self)
+{
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link)
+		if (pixman_region_not_empty(&client->damage))
+			return true;
+
+	return false;
+}
+
+void on_main_dispatch(void* aml_obj)
+{
+	struct nvnc* self = aml_get_userdata(aml_obj);
+
+	if (!nvnc__is_damaged(self))
+		return;
+
+	if (self->render_fn)
+		self->render_fn(self, self->buffer);
+
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link)
+		process_fb_update_requests(client);
+}
+
 EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
@@ -837,11 +843,22 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 		goto failure;
 
 	if (aml_start(aml_get_default(), self->poll_handle) < 0)
-		goto start_failure;
+		goto poll_start_failure;
+
+	self->dispatch_handler = aml_idle_new(on_main_dispatch, self, NULL);
+	if (!self->dispatch_handler)
+		goto new_idle_failure;
+
+	if (aml_start(aml_get_default(), self->dispatch_handler) < 0)
+		goto idle_start_failure;
 
 	return self;
 
-start_failure:
+idle_start_failure:
+	aml_unref(self->dispatch_handler);
+new_idle_failure:
+	aml_stop(aml_get_default(), self->poll_handle);
+poll_start_failure:
 	aml_unref(self->poll_handle);
 failure:
 	close(self->fd);
@@ -853,13 +870,14 @@ void nvnc_close(struct nvnc* self)
 {
 	struct nvnc_client* client;
 
-	if (self->frame)
-		nvnc_fb_unref(self->frame);
+	if (self->buffer)
+		nvnc_fb_unref(self->buffer);
 
 	struct nvnc_client* tmp;
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
 		client_unref(client);
 
+	aml_stop(aml_get_default(), self->dispatch_handler);
 	aml_stop(aml_get_default(), self->poll_handle);
 	close(self->fd);
 
@@ -943,7 +961,6 @@ void on_client_update_fb_done(void* work)
 	struct nvnc_client* client = update->client;
 	struct vec* frame = &update->frame;
 
-	nvnc_fb_unlock(update->fb);
 	nvnc_fb_unref(update->fb);
 
 	client_ref(client);
@@ -954,7 +971,6 @@ void on_client_update_fb_done(void* work)
 		stream_send(client->net_stream, payload, on_write_frame_done,
 		            client);
 		DTRACE_PROBE1(neatvnc, send_fb_done, client);
-		client->needs_whole_frame = false;
 	} else {
 		client->is_updating = false;
 		vec_destroy(frame);
@@ -962,7 +978,6 @@ void on_client_update_fb_done(void* work)
 	}
 
 	client->n_pending_requests--;
-	process_fb_update_requests(client);
 
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 
@@ -973,7 +988,7 @@ void on_client_update_fb_done(void* work)
 
 int schedule_client_update_fb(struct nvnc_client* client)
 {
-	struct nvnc_fb* fb = client->server->frame;
+	struct nvnc_fb* fb = client->server->buffer;
 	assert(fb);
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
@@ -1028,31 +1043,24 @@ pixfmt_failure:
 }
 
 EXPORT
-int nvnc_feed_frame(struct nvnc* self, struct nvnc_fb* fb,
-                    const struct pixman_region16* damage)
+void nvnc_damage_region(struct nvnc* self, const struct pixman_region16* damage)
 {
 	struct nvnc_client* client;
 
-	if (self->frame)
-		nvnc_fb_unref(self->frame);
+	LIST_FOREACH(client, &self->clients, link)
+		if (client->net_stream->state != STREAM_STATE_CLOSED)
+			pixman_region_union(&client->damage, &client->damage,
+					    (struct pixman_region16*)damage);
+}
 
-	self->frame = fb;
-	nvnc_fb_ref(self->frame);
-
-	struct nvnc_client* tmp;
-	LIST_FOREACH_SAFE (client, &self->clients, link, tmp) {
-		if (client->net_stream->state == STREAM_STATE_CLOSED)
-			continue;
-
-		pixman_region_union(&client->damage, &client->damage,
-		                    (struct pixman_region16*)damage);
-		pixman_region_intersect_rect(&client->damage, &client->damage,
-		                             0, 0, fb->width, fb->height);
-
-		process_fb_update_requests(client);
-	}
-
-	return 0;
+EXPORT
+void nvnc_damage_whole(struct nvnc* self)
+{
+	struct pixman_region16 damage;
+	pixman_region_init_rect(&damage, 0, 0, self->display.width,
+	                        self->display.height);
+	nvnc_damage_region(self, &damage);
+	pixman_region_fini(&damage);
 }
 
 EXPORT
@@ -1094,6 +1102,12 @@ void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn fn)
 }
 
 EXPORT
+void nvnc_set_render_fn(struct nvnc* self, nvnc_render_fn fn)
+{
+	self->render_fn = fn;
+}
+
+EXPORT
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
 {
 	self->cleanup_fn = fn;
@@ -1106,6 +1120,16 @@ void nvnc_set_dimensions(struct nvnc* self, uint16_t width, uint16_t height,
 	self->display.width = width;
 	self->display.height = height;
 	self->display.pixfmt = fourcc_format;
+}
+
+EXPORT
+void nvnc_set_buffer(struct nvnc* self, struct nvnc_fb* fb)
+{
+	if (self->buffer)
+		nvnc_fb_unref(self->buffer);
+
+	self->buffer = fb;
+	nvnc_fb_ref(fb);
 }
 
 EXPORT

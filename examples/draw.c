@@ -25,8 +25,12 @@
 #include <pixman.h>
 #include <libdrm/drm_fourcc.h>
 
+#define MAX_COORD 128
+
 struct draw {
 	struct nvnc_fb* fb;
+	struct { uint16_t x, y; } coord[MAX_COORD];
+	int index;
 };
 
 void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
@@ -41,17 +45,39 @@ void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	struct draw* draw = nvnc_get_userdata(server);
 	assert(draw);
 
-	uint32_t* image = nvnc_fb_get_addr(draw->fb);
 	int width = nvnc_fb_get_width(draw->fb);
 	int height = nvnc_fb_get_height(draw->fb);
 
-	image[x + y * width] = 0;
+	if (draw->index >= MAX_COORD)
+		return;
+
+	draw->coord[draw->index].x = x;
+	draw->coord[draw->index].y = y;
+	draw->index++;
 
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, width, height);
 	pixman_region_intersect_rect(&region, &region, x, y, 1, 1);
-	nvnc_feed_frame(server, draw->fb, &region);
+	nvnc_damage_region(server, &region);
 	pixman_region_fini(&region);
+}
+
+void on_render(struct nvnc* server, struct nvnc_fb* fb)
+{
+	struct draw* draw = nvnc_get_userdata(server);
+	assert(draw);
+
+	uint32_t* image = nvnc_fb_get_addr(draw->fb);
+	int width = nvnc_fb_get_width(draw->fb);
+
+	for (int i = 0; i < draw->index; ++i) {
+		uint16_t x = draw->coord[i].x;
+		uint16_t y = draw->coord[i].y;
+
+		image[x + y * width] = 0;
+	}
+
+	draw->index = 0;
 }
 
 void on_sigint()
@@ -61,7 +87,7 @@ void on_sigint()
 
 int main(int argc, char* argv[])
 {
-	struct draw draw;
+	struct draw draw = { 0 };
 
 	int width = 500, height = 500;
 	uint32_t format = DRM_FORMAT_RGBX8888;
@@ -81,6 +107,8 @@ int main(int argc, char* argv[])
 	nvnc_set_name(server, "Draw");
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw);
+	nvnc_set_buffer(server, draw.fb);
+	nvnc_set_render_fn(server, on_render);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);

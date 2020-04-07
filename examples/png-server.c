@@ -54,13 +54,10 @@ int main(int argc, char* argv[])
 	uint32_t fourcc_format = nvnc_fb_get_fourcc_format(fb);
 
 	nvnc_set_dimensions(server, width, height, fourcc_format);
+	nvnc_set_buffer(server, fb);
 	nvnc_set_name(server, file);
 
-	struct pixman_region16 region;
-	pixman_region_init_rect(&region, 0, 0, nvnc_fb_get_width(fb),
-	                        nvnc_fb_get_height(fb));
-	nvnc_feed_frame(server, fb, &region);
-	pixman_region_fini(&region);
+	nvnc_damage_whole(server);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);

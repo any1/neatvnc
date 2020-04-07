@@ -51,6 +51,7 @@ enum nvnc_client_state {
 struct nvnc;
 struct stream;
 struct aml_handler;
+struct aml_idle;
 
 struct nvnc_common {
 	void* userdata;
@@ -70,7 +71,6 @@ struct nvnc_client {
 	struct pixman_region16 damage;
 	int n_pending_requests;
 	bool is_updating;
-	bool needs_whole_frame;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
 	struct tight_encoder tight_encoder;
@@ -92,6 +92,7 @@ struct nvnc {
 	struct nvnc_common common;
 	int fd;
 	struct aml_handler* poll_handle;
+	struct aml_idle* dispatch_handler;
 	struct nvnc_client_list clients;
 	struct vnc_display display;
 	void* userdata;
@@ -99,7 +100,8 @@ struct nvnc {
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
-	struct nvnc_fb* frame;
+	nvnc_render_fn render_fn;
+	struct nvnc_fb* buffer;
 
 #ifdef ENABLE_TLS
 	gnutls_certificate_credentials_t tls_creds;

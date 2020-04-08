@@ -9,6 +9,7 @@ executable(
 		neatvnc_dep,
 		pixman,
 		aml,
+		libm,
 	]
 )
 

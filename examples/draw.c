@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Andri Yngvason
+ * Copyright (c) 2019 - 2020 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,20 +18,63 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
+#include <tgmath.h>
 #include <aml.h>
 #include <signal.h>
 #include <assert.h>
 #include <pixman.h>
+#include <sys/param.h>
 #include <libdrm/drm_fourcc.h>
 
 #define MAX_COORD 128
 
+struct coord {
+	int x, y;
+};
+
 struct draw {
 	struct nvnc_fb* fb;
-	struct { uint16_t x, y; } coord[MAX_COORD];
+	struct coord coord[MAX_COORD];
 	int index;
 };
+
+int coord_distance_between(struct coord a, struct coord b)
+{
+	float x = abs(a.x - b.x);
+	float y = abs(a.y - b.y);
+	return round(sqrt(x * x + y * y));
+}
+
+void draw_dot(struct nvnc* nvnc, struct nvnc_fb* fb, struct coord coord,
+              int radius, uint32_t colour)
+{
+	uint32_t* image = nvnc_fb_get_addr(fb);
+	int width = nvnc_fb_get_width(fb);
+	int height = nvnc_fb_get_height(fb);
+
+	struct coord start, stop;
+
+	start.x = MAX(0, coord.x - radius);
+	start.y = MAX(0, coord.y - radius);
+	stop.x = MIN(width, coord.x + radius);
+	stop.y = MIN(height, coord.y + radius);
+
+	struct pixman_region16 region;
+	pixman_region_init_rect(&region, start.x, start.y,
+	                        stop.x - start.x, stop.y - start.y);
+	nvnc_damage_region(nvnc, &region);
+	pixman_region_fini(&region);
+
+	/* The brute force method. ;) */
+	for (int y = start.y; y < stop.y; ++y)
+		for (int x = start.x; x < stop.x; ++x) {
+			struct coord point = { .x = x, .y = y };
+			if (coord_distance_between(point, coord) <= radius)
+				image[x + y * width] = colour;
+		}
+}
 
 void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
                       enum nvnc_button_mask buttons)
@@ -67,15 +110,8 @@ void on_render(struct nvnc* server, struct nvnc_fb* fb)
 	struct draw* draw = nvnc_get_userdata(server);
 	assert(draw);
 
-	uint32_t* image = nvnc_fb_get_addr(draw->fb);
-	int width = nvnc_fb_get_width(draw->fb);
-
-	for (int i = 0; i < draw->index; ++i) {
-		uint16_t x = draw->coord[i].x;
-		uint16_t y = draw->coord[i].y;
-
-		image[x + y * width] = 0;
-	}
+	for (int i = 0; i < draw->index; ++i)
+		draw_dot(server, fb, draw->coord[i], 16, 0);
 
 	draw->index = 0;
 }

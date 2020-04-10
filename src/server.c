@@ -806,14 +806,21 @@ bool nvnc__is_damaged(struct nvnc* self)
 void on_main_dispatch(void* aml_obj)
 {
 	struct nvnc* self = aml_get_userdata(aml_obj);
+	struct nvnc_client* client;
 
 	if (!nvnc__is_damaged(self))
 		return;
 
+	LIST_FOREACH(client, &self->clients, link)
+		if (client->is_updating) {
+			log_debug("Can't render yet: still encoding for client %p\n",
+			          client);
+			return;
+		}
+
 	if (self->render_fn)
 		self->render_fn(self, self->buffer);
 
-	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link)
 		process_fb_update_requests(client);
 }

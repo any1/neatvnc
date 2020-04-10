@@ -23,7 +23,7 @@ endif
 cpu = host_machine.cpu_family()
 
 if cpu == 'x86_64'
-	c_args += '-mavx'
+	c_args += '-m' + get_option('x86_64-simd')
 elif cpu == 'arm'
 	c_args += '-mfpu=neon'
 endif

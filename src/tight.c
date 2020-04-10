@@ -113,7 +113,7 @@ static void tight_encode_size(struct vec* dst, size_t size)
 	if (size >= 128)
 		vec_fast_append_8(dst, ((size >> 7) & 0x7f) | ((size >= 16384) << 7));
 	if (size >= 16384)
-		vec_fast_append_8(dst, (size >> 14) & 0x7f);
+		vec_fast_append_8(dst, (size >> 14) & 0xff);
 }
 
 int tight_encode_box_jpeg(struct tight_encoder* self, struct vec* dst,

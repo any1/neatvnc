@@ -178,8 +178,6 @@ compress_failure:
 
 int tight_deflate(struct vec* dst, void* src, size_t len, z_stream* zs, bool flush)
 {
-	int r = Z_STREAM_ERROR;
-
 	zs->next_in = src;
 	zs->avail_in = len;
 
@@ -190,8 +188,9 @@ int tight_deflate(struct vec* dst, void* src, size_t len, z_stream* zs, bool flu
 		zs->next_out = ((Bytef*)dst->data) + dst->len;
 		zs->avail_out = dst->cap - dst->len;
 
-		r = deflate(zs, flush ? Z_SYNC_FLUSH : Z_NO_FLUSH);
-		assert(r != Z_STREAM_ERROR);
+		int r = deflate(zs, flush ? Z_SYNC_FLUSH : Z_NO_FLUSH);
+		if (r == Z_STREAM_ERROR)
+			return -1;
 
 		dst->len = zs->next_out - (Bytef*)dst->data;
 	} while (zs->avail_out == 0);

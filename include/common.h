@@ -81,20 +81,13 @@ struct nvnc_client {
 
 LIST_HEAD(nvnc_client_list, nvnc_client);
 
-struct vnc_display {
-	uint16_t width;
-	uint16_t height;
-	uint32_t pixfmt; /* fourcc pixel format */
-	char name[256];
-};
-
 struct nvnc {
 	struct nvnc_common common;
 	int fd;
 	struct aml_handler* poll_handle;
 	struct aml_idle* dispatch_handler;
 	struct nvnc_client_list clients;
-	struct vnc_display display;
+	char name[256];
 	void* userdata;
 	nvnc_key_fn key_fn;
 	nvnc_pointer_fn pointer_fn;

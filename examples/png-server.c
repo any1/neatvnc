@@ -49,11 +49,6 @@ int main(int argc, char* argv[])
 
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 
-	int width = nvnc_fb_get_width(fb);
-	int height = nvnc_fb_get_height(fb);
-	uint32_t fourcc_format = nvnc_fb_get_fourcc_format(fb);
-
-	nvnc_set_dimensions(server, width, height, fourcc_format);
 	nvnc_set_buffer(server, fb);
 	nvnc_set_name(server, file);
 

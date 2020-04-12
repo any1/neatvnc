@@ -348,28 +348,31 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 static void send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
-	struct vnc_display* display = &server->display;
 
-	size_t name_len = strlen(display->name);
+	size_t name_len = strlen(server->name);
 	size_t size = sizeof(struct rfb_server_init_msg) + name_len;
 
+	if (!server->buffer) {
+		log_debug("Tried to send init message, but not buffer has been set\n");
+		goto close;
+	}
+
+	uint16_t width = nvnc_fb_get_width(server->buffer);
+	uint16_t height = nvnc_fb_get_height(server->buffer);
+	uint32_t fourcc = nvnc_fb_get_fourcc_format(server->buffer);
+
 	struct rfb_server_init_msg* msg = calloc(1, size);
-	if (!msg) {
-		stream_close(client->net_stream);
-		client_unref(client);
-		return;
-	}
+	if (!msg)
+		goto close;
 
-	msg->width = htons(display->width),
-	msg->height = htons(display->height), msg->name_length = htonl(name_len),
-	memcpy(msg->name_string, display->name, name_len);
+	msg->width = htons(width);
+	msg->height = htons(height);
+	msg->name_length = htonl(name_len);
+	memcpy(msg->name_string, server->name, name_len);
 
-	int rc = rfb_pixfmt_from_fourcc(&msg->pixel_format, display->pixfmt);
-	if (rc < 0) {
-		stream_close(client->net_stream);
-		client_unref(client);
-		return;
-	}
+	int rc = rfb_pixfmt_from_fourcc(&msg->pixel_format, fourcc);
+	if (rc < 0)
+		goto pixfmt_failure;
 
 	msg->pixel_format.red_max = htons(msg->pixel_format.red_max);
 	msg->pixel_format.green_max = htons(msg->pixel_format.green_max);
@@ -377,6 +380,14 @@ static void send_server_init_message(struct nvnc_client* client)
 
 	struct rcbuf* payload = rcbuf_new(msg, size);
 	stream_send(client->net_stream, payload, NULL, NULL);
+
+	return;
+
+pixfmt_failure:
+	free(msg);
+close:
+	stream_close(client->net_stream);
+	client_unref(client);
 }
 
 static int on_init_message(struct nvnc_client* client)
@@ -834,7 +845,7 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 	if (!self)
 		return NULL;
 
-	strcpy(self->display.name, DEFAULT_NAME);
+	strcpy(self->name, DEFAULT_NAME);
 
 	LIST_INIT(&self->clients);
 
@@ -1063,9 +1074,13 @@ void nvnc_damage_region(struct nvnc* self, const struct pixman_region16* damage)
 EXPORT
 void nvnc_damage_whole(struct nvnc* self)
 {
+	assert(self->buffer);
+
+	uint16_t width = nvnc_fb_get_width(self->buffer);
+	uint16_t height = nvnc_fb_get_height(self->buffer);
+
 	struct pixman_region16 damage;
-	pixman_region_init_rect(&damage, 0, 0, self->display.width,
-	                        self->display.height);
+	pixman_region_init_rect(&damage, 0, 0, width, height);
 	nvnc_damage_region(self, &damage);
 	pixman_region_fini(&damage);
 }
@@ -1121,15 +1136,6 @@ void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
 }
 
 EXPORT
-void nvnc_set_dimensions(struct nvnc* self, uint16_t width, uint16_t height,
-                         uint32_t fourcc_format)
-{
-	self->display.width = width;
-	self->display.height = height;
-	self->display.pixfmt = fourcc_format;
-}
-
-EXPORT
 void nvnc_set_buffer(struct nvnc* self, struct nvnc_fb* fb)
 {
 	if (self->buffer)
@@ -1148,8 +1154,8 @@ struct nvnc* nvnc_get_server(const struct nvnc_client* client)
 EXPORT
 void nvnc_set_name(struct nvnc* self, const char* name)
 {
-	strncpy(self->display.name, name, sizeof(self->display.name));
-	self->display.name[sizeof(self->display.name) - 1] = '\0';
+	strncpy(self->name, name, sizeof(self->name));
+	self->name[sizeof(self->name) - 1] = '\0';
 }
 
 EXPORT

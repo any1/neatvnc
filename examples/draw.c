@@ -139,7 +139,6 @@ int main(int argc, char* argv[])
 
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 
-	nvnc_set_dimensions(server, width, height, format);
 	nvnc_set_name(server, "Draw");
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw);

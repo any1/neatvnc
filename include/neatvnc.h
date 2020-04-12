@@ -57,9 +57,6 @@ void* nvnc_get_userdata(const void* self);
 
 struct nvnc* nvnc_get_server(const struct nvnc_client* client);
 
-void nvnc_set_dimensions(struct nvnc* self, uint16_t width, uint16_t height,
-                         uint32_t fourcc_format);
-
 void nvnc_set_buffer(struct nvnc*, struct nvnc_fb*);
 
 void nvnc_set_name(struct nvnc* self, const char* name);

@@ -16,7 +16,7 @@ c_args = [
 	'-fvisibility=hidden',
 ]
 
-if buildtype == 'release' or buildtype == 'plain'
+if buildtype != 'debug' and buildtype != 'debugoptimized'
 	c_args += '-DNDEBUG'
 endif
 

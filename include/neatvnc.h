@@ -21,6 +21,7 @@
 
 struct nvnc;
 struct nvnc_client;
+struct nvnc_display;
 struct nvnc_fb;
 struct pixman_region16;
 
@@ -47,17 +48,18 @@ typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
-typedef void (*nvnc_render_fn)(struct nvnc*, struct nvnc_fb*);
+typedef void (*nvnc_render_fn)(struct nvnc_display*, struct nvnc_fb*);
 
 struct nvnc* nvnc_open(const char* addr, uint16_t port);
 void nvnc_close(struct nvnc* self);
 
+void nvnc_add_display(struct nvnc*, struct nvnc_display*);
+void nvnc_remove_display(struct nvnc*, struct nvnc_display*);
+
 void nvnc_set_userdata(void* self, void* userdata);
 void* nvnc_get_userdata(const void* self);
 
-struct nvnc* nvnc_get_server(const struct nvnc_client* client);
-
-void nvnc_set_buffer(struct nvnc*, struct nvnc_fb*);
+struct nvnc* nvnc_client_get_server(const struct nvnc_client* client);
 
 void nvnc_set_name(struct nvnc* self, const char* name);
 
@@ -65,7 +67,6 @@ void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
-void nvnc_set_render_fn(struct nvnc* self, nvnc_render_fn fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 
 bool nvnc_has_auth(void);
@@ -86,8 +87,18 @@ uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 
-void nvnc_damage_region(struct nvnc*, const struct pixman_region16* damage);
-void nvnc_damage_whole(struct nvnc*);
+struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos);
+void nvnc_display_ref(struct nvnc_display*);
+void nvnc_display_unref(struct nvnc_display*);
+
+struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
+
+void nvnc_display_set_render_fn(struct nvnc_display* self, nvnc_render_fn fn);
+void nvnc_display_set_buffer(struct nvnc_display*, struct nvnc_fb*);
+
+void nvnc_display_damage_region(struct nvnc_display*,
+                                const struct pixman_region16*);
+void nvnc_display_damage_whole(struct nvnc_display*);
 
 /*
  * Find the regions that differ between fb0 and fb1. Regions outside the hinted

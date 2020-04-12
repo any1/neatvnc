@@ -35,6 +35,7 @@ struct coord {
 };
 
 struct draw {
+	struct nvnc_display* display;
 	struct nvnc_fb* fb;
 	struct coord coord[MAX_COORD];
 	int index;
@@ -47,8 +48,8 @@ int coord_distance_between(struct coord a, struct coord b)
 	return round(sqrt(x * x + y * y));
 }
 
-void draw_dot(struct nvnc* nvnc, struct nvnc_fb* fb, struct coord coord,
-              int radius, uint32_t colour)
+void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
+              struct coord coord, int radius, uint32_t colour)
 {
 	uint32_t* image = nvnc_fb_get_addr(fb);
 	int width = nvnc_fb_get_width(fb);
@@ -64,7 +65,7 @@ void draw_dot(struct nvnc* nvnc, struct nvnc_fb* fb, struct coord coord,
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, start.x, start.y,
 	                        stop.x - start.x, stop.y - start.y);
-	nvnc_damage_region(nvnc, &region);
+	nvnc_display_damage_region(display, &region);
 	pixman_region_fini(&region);
 
 	/* The brute force method. ;) */
@@ -82,7 +83,7 @@ void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	if (!(buttons & NVNC_BUTTON_LEFT))
 		return;
 
-	struct nvnc* server = nvnc_get_server(client);
+	struct nvnc* server = nvnc_client_get_server(client);
 	assert(server);
 
 	struct draw* draw = nvnc_get_userdata(server);
@@ -101,17 +102,20 @@ void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	struct pixman_region16 region;
 	pixman_region_init_rect(&region, 0, 0, width, height);
 	pixman_region_intersect_rect(&region, &region, x, y, 1, 1);
-	nvnc_damage_region(server, &region);
+	nvnc_display_damage_region(draw->display, &region);
 	pixman_region_fini(&region);
 }
 
-void on_render(struct nvnc* server, struct nvnc_fb* fb)
+void on_render(struct nvnc_display* display, struct nvnc_fb* fb)
 {
+	struct nvnc* server = nvnc_display_get_server(display);
+	assert(server);
+
 	struct draw* draw = nvnc_get_userdata(server);
 	assert(draw);
 
 	for (int i = 0; i < draw->index; ++i)
-		draw_dot(server, fb, draw->coord[i], 16, 0);
+		draw_dot(draw->display, fb, draw->coord[i], 16, 0);
 
 	draw->index = 0;
 }
@@ -138,12 +142,18 @@ int main(int argc, char* argv[])
 	aml_set_default(aml);
 
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
+	assert(server);
+
+	draw.display = nvnc_display_new(0, 0);
+	assert(draw.display);
+	nvnc_display_set_buffer(draw.display, draw.fb);
+	nvnc_display_set_render_fn(draw.display, on_render);
+
+	nvnc_add_display(server, draw.display);
 
 	nvnc_set_name(server, "Draw");
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw);
-	nvnc_set_buffer(server, draw.fb);
-	nvnc_set_render_fn(server, on_render);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);
@@ -152,6 +162,7 @@ int main(int argc, char* argv[])
 	aml_run(aml);
 
 	nvnc_close(server);
+	nvnc_display_unref(draw.display);
 	nvnc_fb_unref(draw.fb);
 	aml_unref(aml);
 }

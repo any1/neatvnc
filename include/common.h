@@ -52,6 +52,7 @@ struct nvnc;
 struct stream;
 struct aml_handler;
 struct aml_idle;
+struct nvnc_display;
 
 struct nvnc_common {
 	void* userdata;
@@ -93,8 +94,7 @@ struct nvnc {
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
-	nvnc_render_fn render_fn;
-	struct nvnc_fb* buffer;
+	struct nvnc_display* display;
 
 #ifdef ENABLE_TLS
 	gnutls_certificate_credentials_t tls_creds;
@@ -102,3 +102,6 @@ struct nvnc {
 	void* auth_ud;
 #endif
 };
+
+void nvnc__damage_region(struct nvnc* self,
+                         const struct pixman_region16* damage);

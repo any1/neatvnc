@@ -48,11 +48,17 @@ int main(int argc, char* argv[])
 	aml_set_default(aml);
 
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
+	assert(server);
 
-	nvnc_set_buffer(server, fb);
+	struct nvnc_display* display = nvnc_display_new(0, 0);
+	assert(display);
+
+	nvnc_display_set_buffer(display, fb);
+
+	nvnc_add_display(server, display);
 	nvnc_set_name(server, file);
 
-	nvnc_damage_whole(server);
+	nvnc_display_damage_whole(display);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);
@@ -61,6 +67,7 @@ int main(int argc, char* argv[])
 	aml_run(aml);
 
 	nvnc_close(server);
+	nvnc_display_unref(display);
 	nvnc_fb_unref(fb);
 	aml_unref(aml);
 }

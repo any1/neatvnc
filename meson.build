@@ -58,6 +58,7 @@ sources = [
 	'src/fb.c',
 	'src/rcbuf.c',
 	'src/stream.c',
+	'src/display.c',
 ]
 
 dependencies = [

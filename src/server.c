@@ -21,6 +21,7 @@
 #include "vec.h"
 #include "type-macros.h"
 #include "fb.h"
+#include "display.h"
 #include "neatvnc.h"
 #include "common.h"
 #include "pixels.h"
@@ -348,18 +349,24 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 static void send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
+	struct nvnc_display* display = server->display;
 
 	size_t name_len = strlen(server->name);
 	size_t size = sizeof(struct rfb_server_init_msg) + name_len;
 
-	if (!server->buffer) {
-		log_debug("Tried to send init message, but not buffer has been set\n");
+	if (!display) {
+		log_debug("Tried to send init message, but no display has been added\n");
 		goto close;
 	}
 
-	uint16_t width = nvnc_fb_get_width(server->buffer);
-	uint16_t height = nvnc_fb_get_height(server->buffer);
-	uint32_t fourcc = nvnc_fb_get_fourcc_format(server->buffer);
+	if (!display->buffer) {
+		log_debug("Tried to send init message, but no framebuffers have been set\n");
+		goto close;
+	}
+
+	uint16_t width = nvnc_fb_get_width(display->buffer);
+	uint16_t height = nvnc_fb_get_height(display->buffer);
+	uint32_t fourcc = nvnc_fb_get_fourcc_format(display->buffer);
 
 	struct rfb_server_init_msg* msg = calloc(1, size);
 	if (!msg)
@@ -476,7 +483,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 static void process_fb_update_requests(struct nvnc_client* client)
 {
-	if (!client->server->buffer)
+	if (!client->server->display || !client->server->display->buffer)
 		return;
 
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
@@ -829,8 +836,9 @@ void on_main_dispatch(void* aml_obj)
 			return;
 		}
 
-	if (self->render_fn)
-		self->render_fn(self, self->buffer);
+	struct nvnc_display* display = self->display;
+	if (display && display->render_fn)
+		display->render_fn(display, display->buffer);
 
 	LIST_FOREACH(client, &self->clients, link)
 		process_fb_update_requests(client);
@@ -888,8 +896,8 @@ void nvnc_close(struct nvnc* self)
 {
 	struct nvnc_client* client;
 
-	if (self->buffer)
-		nvnc_fb_unref(self->buffer);
+	if (self->display)
+		nvnc_display_unref(self->display);
 
 	struct nvnc_client* tmp;
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
@@ -1006,7 +1014,7 @@ void on_client_update_fb_done(void* work)
 
 int schedule_client_update_fb(struct nvnc_client* client)
 {
-	struct nvnc_fb* fb = client->server->buffer;
+	struct nvnc_fb* fb = client->server->display->buffer;
 	assert(fb);
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
@@ -1060,8 +1068,7 @@ pixfmt_failure:
 	return -1;
 }
 
-EXPORT
-void nvnc_damage_region(struct nvnc* self, const struct pixman_region16* damage)
+void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage)
 {
 	struct nvnc_client* client;
 
@@ -1069,20 +1076,6 @@ void nvnc_damage_region(struct nvnc* self, const struct pixman_region16* damage)
 		if (client->net_stream->state != STREAM_STATE_CLOSED)
 			pixman_region_union(&client->damage, &client->damage,
 					    (struct pixman_region16*)damage);
-}
-
-EXPORT
-void nvnc_damage_whole(struct nvnc* self)
-{
-	assert(self->buffer);
-
-	uint16_t width = nvnc_fb_get_width(self->buffer);
-	uint16_t height = nvnc_fb_get_height(self->buffer);
-
-	struct pixman_region16 damage;
-	pixman_region_init_rect(&damage, 0, 0, width, height);
-	nvnc_damage_region(self, &damage);
-	pixman_region_fini(&damage);
 }
 
 EXPORT
@@ -1124,29 +1117,36 @@ void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn fn)
 }
 
 EXPORT
-void nvnc_set_render_fn(struct nvnc* self, nvnc_render_fn fn)
-{
-	self->render_fn = fn;
-}
-
-EXPORT
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
 {
 	self->cleanup_fn = fn;
 }
 
 EXPORT
-void nvnc_set_buffer(struct nvnc* self, struct nvnc_fb* fb)
+void nvnc_add_display(struct nvnc* self, struct nvnc_display* display)
 {
-	if (self->buffer)
-		nvnc_fb_unref(self->buffer);
+	if (self->display) {
+		log_error("Multiple displays are not implemented. Aborting!\n");
+		abort();
+	}
 
-	self->buffer = fb;
-	nvnc_fb_ref(fb);
+	display->server = self;
+	self->display = display;
+	nvnc_display_ref(display);
 }
 
 EXPORT
-struct nvnc* nvnc_get_server(const struct nvnc_client* client)
+void nvnc_remove_display(struct nvnc* self, struct nvnc_display* display)
+{
+	if (self->display != display)
+		return;
+
+	nvnc_display_unref(display);
+	self->display = NULL;
+}
+
+EXPORT
+struct nvnc* nvnc_client_get_server(const struct nvnc_client* client)
 {
 	return client->server;
 }

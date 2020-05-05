@@ -43,10 +43,8 @@ enum tight_quality tight_get_quality(struct tight_encoder* self)
 	struct nvnc_client* client =
 		container_of(self, struct nvnc_client, tight_encoder);
 
-	/* Note: The standard specifies that 16 is OK too, but we can only
-	 * handle 32
-	 */
-	if (client->pixfmt.bits_per_pixel != 32)
+	if (client->pixfmt.bits_per_pixel != 16 &&
+	    client->pixfmt.bits_per_pixel != 32)
 		return TIGHT_QUALITY_LOSSLESS;
 
 	for (size_t i = 0; i < client->n_encodings; ++i)

@@ -120,7 +120,7 @@ static int stream__flush_plain(struct stream* self)
 			break;
 	}
 
-	if (n_msgs < 0)
+	if (n_msgs == 0)
 		return 0;
 
 	bytes_sent = writev(self->fd, iov, n_msgs);

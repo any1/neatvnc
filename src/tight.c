@@ -38,7 +38,7 @@
 
 #define TIGHT_MAX_WIDTH 2048
 
-enum tight_quality tight_get_quality(struct tight_encoder* self)
+static enum tight_quality tight_get_quality(struct tight_encoder* self)
 {
 	struct nvnc_client* client =
 		container_of(self, struct nvnc_client, tight_encoder);
@@ -57,7 +57,7 @@ enum tight_quality tight_get_quality(struct tight_encoder* self)
 	return TIGHT_QUALITY_LOSSLESS;
 }
 
-int tight_init_zstream(z_stream* zx)
+static int tight_init_zstream(z_stream* zx)
 {
 	int rc = deflateInit2(zx,
 	                      /* compression level: */ 1,
@@ -85,7 +85,7 @@ static int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 	                                 : fmt->bits_per_pixel / 8;
 }
 
-enum TJPF get_jpeg_pixfmt(uint32_t fourcc)
+static enum TJPF get_jpeg_pixfmt(uint32_t fourcc)
 {
 	switch (fourcc) {
 	case DRM_FORMAT_RGBA8888:
@@ -114,9 +114,9 @@ static void tight_encode_size(struct vec* dst, size_t size)
 		vec_fast_append_8(dst, (size >> 14) & 0xff);
 }
 
-int tight_encode_box_jpeg(struct tight_encoder* self, struct vec* dst,
-                          const struct nvnc_fb* fb, uint32_t x, uint32_t y,
-                          uint32_t stride, uint32_t width, uint32_t height)
+static int tight_encode_box_jpeg(struct tight_encoder* self, struct vec* dst,
+				 const struct nvnc_fb* fb, uint32_t x, uint32_t y,
+				 uint32_t stride, uint32_t width, uint32_t height)
 {
 
 	unsigned char* buffer = NULL;
@@ -174,7 +174,8 @@ compress_failure:
 	return rc;
 }
 
-int tight_deflate(struct vec* dst, void* src, size_t len, z_stream* zs, bool flush)
+static int tight_deflate(struct vec* dst, void* src, size_t len, z_stream* zs,
+                         bool flush)
 {
 	zs->next_in = src;
 	zs->avail_in = len;
@@ -198,11 +199,11 @@ int tight_deflate(struct vec* dst, void* src, size_t len, z_stream* zs, bool flu
 	return 0;
 }
 
-int tight_encode_box_basic(struct tight_encoder* self, struct vec* dst,
-                           const struct nvnc_fb* fb,
-                           const struct rfb_pixel_format* src_fmt,
-                           uint32_t x, uint32_t y_start,
-                           uint32_t stride, uint32_t width, uint32_t height)
+static int tight_encode_box_basic(struct tight_encoder* self, struct vec* dst,
+                                  const struct nvnc_fb* fb,
+                                  const struct rfb_pixel_format* src_fmt,
+                                  uint32_t x, uint32_t y_start, uint32_t stride,
+                                  uint32_t width, uint32_t height)
 {
 	struct nvnc_client* client =
 		container_of(self, struct nvnc_client, tight_encoder);
@@ -266,11 +267,11 @@ buffer_failure:
 	return -1;
 }
 
-int tight_encode_box(struct tight_encoder* self, struct vec* dst,
-                     const struct nvnc_fb* fb,
-                     const struct rfb_pixel_format* src_fmt,
-                     uint32_t x, uint32_t y,
-                     uint32_t stride, uint32_t width, uint32_t height)
+static int tight_encode_box(struct tight_encoder* self, struct vec* dst,
+			    const struct nvnc_fb* fb,
+			    const struct rfb_pixel_format* src_fmt,
+			    uint32_t x, uint32_t y,
+			    uint32_t stride, uint32_t width, uint32_t height)
 {
 	switch (self->quality) {
 	case TIGHT_QUALITY_LOSSLESS:

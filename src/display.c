@@ -37,7 +37,7 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 	return self;
 }
 
-void nvnc__display_free(struct nvnc_display* self)
+static void nvnc__display_free(struct nvnc_display* self)
 {
 	if (self->buffer)
 		nvnc_fb_unref(self->buffer);

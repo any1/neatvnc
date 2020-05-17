@@ -54,7 +54,8 @@ static inline void stream__poll_rw(struct stream* self)
 	aml_set_event_mask(self->handler, POLLIN | POLLOUT);
 }
 
-static void stream_req__finish(struct stream_req* req, enum stream_req_status status)
+static void stream_req__finish(struct stream_req* req,
+                               enum stream_req_status status)
 {
 	if (req->on_done)
 		req->on_done(req->userdata, status);
@@ -332,7 +333,7 @@ int stream_write(struct stream* self, const void* payload, size_t len,
 	return buf ? stream_send(self, buf, on_done, userdata) : -1;
 }
 
-ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
+static ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
 {
 	ssize_t rc = read(self->fd, dst, size);
 	if (rc == 0)
@@ -341,7 +342,7 @@ ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
 }
 
 #ifdef ENABLE_TLS
-ssize_t stream__read_tls(struct stream* self, void* dst, size_t size)
+static ssize_t stream__read_tls(struct stream* self, void* dst, size_t size)
 {
 	ssize_t rc = gnutls_record_recv(self->tls_session, dst, size);
 	if (rc >= 0)

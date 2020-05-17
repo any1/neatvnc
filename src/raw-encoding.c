@@ -19,13 +19,15 @@
 #include "vec.h"
 #include "fb.h"
 #include "pixels.h"
+#include "raw-encoding.h"
 
 #include <pixman.h>
 
-int raw_encode_box(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
-                   const struct nvnc_fb* fb,
-                   const struct rfb_pixel_format* src_fmt, int x_start,
-                   int y_start, int stride, int width, int height)
+static int raw_encode_box(struct vec* dst,
+                          const struct rfb_pixel_format* dst_fmt,
+                          const struct nvnc_fb* fb,
+                          const struct rfb_pixel_format* src_fmt, int x_start,
+                          int y_start, int stride, int width, int height)
 {
 	int rc = -1;
 

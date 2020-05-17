@@ -61,9 +61,11 @@ static inline bool are_tiles_equal(const uint32_t* a, const uint32_t* b,
 }
 
 #define TILE_SIDE_LENGTH 32
-int check_damage_linear(struct pixman_region16* damage,
-                        const struct nvnc_fb* fb0, const struct nvnc_fb* fb1,
-                        int x_hint, int y_hint, int width_hint, int height_hint)
+static int check_damage_linear(struct pixman_region16* damage,
+                               const struct nvnc_fb* fb0,
+                               const struct nvnc_fb* fb1,
+                               int x_hint, int y_hint,
+                               int width_hint, int height_hint)
 {
 	uint32_t* b0 = fb0->addr;
 	uint32_t* b1 = fb1->addr;
@@ -102,7 +104,7 @@ int check_damage_linear(struct pixman_region16* damage,
 }
 #undef TILE_SIDE_LENGTH
 
-void do_damage_check_linear(void* work)
+static void do_damage_check_linear(void* work)
 {
 	struct damage_check* check = aml_get_userdata(work);
 
@@ -111,7 +113,7 @@ void do_damage_check_linear(void* work)
 	                    check->height_hint);
 }
 
-void on_damage_check_done_linear(void* work)
+static void on_damage_check_done_linear(void* work)
 {
 	struct damage_check* check = aml_get_userdata(work);
 
@@ -123,10 +125,12 @@ void on_damage_check_done_linear(void* work)
 	pixman_region_fini(&check->damage);
 }
 
-int check_damage_linear_threaded(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
-                                 int x_hint, int y_hint,
-                                 int width_hint, int height_hint,
-                                 nvnc_damage_fn on_check_done, void* userdata)
+static int check_damage_linear_threaded(struct nvnc_fb* fb0,
+                                        struct nvnc_fb* fb1,
+                                        int x_hint, int y_hint,
+                                        int width_hint, int height_hint,
+                                        nvnc_damage_fn on_check_done,
+                                        void* userdata)
 {
 	struct damage_check* work = calloc(1, sizeof(*work));
 	if (!work)

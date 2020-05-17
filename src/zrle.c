@@ -49,7 +49,8 @@ static inline int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 	                                 : fmt->bits_per_pixel / 8;
 }
 
-int zrle_get_tile_palette(uint32_t* palette, const uint32_t* src, size_t length)
+static int zrle_get_tile_palette(uint32_t* palette, const uint32_t* src,
+                                 size_t length)
 {
 	int n = 0;
 
@@ -70,10 +71,10 @@ int zrle_get_tile_palette(uint32_t* palette, const uint32_t* src, size_t length)
 	return n;
 }
 
-void zrle_encode_unichrome_tile(struct vec* dst,
-                                const struct rfb_pixel_format* dst_fmt,
-                                uint32_t colour,
-                                const struct rfb_pixel_format* src_fmt)
+static void zrle_encode_unichrome_tile(struct vec* dst,
+                                       const struct rfb_pixel_format* dst_fmt,
+                                       uint32_t colour,
+                                       const struct rfb_pixel_format* src_fmt)
 {
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
@@ -85,7 +86,7 @@ void zrle_encode_unichrome_tile(struct vec* dst,
 	dst->len += bytes_per_cpixel;
 }
 
-void encode_run_length(struct vec* dst, uint8_t index, int run_length)
+static void encode_run_length(struct vec* dst, uint8_t index, int run_length)
 {
 	if (run_length == 1) {
 		vec_fast_append_8(dst, index);
@@ -102,11 +103,12 @@ void encode_run_length(struct vec* dst, uint8_t index, int run_length)
 	vec_fast_append_8(dst, run_length - 1);
 }
 
-void zrle_encode_packed_tile(struct vec* dst,
-                             const struct rfb_pixel_format* dst_fmt,
-                             const uint32_t* src,
-                             const struct rfb_pixel_format* src_fmt,
-                             size_t length, uint32_t* palette, int palette_size)
+static void zrle_encode_packed_tile(struct vec* dst,
+                                    const struct rfb_pixel_format* dst_fmt,
+                                    const uint32_t* src,
+                                    const struct rfb_pixel_format* src_fmt,
+                                    size_t length, uint32_t* palette,
+                                    int palette_size)
 {
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
@@ -139,16 +141,18 @@ void zrle_encode_packed_tile(struct vec* dst,
 	}
 }
 
-void zrle_copy_tile(uint32_t* dst, const uint32_t* src, int stride, int width,
-                    int height)
+static void zrle_copy_tile(uint32_t* dst, const uint32_t* src, int stride,
+                           int width, int height)
 {
 	for (int y = 0; y < height; ++y)
 		memcpy(dst + y * width, src + y * stride, width * 4);
 }
 
-void zrle_encode_tile(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
-                      const uint32_t* src,
-                      const struct rfb_pixel_format* src_fmt, size_t length)
+static void zrle_encode_tile(struct vec* dst,
+                             const struct rfb_pixel_format* dst_fmt,
+                             const uint32_t* src,
+                             const struct rfb_pixel_format* src_fmt,
+                             size_t length)
 {
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
@@ -176,7 +180,8 @@ void zrle_encode_tile(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 	dst->len += bytes_per_cpixel * length;
 }
 
-int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs, bool flush)
+static int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
+                        bool flush)
 {
 	zs->next_in = src->data;
 	zs->avail_in = src->len;
@@ -200,10 +205,11 @@ int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs, bool flus
 	return 0;
 }
 
-int zrle_encode_box(struct vec* out, const struct rfb_pixel_format* dst_fmt,
-                    const struct nvnc_fb* fb,
-                    const struct rfb_pixel_format* src_fmt, int x, int y,
-                    int stride, int width, int height, z_stream* zs)
+static int zrle_encode_box(struct vec* out,
+                           const struct rfb_pixel_format* dst_fmt,
+                           const struct nvnc_fb* fb,
+                           const struct rfb_pixel_format* src_fmt, int x, int y,
+                           int stride, int width, int height, z_stream* zs)
 {
 	int r = -1;
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);

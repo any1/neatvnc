@@ -15,6 +15,7 @@
  */
 
 #include "rfb-proto.h"
+#include "pixels.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>

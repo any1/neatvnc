@@ -772,7 +772,7 @@ accept_failure:
 	log_debug("Failed to accept a connection\n");
 }
 
-int bind_address(const char* name, int port)
+static int bind_address(const char* name, int port)
 {
 	struct addrinfo hints = {
 		.ai_socktype = SOCK_STREAM,
@@ -811,7 +811,7 @@ failure:
 	return fd;
 }
 
-bool nvnc__is_damaged(struct nvnc* self)
+static bool nvnc__is_damaged(struct nvnc* self)
 {
 	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link)
@@ -821,7 +821,7 @@ bool nvnc__is_damaged(struct nvnc* self)
 	return false;
 }
 
-void on_main_dispatch(void* aml_obj)
+static void on_main_dispatch(void* aml_obj)
 {
 	struct nvnc* self = aml_get_userdata(aml_obj);
 	struct nvnc_client* client;
@@ -925,7 +925,7 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 	client_unref(client);
 }
 
-enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
+static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 {
 	for (size_t i = 0; i < client->n_encodings; ++i)
 		switch (client->encodings[i]) {
@@ -942,7 +942,7 @@ enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 	return -1;
 }
 
-void do_client_update_fb(void* work)
+static void do_client_update_fb(void* work)
 {
 	struct fb_update_work* update = aml_get_userdata(work);
 	struct nvnc_client* client = update->client;
@@ -981,7 +981,7 @@ void do_client_update_fb(void* work)
 	}
 }
 
-void on_client_update_fb_done(void* work)
+static void on_client_update_fb_done(void* work)
 {
 	struct fb_update_work* update = aml_get_userdata(work);
 	struct nvnc_client* client = update->client;

@@ -105,7 +105,7 @@ uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb)
 	return fb->fourcc_format;
 }
 
-void nvnc__fb_free(struct nvnc_fb* fb)
+static void nvnc__fb_free(struct nvnc_fb* fb)
 {
 	free(fb->addr);
 	free(fb);

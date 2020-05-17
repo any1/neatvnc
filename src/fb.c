@@ -57,19 +57,6 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 }
 
 EXPORT
-bool nvnc_fb_lock(struct nvnc_fb* fb)
-{
-	bool expected = false;
-	return atomic_compare_exchange_strong(&fb->is_locked, &expected, true);
-}
-
-EXPORT
-void nvnc_fb_unlock(struct nvnc_fb* fb)
-{
-	fb->is_locked = false;
-}
-
-EXPORT
 enum nvnc_fb_flags nvnc_fb_get_flags(const struct nvnc_fb* fb)
 {
 	return fb->flags;

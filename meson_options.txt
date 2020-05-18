@@ -1,5 +1,5 @@
 option('examples', type: 'boolean', value: false, description: 'Build examples')
 option('tight-encoding', type: 'feature', value: 'auto', description: 'Enable Tight encoding')
 option('tls', type: 'feature', value: 'auto', description: 'Enable encryption & authentication')
-option('x86_64-simd', type: 'string', value: 'avx',
+option('x86_64-simd', type: 'string', value: 'sse2',
        description: 'Choose SIMD extension for x86_64 release build')

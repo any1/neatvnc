@@ -14,6 +14,7 @@ host_system = host_machine.system()
 c_args = [
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
+	'-Wmissing-prototypes',
 ]
 
 if buildtype != 'debug' and buildtype != 'debugoptimized'

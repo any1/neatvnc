@@ -133,8 +133,6 @@ static int handle_unsupported_version(struct nvnc_client* client)
 
 static int on_version_message(struct nvnc_client* client)
 {
-	struct nvnc* server = client->server;
-
 	if (client->buffer_len - client->buffer_index < 12)
 		return 0;
 
@@ -150,7 +148,7 @@ static int on_version_message(struct nvnc_client* client)
 	security.types[0] = RFB_SECURITY_TYPE_NONE;
 
 #ifdef ENABLE_TLS
-	if (server->auth_fn)
+	if (client->server->auth_fn)
 		security.types[0] = RFB_SECURITY_TYPE_VENCRYPT;
 #endif
 
@@ -191,6 +189,7 @@ static int security_handshake_ok(struct nvnc_client* client)
 	                    NULL);
 }
 
+#ifdef ENABLE_TLS
 static int send_byte(struct nvnc_client* client, uint8_t value)
 {
 	return stream_write(client->net_stream, &value, 1, NULL, NULL);
@@ -202,7 +201,6 @@ static int send_byte_and_close(struct nvnc_client* client, uint8_t value)
 	                    client);
 }
 
-#ifdef ENABLE_TLS
 static int vencrypt_send_version(struct nvnc_client* client)
 {
 	struct rfb_vencrypt_version_msg msg = {

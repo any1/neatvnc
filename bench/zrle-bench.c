@@ -16,35 +16,35 @@
 
 #include "zrle.h"
 #include "rfb-proto.h"
-#include "util.h"
 #include "vec.h"
 #include "neatvnc.h"
-#include "miniz.h"
+#include "pixels.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 #include <time.h>
 #include <inttypes.h>
 
-uint64_t gettime_us(clockid_t clock)
+static uint64_t gettime_us(clockid_t clock)
 {
 	struct timespec ts = { 0 };
 	clock_gettime(clock, &ts);
 	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
 }
 
-#pragma push_options
+#pragma GCC push_options
 #pragma GCC optimize ("-O0")
-void memcpy_unoptimized(void* dst, const void* src, size_t len)
+static void memcpy_unoptimized(void* dst, const void* src, size_t len)
 {
 	memcpy(dst, src, len);
 }
-#pragma pop_options
+#pragma GCC pop_options
 
 struct nvnc_fb* read_png_file(const char *filename);
 
-int run_benchmark(const char *image)
+static int run_benchmark(const char *image)
 {
 	int rc = -1;
 

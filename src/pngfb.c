@@ -12,6 +12,8 @@
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>
 
+struct nvnc_fb* read_png_file(const char* filename);
+
 struct nvnc_fb* read_png_file(const char* filename)
 {
 	int width, height;

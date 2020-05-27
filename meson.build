@@ -109,6 +109,10 @@ if get_option('examples')
 	subdir('examples')
 endif
 
+if get_option('benchmarks')
+	subdir('bench')
+endif
+
 install_headers('include/neatvnc.h')
 
 pkgconfig = import('pkgconfig')

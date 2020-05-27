@@ -1,3 +1,4 @@
+option('benchmarks', type: 'boolean', value: false, description: 'Build benchmarks')
 option('examples', type: 'boolean', value: false, description: 'Build examples')
 option('tight-encoding', type: 'feature', value: 'auto', description: 'Enable Tight encoding')
 option('tls', type: 'feature', value: 'auto', description: 'Enable encryption & authentication')

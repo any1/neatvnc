@@ -122,7 +122,7 @@ static int handle_unsupported_version(struct nvnc_client* client)
 
 	buffer[0] = 0; /* Number of security types is 0 on error */
 	reason->length = htonl(strlen(reason_string));
-	(void)strcmp(reason->message, reason_string);
+	strcpy(reason->message, reason_string);
 
 	size_t len = 1 + sizeof(*reason) + strlen(reason_string);
 	stream_write(client->net_stream, buffer, len, close_after_write,

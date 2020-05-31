@@ -937,7 +937,7 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 			break;
 		}
 
-	return -1;
+	return RFB_ENCODING_RAW;
 }
 
 static void do_client_update_fb(void* work)
@@ -947,11 +947,6 @@ static void do_client_update_fb(void* work)
 	struct nvnc_fb* fb = update->fb;
 
 	enum rfb_encodings encoding = choose_frame_encoding(client);
-	if (encoding == -1) {
-		stream_close(client->net_stream);
-		client_unref(client);
-		return;
-	}
 
 	if (!client->has_pixfmt) {
 		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);

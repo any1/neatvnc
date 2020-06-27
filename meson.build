@@ -88,7 +88,7 @@ if gnutls.found()
 	config.set('ENABLE_TLS', true)
 endif
 
-if host_system == 'linux' and cc.has_header('sys/sdt.h')
+if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')
 	config.set('HAVE_USDT', true)
 endif
 

@@ -41,17 +41,17 @@ static int stream__try_tls_accept(struct stream* self);
 
 static inline void stream__poll_r(struct stream* self)
 {
-	aml_set_event_mask(self->handler, POLLIN);
+	aml_set_event_mask(self->handler, AML_EVENT_READ);
 }
 
 static inline void stream__poll_w(struct stream* self)
 {
-	aml_set_event_mask(self->handler, POLLOUT);
+	aml_set_event_mask(self->handler, AML_EVENT_WRITE);
 }
 
 static inline void stream__poll_rw(struct stream* self)
 {
-	aml_set_event_mask(self->handler, POLLIN | POLLOUT);
+	aml_set_event_mask(self->handler, AML_EVENT_READ | AML_EVENT_WRITE);
 }
 
 static void stream_req__finish(struct stream_req* req,
@@ -267,10 +267,10 @@ static void stream__on_event(void* obj)
 	struct stream* self = aml_get_userdata(obj);
 	uint32_t events = aml_get_revents(obj);
 
-	if (events & POLLIN)
+	if (events & AML_EVENT_READ)
 		stream__on_readable(self);
 
-	if (events & POLLOUT)
+	if (events & AML_EVENT_WRITE)
 		stream__on_writable(self);
 }
 

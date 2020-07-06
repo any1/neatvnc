@@ -912,6 +912,7 @@ void nvnc_close(struct nvnc* self)
 	}
 #endif
 
+	aml_unref(self->dispatch_handler);
 	aml_unref(self->poll_handle);
 	free(self);
 }

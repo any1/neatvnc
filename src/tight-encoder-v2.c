@@ -13,7 +13,9 @@
 #include <zlib.h>
 #include <pixels.h>
 #include <pthread.h>
+#include <assert.h>
 #include <aml.h>
+#include <libdrm/drm_fourcc.h>
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -131,16 +133,16 @@ static int tight_apply_damage(struct tight_encoder_v2* self,
 	for (uint32_t y = 0; y < self->grid_height; ++y)
 		for (uint32_t x = 0; x < self->grid_width; ++x) {
 			struct pixman_box16 box = {
-				.x1 = x * 64,
-				.y1 = y * 64,
-				.x2 = ((x + 1) * 64) - 1,
-				.y2 = ((y + 1) * 64) - 1,
+				.x1 = x * TSL,
+				.y1 = y * TSL,
+				.x2 = ((x + 1) * TSL) - 1,
+				.y2 = ((y + 1) * TSL) - 1,
 			};
 
 			pixman_region_overlap_t overlap
 				= pixman_region_contains_rectangle(damage, &box);
 
-			if (overlap == PIXMAN_REGION_IN) {
+			if (overlap != PIXMAN_REGION_OUT) {
 				++n_damaged;
 				tight_tile(self, x, y)->state = TIGHT_TILE_DAMAGED;
 			} else {
@@ -246,6 +248,12 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 	assert(bytes_per_cpixel <= 4);
 	uint8_t row[TSL * 4];
 
+	struct rfb_pixel_format cfmt = { 0 };
+	if (bytes_per_cpixel == 3)
+		rfb_pixfmt_from_fourcc(&cfmt, DRM_FORMAT_XBGR8888);
+	else
+		memcpy(&cfmt, self->dfmt, sizeof(cfmt));
+
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
 	uint32_t stride = nvnc_fb_get_width(self->fb);
 
@@ -255,8 +263,8 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
 		void* img = addr + x + y * stride;
-		pixel32_to_cpixel(row, self->dfmt, img, self->sfmt,
-				  bytes_per_cpixel, width);
+		pixel32_to_cpixel(row, &cfmt, img, self->sfmt, bytes_per_cpixel,
+				width);
 
 		// TODO What to do if the buffer fills up?
 		if (tight_deflate(tile, row, bytes_per_cpixel * width,
@@ -370,8 +378,7 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 	vec_clear(dst);
 
 	self->n_rects = tight_apply_damage(self, damage);
-	if (self->n_rects == 0)
-		return 0;
+	assert(self->n_jobs > 0);
 
 	tight_encode_rect_count(self);
 

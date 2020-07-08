@@ -27,7 +27,7 @@
 
 #define TSL 64 /* Tile Side Length */
 
-#define MAX_TILE_SIZE (2 * (TSL * TSL * 4 + sizeof(struct rfb_server_fb_rect)))
+#define MAX_TILE_SIZE (2 * TSL * TSL * 4)
 
 enum tight_tile_state {
 	TIGHT_TILE_READY = 0,
@@ -39,6 +39,7 @@ struct tight_tile {
 	enum tight_tile_state state;
 	struct tight_encoder_v2* parent;
 	size_t size;
+	uint8_t type;
 	char buffer[MAX_TILE_SIZE];
 };
 
@@ -138,18 +139,13 @@ static int tight_apply_damage(struct tight_encoder_v2* self,
 	return n_damaged;
 }
 
-static void tight_encode_size(struct tight_tile* tile)
+static void tight_encode_size(struct vec* dst, size_t size)
 {
-	size_t size = tile->size;
-
-	tile->buffer[tile->size++] = (size & 0x7f) | ((size >= 128) << 7);
-
+	vec_fast_append_8(dst, (size & 0x7f) | ((size >= 128) << 7));
 	if (size >= 128)
-		tile->buffer[tile->size++] =
-			((size >> 7) & 0x7f) | ((size >= 16384) << 7);
-
+		vec_fast_append_8(dst, ((size >> 7) & 0x7f) | ((size >= 16384) << 7));
 	if (size >= 16384)
-		tile->buffer[tile->size++] = (size >> 14) & 0xff;
+		vec_fast_append_8(dst, (size >> 14) & 0xff);
 }
 
 static int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
@@ -222,28 +218,17 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 		struct tight_tile* tile)
 {
 	intptr_t index = ((intptr_t)tile - (intptr_t)self->grid) / sizeof(*tile);
-	uint32_t gx = index % self->width;
-	uint32_t gy = index / self->width;
+	uint32_t gx = index % self->grid_width;
+	uint32_t gy = index / self->grid_width;
 
 	uint32_t x = gx * TSL;
 	uint32_t y_start = gy * TSL;
-
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_TIGHT),
-		.x = htons(x),
-		.y = htons(y_start),
-		.width = htons(TSL),
-		.height = htons(TSL),
-	};
-
-	tile->size = sizeof(rect);
-	memcpy(tile->buffer, &rect, sizeof(rect));
 
 	// TODO Figure out of way to postpone job instead of blocking
 	int zs_index = tight_acquire_zstream(self);
 	z_stream* zs = &self->zs[zs_index];
 
-	tile->buffer[tile->size++] = TIGHT_BASIC | TIGHT_STREAM(zs_index);
+	tile->type = TIGHT_BASIC | TIGHT_STREAM(zs_index);
 
 	int bytes_per_cpixel = calc_bytes_per_cpixel(self->dfmt);
 	assert(bytes_per_cpixel <= 4);
@@ -252,6 +237,7 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
 	uint32_t stride = nvnc_fb_get_width(self->fb);
 
+	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + TSL; ++y) {
 		void* img = addr + x + y * stride;
 		pixel32_to_cpixel(row, self->dfmt, img, self->sfmt,
@@ -263,14 +249,14 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 			abort();
 	}
 
-	tight_encode_size(tile);
-
 	tight_release_zstream(self, zs_index);
 }
 
 static void tight_encode_tile(struct tight_encoder_v2* self,
 		struct tight_tile* tile)
 {
+	tile->size = 0;
+
 	tight_encode_tile_basic(self, tile);
 	//TODO Jpeg
 }
@@ -289,6 +275,18 @@ static void tight_finish_tile(struct tight_encoder_v2* self, uint32_t x,
 		uint32_t y)
 {
 	struct tight_tile* tile = tight_tile(self, x, y);
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_TIGHT),
+		.x = htons(x * TSL),
+		.y = htons(y * TSL),
+		.width = htons(TSL),
+		.height = htons(TSL),
+	};
+
+	vec_append(self->dst, &rect, sizeof(rect));
+	vec_append(self->dst, &tile->type, sizeof(tile->type));
+	tight_encode_size(self->dst, tile->size);
 	vec_append(self->dst, tile->buffer, tile->size);
 	tile->state = TIGHT_TILE_READY;
 }
@@ -329,6 +327,9 @@ static int tight_schedule_encode_tile(struct tight_encoder_v2* self,
 		uint32_t x, uint32_t y)
 {
 	struct tight_tile* tile = tight_tile(self, x, y);
+
+	if (tile->state != TIGHT_TILE_DAMAGED)
+		return 0;
 
 	struct aml_work* work = aml_work_new(do_encode_tile,
 			on_encode_tile_done, tile, NULL);

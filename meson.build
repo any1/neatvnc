@@ -73,7 +73,7 @@ config = configuration_data()
 
 if libturbojpeg.found()
 	dependencies += libturbojpeg
-	sources += 'src/tight.c'
+	sources += 'src/tight-encoder-v2.c'
 	config.set('ENABLE_TIGHT', true)
 endif
 

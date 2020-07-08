@@ -24,7 +24,7 @@
 #include "sys/queue.h"
 
 #include "neatvnc.h"
-#include "tight.h"
+#include "tight-encoder-v2.h"
 #include "config.h"
 
 #ifdef ENABLE_TLS
@@ -74,7 +74,7 @@ struct nvnc_client {
 	bool is_updating;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
-	struct tight_encoder tight_encoder;
+	struct tight_encoder_v2 tight_encoder;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];

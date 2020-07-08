@@ -16,7 +16,7 @@
 
 #include "rfb-proto.h"
 #include "zrle.h"
-#include "tight.h"
+#include "tight-encoder-v2.h"
 #include "raw-encoding.h"
 #include "vec.h"
 #include "type-macros.h"
@@ -82,7 +82,7 @@ static void client_close(struct nvnc_client* client)
 	LIST_REMOVE(client, link);
 	stream_destroy(client->net_stream);
 #ifdef ENABLE_TIGHT
-	tight_encoder_destroy(&client->tight_encoder);
+	tight_encoder_v2_destroy(&client->tight_encoder);
 #endif
 	deflateEnd(&client->z_stream);
 	pixman_region_fini(&client->damage);
@@ -731,7 +731,9 @@ static void on_connection(void* obj)
 		goto deflate_failure;
 
 #ifdef ENABLE_TIGHT
-	if (tight_encoder_init(&client->tight_encoder) < 0)
+	int width = server->display->buffer->width;
+	int height = server->display->buffer->height;
+	if (tight_encoder_v2_init(&client->tight_encoder, width, height) < 0)
 		goto tight_failure;
 #endif
 
@@ -753,7 +755,7 @@ static void on_connection(void* obj)
 
 payload_failure:
 #ifdef ENABLE_TIGHT
-	tight_encoder_destroy(&client->tight_encoder);
+	tight_encoder_v2_destroy(&client->tight_encoder);
 #endif
 	pixman_region_fini(&client->damage);
 #ifdef ENABLE_TIGHT
@@ -961,8 +963,9 @@ static void do_client_update_fb(void* work)
 		break;
 #ifdef ENABLE_TIGHT
 	case RFB_ENCODING_TIGHT:
-		tight_encode_frame(&client->tight_encoder, &update->frame, fb,
-		                   &update->server_fmt, &update->region);
+		tight_encode_frame_v2(&client->tight_encoder, &update->frame,
+				&client->pixfmt, fb, &update->server_fmt,
+				&update->region);
 		break;
 #endif
 	case RFB_ENCODING_ZRLE:

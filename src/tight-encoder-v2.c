@@ -3,6 +3,7 @@
 #include "common.h"
 #include "pixels.h"
 #include "vec.h"
+#include "tight-encoder-v2.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -28,8 +29,6 @@
 
 #define MAX_TILE_SIZE (2 * (TSL * TSL * 4 + sizeof(struct rfb_server_fb_rect)))
 
-struct tight_encoder_v2;
-
 enum tight_tile_state {
 	TIGHT_TILE_READY = 0,
 	TIGHT_TILE_DAMAGED,
@@ -41,29 +40,6 @@ struct tight_tile {
 	struct tight_encoder_v2* parent;
 	size_t size;
 	char buffer[MAX_TILE_SIZE];
-};
-
-struct tight_encoder_v2 {
-	uint32_t width;
-	uint32_t height;
-	uint32_t grid_width;
-	uint32_t grid_height;
-
-	struct tight_tile* grid;
-
-	z_stream zs[4];
-	uint8_t zs_mask;
-	pthread_mutex_t zs_mutex;
-	pthread_cond_t zs_cond;
-
-	const struct rfb_pixel_format* dfmt;
-	const struct rfb_pixel_format* sfmt;
-	const struct nvnc_fb* fb;
-
-	uint32_t n_rects;
-	uint32_t n_jobs;
-
-	struct vec* dst;
 };
 
 static int tight_encoder_v2_init_stream(z_stream* zs)
@@ -111,7 +87,26 @@ int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 	pthread_mutex_init(&self->zs_mutex, NULL);
 	pthread_cond_init(&self->zs_cond, NULL);
 
+	pthread_mutex_init(&self->wait_mutex, NULL);
+	pthread_cond_init(&self->wait_cond, NULL);
+
 	return 0;
+}
+
+void tight_encoder_v2_destroy(struct tight_encoder_v2* self)
+{
+	pthread_cond_destroy(&self->wait_cond);
+	pthread_mutex_destroy(&self->wait_mutex);
+
+	pthread_cond_destroy(&self->zs_cond);
+	pthread_mutex_destroy(&self->zs_mutex);
+
+	deflateEnd(&self->zs[3]);
+	deflateEnd(&self->zs[2]);
+	deflateEnd(&self->zs[1]);
+	deflateEnd(&self->zs[0]);
+
+	free(self->grid);
 }
 
 static int tight_apply_damage(struct tight_encoder_v2* self,
@@ -306,8 +301,6 @@ static void tight_finish_frame(struct tight_encoder_v2* self)
 		for (uint32_t x = 0; x < self->grid_height; ++x)
 			if (tight_tile(self, x, y)->state == TIGHT_TILE_ENCODED)
 				tight_finish_tile(self, x, y);
-
-	// TODO Notify that encoding is done
 }
 
 static void do_encode_tile(void* obj)
@@ -324,8 +317,12 @@ static void on_encode_tile_done(void* obj)
 
 	tile->state = TIGHT_TILE_ENCODED;
 
-	if (--self->n_jobs == 0)
+	pthread_mutex_lock(&self->wait_mutex);
+	if (--self->n_jobs == 0) {
 		tight_finish_frame(self);
+		pthread_cond_signal(&self->wait_cond);
+	}
+	pthread_mutex_unlock(&self->wait_mutex);
 }
 
 static int tight_schedule_encode_tile(struct tight_encoder_v2* self,
@@ -367,6 +364,8 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 	self->fb = src;
 	self->dst = dst;
 
+	vec_clear(dst);
+
 	self->n_rects = tight_apply_damage(self, damage);
 	if (self->n_rects == 0)
 		return 0;
@@ -374,7 +373,11 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 	if (tight_schedule_encoding_jobs(self) < 0)
 		return -1;
 
-	// TODO Wait for encoding to finish or change architecture of caller
+	// TODO Change architecture so we don't have to wait here
+	pthread_mutex_lock(&self->wait_mutex);
+	while (self->n_jobs != 0)
+		pthread_cond_wait(&self->wait_cond, &self->wait_mutex);
+	pthread_mutex_unlock(&self->wait_mutex);
 
 	return 0;
 }

@@ -117,7 +117,7 @@ static int tight_apply_damage(struct tight_encoder_v2* self,
 
 	/* Align damage to tile grid */
 	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = 0; x < self->grid_height; ++x) {
+		for (uint32_t x = 0; x < self->grid_width; ++x) {
 			struct pixman_box16 box = {
 				.x1 = x * 64,
 				.y1 = y * 64,
@@ -296,7 +296,7 @@ static void tight_finish_frame(struct tight_encoder_v2* self)
 	tight_encode_rect_count(self);
 
 	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = 0; x < self->grid_height; ++x)
+		for (uint32_t x = 0; x < self->grid_width; ++x)
 			if (tight_tile(self, x, y)->state == TIGHT_TILE_ENCODED)
 				tight_finish_tile(self, x, y);
 }
@@ -347,7 +347,7 @@ static int tight_schedule_encode_tile(struct tight_encoder_v2* self,
 static int tight_schedule_encoding_jobs(struct tight_encoder_v2* self)
 {
 	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = 0; x < self->grid_height; ++x)
+		for (uint32_t x = 0; x < self->grid_width; ++x)
 			if (tight_schedule_encode_tile(self, x, y) < 0)
 				return -1;
 

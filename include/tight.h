@@ -16,13 +16,14 @@
 
 #pragma once
 
+#include <unistd.h>
+#include <stdint.h>
 #include <zlib.h>
+#include <pthread.h>
 
-struct vec;
-struct nvnc_client;
-struct nvnc_fb;
+struct tight_tile;
 struct pixman_region16;
-struct rfb_pixel_format;
+struct aml_work;
 
 enum tight_quality {
 	TIGHT_QUALITY_UNSPEC = 0,
@@ -32,14 +33,37 @@ enum tight_quality {
 };
 
 struct tight_encoder {
-	z_stream zs[4];
+	uint32_t width;
+	uint32_t height;
+	uint32_t grid_width;
+	uint32_t grid_height;
 	enum tight_quality quality;
+
+	struct tight_tile* grid;
+
+	z_stream zs[4];
+	struct aml_work* zs_worker[4];
+
+	const struct rfb_pixel_format* dfmt;
+	const struct rfb_pixel_format* sfmt;
+	const struct nvnc_fb* fb;
+
+	uint32_t n_rects;
+	uint32_t n_jobs;
+
+	struct vec* dst;
+
+	pthread_mutex_t wait_mutex;
+	pthread_cond_t wait_cond;
 };
 
-int tight_encoder_init(struct tight_encoder*);
-void tight_encoder_destroy(struct tight_encoder*);
+int tight_encoder_init(struct tight_encoder* self, uint32_t width,
+		uint32_t height);
+void tight_encoder_destroy(struct tight_encoder* self);
 
 int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
-                       const struct nvnc_fb* fb,
-                       const struct rfb_pixel_format* src_fmt,
-                       struct pixman_region16* region);
+		const struct rfb_pixel_format* dfmt,
+		const struct nvnc_fb* src,
+		const struct rfb_pixel_format* sfmt,
+		struct pixman_region16* damage,
+		enum tight_quality quality);

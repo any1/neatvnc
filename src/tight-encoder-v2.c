@@ -60,6 +60,18 @@ static inline struct tight_tile* tight_tile(struct tight_encoder_v2* self,
 	return &self->grid[x + y * self->grid_width];
 }
 
+static inline uint32_t tight_tile_width(struct tight_encoder_v2* self,
+		uint32_t x)
+{
+	return x + TSL > self->width ? self->width - x : TSL;
+}
+
+static inline uint32_t tight_tile_height(struct tight_encoder_v2* self,
+		uint32_t y)
+{
+	return y + TSL > self->height ? self->height - y : TSL;
+}
+
 int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 		uint32_t height)
 {
@@ -237,15 +249,18 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
 	uint32_t stride = nvnc_fb_get_width(self->fb);
 
+	uint32_t width = tight_tile_width(self, x);
+	uint32_t height = tight_tile_height(self, y_start);
+
 	// TODO: Limit width and hight to the sides
-	for (uint32_t y = y_start; y < y_start + TSL; ++y) {
+	for (uint32_t y = y_start; y < y_start + height; ++y) {
 		void* img = addr + x + y * stride;
 		pixel32_to_cpixel(row, self->dfmt, img, self->sfmt,
-				  bytes_per_cpixel, TSL);
+				  bytes_per_cpixel, width);
 
 		// TODO What to do if the buffer fills up?
-		if (tight_deflate(tile, row, bytes_per_cpixel * TSL,
-				zs, y == y_start + TSL - 1) < 0)
+		if (tight_deflate(tile, row, bytes_per_cpixel * width,
+				zs, y == y_start + height - 1) < 0)
 			abort();
 	}
 
@@ -286,12 +301,15 @@ static void on_encode_tile_done(void* obj)
 	uint32_t x = index % self->grid_width;
 	uint32_t y = index / self->grid_width;
 
+	uint32_t width = tight_tile_width(self, x * TSL);
+	uint32_t height = tight_tile_height(self, y * TSL);
+
 	struct rfb_server_fb_rect rect = {
 		.encoding = htonl(RFB_ENCODING_TIGHT),
 		.x = htons(x * TSL),
 		.y = htons(y * TSL),
-		.width = htons(TSL),
-		.height = htons(TSL),
+		.width = htons(width),
+		.height = htons(height),
 	};
 
 	vec_append(self->dst, &rect, sizeof(rect));

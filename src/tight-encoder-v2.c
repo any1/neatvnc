@@ -249,7 +249,6 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 			abort();
 	}
 
-	tight_release_zstream(self, zs_index);
 }
 
 static void tight_encode_tile(struct tight_encoder_v2* self,
@@ -271,10 +270,21 @@ static int tight_encode_rect_count(struct tight_encoder_v2* self)
 	return vec_append(self->dst, &msg, sizeof(msg));
 }
 
-static void tight_finish_tile(struct tight_encoder_v2* self, uint32_t x,
-		uint32_t y)
+static void do_encode_tile(void* obj)
 {
-	struct tight_tile* tile = tight_tile(self, x, y);
+	struct tight_tile* tile = aml_get_userdata(obj);
+	struct tight_encoder_v2* self = tile->parent;
+	tight_encode_tile(self, tile);
+}
+
+static void on_encode_tile_done(void* obj)
+{
+	struct tight_tile* tile = aml_get_userdata(obj);
+	struct tight_encoder_v2* self = tile->parent;
+
+	intptr_t index = ((intptr_t)tile - (intptr_t)self->grid) / sizeof(*tile);
+	uint32_t x = index % self->grid_width;
+	uint32_t y = index / self->grid_width;
 
 	struct rfb_server_fb_rect rect = {
 		.encoding = htonl(RFB_ENCODING_TIGHT),
@@ -289,37 +299,11 @@ static void tight_finish_tile(struct tight_encoder_v2* self, uint32_t x,
 	tight_encode_size(self->dst, tile->size);
 	vec_append(self->dst, tile->buffer, tile->size);
 	tile->state = TIGHT_TILE_READY;
-}
-
-static void tight_finish_frame(struct tight_encoder_v2* self)
-{
-	tight_encode_rect_count(self);
-
-	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = 0; x < self->grid_width; ++x)
-			if (tight_tile(self, x, y)->state == TIGHT_TILE_ENCODED)
-				tight_finish_tile(self, x, y);
-}
-
-static void do_encode_tile(void* obj)
-{
-	struct tight_tile* tile = aml_get_userdata(obj);
-	struct tight_encoder_v2* self = tile->parent;
-	tight_encode_tile(self, tile);
-}
-
-static void on_encode_tile_done(void* obj)
-{
-	struct tight_tile* tile = aml_get_userdata(obj);
-	struct tight_encoder_v2* self = tile->parent;
-
-	tile->state = TIGHT_TILE_ENCODED;
+	tight_release_zstream(self, (tile->type >> 4) & 3);
 
 	pthread_mutex_lock(&self->wait_mutex);
-	if (--self->n_jobs == 0) {
-		tight_finish_frame(self);
+	if (--self->n_jobs == 0)
 		pthread_cond_signal(&self->wait_cond);
-	}
 	pthread_mutex_unlock(&self->wait_mutex);
 }
 
@@ -370,6 +354,8 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 	self->n_rects = tight_apply_damage(self, damage);
 	if (self->n_rects == 0)
 		return 0;
+
+	tight_encode_rect_count(self);
 
 	if (tight_schedule_encoding_jobs(self) < 0)
 		return -1;

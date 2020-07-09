@@ -312,14 +312,19 @@ static int tight_encode_tile_jpeg(struct tight_encoder_v2* self,
 			&size, TJSAMP_422, quality, TJFLAG_FASTDCT);
 	if (rc < 0) {
 		log_error("Failed to encode tight JPEG box: %s\n", tjGetErrorStr());
-		goto compress_failure;
+		goto failure;
+	}
+
+	if (size > MAX_TILE_SIZE) {
+		log_error("Whoops, encoded JPEG was too big for the buffer\n");
+		goto failure;
 	}
 
 	memcpy(tile->buffer, buffer, size);
 	tile->size = size;
 
 	rc = 0;
-compress_failure:
+failure:
 	tjDestroy(handle);
 
 	return rc;

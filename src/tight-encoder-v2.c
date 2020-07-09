@@ -128,8 +128,6 @@ int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 	tight_init_zs_worker(self, 2);
 	tight_init_zs_worker(self, 3);
 
-	pthread_mutex_init(&self->dst_mutex, NULL);
-
 	pthread_mutex_init(&self->wait_mutex, NULL);
 	pthread_cond_init(&self->wait_cond, NULL);
 
@@ -140,8 +138,6 @@ void tight_encoder_v2_destroy(struct tight_encoder_v2* self)
 {
 	pthread_cond_destroy(&self->wait_cond);
 	pthread_mutex_destroy(&self->wait_mutex);
-
-	pthread_mutex_destroy(&self->dst_mutex);
 
 	aml_unref(self->zs_worker[3]);
 	aml_unref(self->zs_worker[2]);
@@ -275,22 +271,7 @@ static void tight_encode_tile(struct tight_encoder_v2* self,
 	tight_encode_tile_basic(self, tile, x, y, width, height, zs_index);
 	//TODO Jpeg
 
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_TIGHT),
-		.x = htons(x),
-		.y = htons(y),
-		.width = htons(width),
-		.height = htons(height),
-	};
-
-	pthread_mutex_lock(&self->dst_mutex);
-	vec_append(self->dst, &rect, sizeof(rect));
-	vec_append(self->dst, &tile->type, sizeof(tile->type));
-	tight_encode_size(self->dst, tile->size);
-	vec_append(self->dst, tile->buffer, tile->size);
-	pthread_mutex_unlock(&self->dst_mutex);
-
-	tile->state = TIGHT_TILE_READY;
+	tile->state = TIGHT_TILE_ENCODED;
 }
 
 static int tight_encode_rect_count(struct tight_encoder_v2* self)
@@ -344,6 +325,41 @@ static int tight_schedule_encoding_jobs(struct tight_encoder_v2* self)
 	return 0;
 }
 
+static void tight_finish_tile(struct tight_encoder_v2* self,
+		uint32_t gx, uint32_t gy)
+{
+	struct tight_tile* tile = tight_tile(self, gx, gy);
+
+	uint32_t x = gx * TSL;
+	uint32_t y = gy * TSL;
+
+	uint32_t width = tight_tile_width(self, x);
+	uint32_t height = tight_tile_height(self, y);
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_TIGHT),
+		.x = htons(x),
+		.y = htons(y),
+		.width = htons(width),
+		.height = htons(height),
+	};
+
+	vec_append(self->dst, &rect, sizeof(rect));
+	vec_append(self->dst, &tile->type, sizeof(tile->type));
+	tight_encode_size(self->dst, tile->size);
+	vec_append(self->dst, tile->buffer, tile->size);
+
+	tile->state = TIGHT_TILE_READY;
+}
+
+static void tight_finish(struct tight_encoder_v2* self)
+{
+	for (uint32_t y = 0; y < self->grid_height; ++y)
+		for (uint32_t x = 0; x < self->grid_width; ++x)
+			if (tight_tile(self, x, y)->state == TIGHT_TILE_ENCODED)
+				tight_finish_tile(self, x, y);
+}
+
 int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 		const struct rfb_pixel_format* dfmt,
 		const struct nvnc_fb* src,
@@ -370,6 +386,8 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 	while (self->n_jobs != 0)
 		pthread_cond_wait(&self->wait_cond, &self->wait_mutex);
 	pthread_mutex_unlock(&self->wait_mutex);
+
+	tight_finish(self);
 
 	return 0;
 }

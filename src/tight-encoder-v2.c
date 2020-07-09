@@ -296,14 +296,17 @@ static void tight_encode_tile(struct tight_encoder_v2* self,
 	};
 
 	pthread_mutex_lock(&self->dst_mutex);
+
+	// TODO: Check if the tile is basic before releasing stream
+	tight_release_zstream(self, (tile->type >> 4) & 3);
+
 	vec_append(self->dst, &rect, sizeof(rect));
 	vec_append(self->dst, &tile->type, sizeof(tile->type));
 	tight_encode_size(self->dst, tile->size);
 	vec_append(self->dst, tile->buffer, tile->size);
+
 	pthread_mutex_unlock(&self->dst_mutex);
 
-	// TODO: Check if the tile is basic before releasing stream
-	tight_release_zstream(self, (tile->type >> 4) & 3);
 	tile->state = TIGHT_TILE_READY;
 }
 

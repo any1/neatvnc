@@ -102,6 +102,8 @@ int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 	pthread_mutex_init(&self->zs_mutex, NULL);
 	pthread_cond_init(&self->zs_cond, NULL);
 
+	pthread_mutex_init(&self->dst_mutex, NULL);
+
 	pthread_mutex_init(&self->wait_mutex, NULL);
 	pthread_cond_init(&self->wait_cond, NULL);
 
@@ -112,6 +114,8 @@ void tight_encoder_v2_destroy(struct tight_encoder_v2* self)
 {
 	pthread_cond_destroy(&self->wait_cond);
 	pthread_mutex_destroy(&self->wait_mutex);
+
+	pthread_mutex_destroy(&self->dst_mutex);
 
 	pthread_cond_destroy(&self->zs_cond);
 	pthread_mutex_destroy(&self->zs_mutex);
@@ -229,15 +233,9 @@ static int tight_deflate(struct tight_tile* tile, void* src,
 }
 
 static void tight_encode_tile_basic(struct tight_encoder_v2* self,
-		struct tight_tile* tile)
+		struct tight_tile* tile, uint32_t x, uint32_t y_start,
+		uint32_t width, uint32_t height)
 {
-	intptr_t index = ((intptr_t)tile - (intptr_t)self->grid) / sizeof(*tile);
-	uint32_t gx = index % self->grid_width;
-	uint32_t gy = index / self->grid_width;
-
-	uint32_t x = gx * TSL;
-	uint32_t y_start = gy * TSL;
-
 	// TODO Figure out of way to postpone job instead of blocking
 	int zs_index = tight_acquire_zstream(self);
 	z_stream* zs = &self->zs[zs_index];
@@ -257,9 +255,6 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
 	uint32_t stride = nvnc_fb_get_width(self->fb);
 
-	uint32_t width = tight_tile_width(self, x);
-	uint32_t height = tight_tile_height(self, y_start);
-
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
 		void* img = addr + x + y * stride;
@@ -277,10 +272,39 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 static void tight_encode_tile(struct tight_encoder_v2* self,
 		struct tight_tile* tile)
 {
+	intptr_t index = ((intptr_t)tile - (intptr_t)self->grid) / sizeof(*tile);
+	uint32_t gx = index % self->grid_width;
+	uint32_t gy = index / self->grid_width;
+
+	uint32_t x = gx * TSL;
+	uint32_t y = gy * TSL;
+
+	uint32_t width = tight_tile_width(self, x);
+	uint32_t height = tight_tile_height(self, y);
+
 	tile->size = 0;
 
-	tight_encode_tile_basic(self, tile);
+	tight_encode_tile_basic(self, tile, x, y, width, height);
 	//TODO Jpeg
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_TIGHT),
+		.x = htons(x),
+		.y = htons(y),
+		.width = htons(width),
+		.height = htons(height),
+	};
+
+	pthread_mutex_lock(&self->dst_mutex);
+	vec_append(self->dst, &rect, sizeof(rect));
+	vec_append(self->dst, &tile->type, sizeof(tile->type));
+	tight_encode_size(self->dst, tile->size);
+	vec_append(self->dst, tile->buffer, tile->size);
+	pthread_mutex_unlock(&self->dst_mutex);
+
+	// TODO: Check if the tile is basic before releasing stream
+	tight_release_zstream(self, (tile->type >> 4) & 3);
+	tile->state = TIGHT_TILE_READY;
 }
 
 static int tight_encode_rect_count(struct tight_encoder_v2* self)
@@ -304,28 +328,6 @@ static void on_encode_tile_done(void* obj)
 {
 	struct tight_tile* tile = aml_get_userdata(obj);
 	struct tight_encoder_v2* self = tile->parent;
-
-	intptr_t index = ((intptr_t)tile - (intptr_t)self->grid) / sizeof(*tile);
-	uint32_t x = index % self->grid_width;
-	uint32_t y = index / self->grid_width;
-
-	uint32_t width = tight_tile_width(self, x * TSL);
-	uint32_t height = tight_tile_height(self, y * TSL);
-
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_TIGHT),
-		.x = htons(x * TSL),
-		.y = htons(y * TSL),
-		.width = htons(width),
-		.height = htons(height),
-	};
-
-	vec_append(self->dst, &rect, sizeof(rect));
-	vec_append(self->dst, &tile->type, sizeof(tile->type));
-	tight_encode_size(self->dst, tile->size);
-	vec_append(self->dst, tile->buffer, tile->size);
-	tile->state = TIGHT_TILE_READY;
-	tight_release_zstream(self, (tile->type >> 4) & 3);
 
 	pthread_mutex_lock(&self->wait_mutex);
 	if (--self->n_jobs == 0)
@@ -378,7 +380,7 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 	vec_clear(dst);
 
 	self->n_rects = tight_apply_damage(self, damage);
-	assert(self->n_jobs > 0);
+	assert(self->n_rects > 0);
 
 	tight_encode_rect_count(self);
 

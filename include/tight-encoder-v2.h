@@ -29,6 +29,7 @@ struct tight_encoder_v2 {
 	uint32_t n_jobs;
 
 	struct vec* dst;
+	pthread_mutex_t dst_mutex;
 
 	pthread_mutex_t wait_mutex;
 	pthread_cond_t wait_cond;

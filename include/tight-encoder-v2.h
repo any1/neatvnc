@@ -9,11 +9,19 @@ struct tight_tile;
 struct pixman_region16;
 struct aml_work;
 
+enum tight_quality {
+	TIGHT_QUALITY_UNSPEC = 0,
+	TIGHT_QUALITY_LOSSLESS,
+	TIGHT_QUALITY_LOW,
+	TIGHT_QUALITY_HIGH,
+};
+
 struct tight_encoder_v2 {
 	uint32_t width;
 	uint32_t height;
 	uint32_t grid_width;
 	uint32_t grid_height;
+	enum tight_quality quality;
 
 	struct tight_tile* grid;
 
@@ -41,4 +49,5 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 		const struct rfb_pixel_format* dfmt,
 		const struct nvnc_fb* src,
 		const struct rfb_pixel_format* sfmt,
-		struct pixman_region16* damage);
+		struct pixman_region16* damage,
+		enum tight_quality quality);

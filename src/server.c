@@ -963,9 +963,10 @@ static void do_client_update_fb(void* work)
 		break;
 #ifdef ENABLE_TIGHT
 	case RFB_ENCODING_TIGHT:
+		// TODO: Use the right quality
 		tight_encode_frame_v2(&client->tight_encoder, &update->frame,
 				&client->pixfmt, fb, &update->server_fmt,
-				&update->region);
+				&update->region, TIGHT_QUALITY_HIGH);
 		break;
 #endif
 	case RFB_ENCODING_ZRLE:

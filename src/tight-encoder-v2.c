@@ -3,6 +3,7 @@
 #include "common.h"
 #include "pixels.h"
 #include "vec.h"
+#include "logging.h"
 #include "tight-encoder-v2.h"
 
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <aml.h>
+#include <turbojpeg.h>
 #include <libdrm/drm_fourcc.h>
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
@@ -255,8 +257,76 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 
 }
 
+static enum TJPF tight_get_jpeg_pixfmt(uint32_t fourcc)
+{
+	switch (fourcc) {
+	case DRM_FORMAT_RGBA8888:
+	case DRM_FORMAT_RGBX8888:
+		return TJPF_XBGR;
+	case DRM_FORMAT_BGRA8888:
+	case DRM_FORMAT_BGRX8888:
+		return TJPF_XRGB;
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XRGB8888:
+		return TJPF_BGRX;
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_XBGR8888:
+		return TJPF_RGBX;
+	}
+
+	return TJPF_UNKNOWN;
+}
+
+static int tight_encode_tile_jpeg(struct tight_encoder_v2* self,
+		struct tight_tile* tile, uint32_t x, uint32_t y, uint32_t width,
+		uint32_t height)
+{
+	tile->type = TIGHT_JPEG;
+
+	unsigned char* buffer = NULL;
+	unsigned long size = 0;
+
+	int quality; /* 1 - 100 */
+
+	switch (self->quality) {
+	case TIGHT_QUALITY_HIGH: quality = 66; break;
+	case TIGHT_QUALITY_LOW: quality = 33; break;
+	default: abort();
+	}
+
+	uint32_t fourcc = nvnc_fb_get_fourcc_format(self->fb);
+	enum TJPF tjfmt = tight_get_jpeg_pixfmt(fourcc);
+	if (tjfmt == TJPF_UNKNOWN)
+		return -1;
+
+	tjhandle handle = tjInitCompress();
+	if (!handle)
+		return -1;
+
+	uint32_t* addr = nvnc_fb_get_addr(self->fb);
+	uint32_t stride = nvnc_fb_get_width(self->fb);
+	void* img = (uint32_t*)addr + x + y * stride;
+
+	int rc = -1;
+	rc = tjCompress2(handle, img, width, stride * 4, height, tjfmt, &buffer,
+			&size, TJSAMP_422, quality, TJFLAG_FASTDCT);
+	if (rc < 0) {
+		log_error("Failed to encode tight JPEG box: %s\n", tjGetErrorStr());
+		goto compress_failure;
+	}
+
+	memcpy(tile->buffer, buffer, size);
+	tile->size = size;
+
+	rc = 0;
+compress_failure:
+	tjDestroy(handle);
+
+	return rc;
+}
+
 static void tight_encode_tile(struct tight_encoder_v2* self,
-		uint32_t gx, uint32_t gy, int zs_index)
+		uint32_t gx, uint32_t gy)
 {
 	struct tight_tile* tile = tight_tile(self, gx, gy);
 
@@ -268,7 +338,18 @@ static void tight_encode_tile(struct tight_encoder_v2* self,
 
 	tile->size = 0;
 
-	tight_encode_tile_basic(self, tile, x, y, width, height, zs_index);
+	switch (self->quality) {
+	case TIGHT_QUALITY_LOSSLESS:
+		tight_encode_tile_basic(self, tile, x, y, width, height, gx % 4);
+		break;
+	case TIGHT_QUALITY_HIGH:
+	case TIGHT_QUALITY_LOW:
+		// TODO: Use more workers for jpeg
+		tight_encode_tile_jpeg(self, tile, x, y, width, height);
+		break;
+	case TIGHT_QUALITY_UNSPEC:
+		abort();
+	}
 	//TODO Jpeg
 
 	tile->state = TIGHT_TILE_ENCODED;
@@ -293,7 +374,7 @@ static void do_tight_zs_work(void* obj)
 	for (uint32_t y = 0; y < self->grid_height; ++y)
 		for (uint32_t x = index; x < self->grid_width; x += 4)
 			if (tight_tile(self, x, y)->state == TIGHT_TILE_DAMAGED)
-				tight_encode_tile(self, x, y, index);
+				tight_encode_tile(self, x, y);
 }
 
 static void on_tight_zs_work_done(void* obj)
@@ -364,12 +445,14 @@ int tight_encode_frame_v2(struct tight_encoder_v2* self, struct vec* dst,
 		const struct rfb_pixel_format* dfmt,
 		const struct nvnc_fb* src,
 		const struct rfb_pixel_format* sfmt,
-		struct pixman_region16* damage)
+		struct pixman_region16* damage,
+		enum tight_quality quality)
 {
 	self->dfmt = dfmt;
 	self->sfmt = sfmt;
 	self->fb = src;
 	self->dst = dst;
+	self->quality = quality;
 
 	vec_clear(dst);
 

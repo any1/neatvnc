@@ -943,6 +943,22 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 	return RFB_ENCODING_RAW;
 }
 
+static enum tight_quality client_get_tight_quality(struct nvnc_client* client)
+{
+	if (client->pixfmt.bits_per_pixel != 16 &&
+	    client->pixfmt.bits_per_pixel != 32)
+		return TIGHT_QUALITY_LOSSLESS;
+
+	for (size_t i = 0; i < client->n_encodings; ++i)
+		switch (client->encodings[i]) {
+		case RFB_ENCODING_JPEG_HIGHQ: return TIGHT_QUALITY_HIGH;
+		case RFB_ENCODING_JPEG_LOWQ: return TIGHT_QUALITY_LOW;
+		default:;
+		}
+
+	return TIGHT_QUALITY_LOSSLESS;
+}
+
 static void do_client_update_fb(void* work)
 {
 	struct fb_update_work* update = aml_get_userdata(work);
@@ -962,11 +978,11 @@ static void do_client_update_fb(void* work)
 		                 &update->server_fmt, &update->region);
 		break;
 #ifdef ENABLE_TIGHT
-	case RFB_ENCODING_TIGHT:
-		// TODO: Use the right quality
+	case RFB_ENCODING_TIGHT:;
+		enum tight_quality quality = client_get_tight_quality(client);
 		tight_encode_frame_v2(&client->tight_encoder, &update->frame,
 				&client->pixfmt, fb, &update->server_fmt,
-				&update->region, TIGHT_QUALITY_HIGH);
+				&update->region, quality);
 		break;
 #endif
 	case RFB_ENCODING_ZRLE:

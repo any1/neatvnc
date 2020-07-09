@@ -7,6 +7,7 @@
 
 struct tight_tile;
 struct pixman_region16;
+struct aml_work;
 
 struct tight_encoder_v2 {
 	uint32_t width;
@@ -17,9 +18,7 @@ struct tight_encoder_v2 {
 	struct tight_tile* grid;
 
 	z_stream zs[4];
-	uint8_t zs_mask;
-	pthread_mutex_t zs_mutex;
-	pthread_cond_t zs_cond;
+	struct aml_work* zs_worker[4];
 
 	const struct rfb_pixel_format* dfmt;
 	const struct rfb_pixel_format* sfmt;

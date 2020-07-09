@@ -39,11 +39,18 @@ enum tight_tile_state {
 
 struct tight_tile {
 	enum tight_tile_state state;
-	struct tight_encoder_v2* parent;
 	size_t size;
 	uint8_t type;
 	char buffer[MAX_TILE_SIZE];
 };
+
+struct tight_zs_worker_ctx {
+	struct tight_encoder_v2* encoder;
+	int index;
+};
+
+static void do_tight_zs_work(void*);
+static void on_tight_zs_work_done(void*);
 
 static int tight_encoder_v2_init_stream(z_stream* zs)
 {
@@ -74,6 +81,27 @@ static inline uint32_t tight_tile_height(struct tight_encoder_v2* self,
 	return y + TSL > self->height ? self->height - y : TSL;
 }
 
+static int tight_init_zs_worker(struct tight_encoder_v2* self, int index)
+{
+	struct tight_zs_worker_ctx* ctx = calloc(1, sizeof(*ctx));
+	if (!ctx)
+		return -1;
+
+	ctx->encoder = self;
+	ctx->index = index;
+
+	self->zs_worker[index] =
+		aml_work_new(do_tight_zs_work, on_tight_zs_work_done, ctx, free);
+	if (!self->zs_worker[index])
+		goto failure;
+
+	return 0;
+
+failure:
+	free(ctx);
+	return -1;
+}
+
 int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 		uint32_t height)
 {
@@ -90,17 +118,15 @@ int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 	if (!self->grid)
 		return -1;
 
-	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = 0; x < self->grid_width; ++x)
-			tight_tile(self, x, y)->parent = self;
-
 	tight_encoder_v2_init_stream(&self->zs[0]);
 	tight_encoder_v2_init_stream(&self->zs[1]);
 	tight_encoder_v2_init_stream(&self->zs[2]);
 	tight_encoder_v2_init_stream(&self->zs[3]);
 
-	pthread_mutex_init(&self->zs_mutex, NULL);
-	pthread_cond_init(&self->zs_cond, NULL);
+	tight_init_zs_worker(self, 0);
+	tight_init_zs_worker(self, 1);
+	tight_init_zs_worker(self, 2);
+	tight_init_zs_worker(self, 3);
 
 	pthread_mutex_init(&self->dst_mutex, NULL);
 
@@ -117,8 +143,10 @@ void tight_encoder_v2_destroy(struct tight_encoder_v2* self)
 
 	pthread_mutex_destroy(&self->dst_mutex);
 
-	pthread_cond_destroy(&self->zs_cond);
-	pthread_mutex_destroy(&self->zs_mutex);
+	aml_unref(self->zs_worker[3]);
+	aml_unref(self->zs_worker[2]);
+	aml_unref(self->zs_worker[1]);
+	aml_unref(self->zs_worker[0]);
 
 	deflateEnd(&self->zs[3]);
 	deflateEnd(&self->zs[2]);
@@ -172,41 +200,6 @@ static int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 	                                 : fmt->bits_per_pixel / 8;
 }
 
-static int tight_acquire_zstream_unlocked(struct tight_encoder_v2* self)
-{
-	int i;
-	for (i = 0; i < 4; ++i)
-		if (!(self->zs_mask & (1 << i)))
-			break;
-
-	if (i >= 4)
-		return -1;
-
-	self->zs_mask |= (1 << i);
-	return i;
-}
-
-static int tight_acquire_zstream(struct tight_encoder_v2* self)
-{
-	pthread_mutex_lock(&self->zs_mutex);
-
-	int i;
-	while ((i = tight_acquire_zstream_unlocked(self)) < 0)
-		pthread_cond_wait(&self->zs_cond, &self->zs_mutex);
-
-	pthread_mutex_unlock(&self->zs_mutex);
-
-	return i;
-}
-
-static void tight_release_zstream(struct tight_encoder_v2* self, int index)
-{
-	pthread_mutex_lock(&self->zs_mutex);
-	self->zs_mask &= ~(1 << index);
-	pthread_cond_signal(&self->zs_cond);
-	pthread_mutex_unlock(&self->zs_mutex);
-}
-
 static int tight_deflate(struct tight_tile* tile, void* src,
 			 size_t len, z_stream* zs, bool flush)
 {
@@ -234,12 +227,9 @@ static int tight_deflate(struct tight_tile* tile, void* src,
 
 static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 		struct tight_tile* tile, uint32_t x, uint32_t y_start,
-		uint32_t width, uint32_t height)
+		uint32_t width, uint32_t height, int zs_index)
 {
-	// TODO Figure out of way to postpone job instead of blocking
-	int zs_index = tight_acquire_zstream(self);
 	z_stream* zs = &self->zs[zs_index];
-
 	tile->type = TIGHT_BASIC | TIGHT_STREAM(zs_index);
 
 	int bytes_per_cpixel = calc_bytes_per_cpixel(self->dfmt);
@@ -270,11 +260,9 @@ static void tight_encode_tile_basic(struct tight_encoder_v2* self,
 }
 
 static void tight_encode_tile(struct tight_encoder_v2* self,
-		struct tight_tile* tile)
+		uint32_t gx, uint32_t gy, int zs_index)
 {
-	intptr_t index = ((intptr_t)tile - (intptr_t)self->grid) / sizeof(*tile);
-	uint32_t gx = index % self->grid_width;
-	uint32_t gy = index / self->grid_width;
+	struct tight_tile* tile = tight_tile(self, gx, gy);
 
 	uint32_t x = gx * TSL;
 	uint32_t y = gy * TSL;
@@ -284,7 +272,7 @@ static void tight_encode_tile(struct tight_encoder_v2* self,
 
 	tile->size = 0;
 
-	tight_encode_tile_basic(self, tile, x, y, width, height);
+	tight_encode_tile_basic(self, tile, x, y, width, height, zs_index);
 	//TODO Jpeg
 
 	struct rfb_server_fb_rect rect = {
@@ -296,15 +284,10 @@ static void tight_encode_tile(struct tight_encoder_v2* self,
 	};
 
 	pthread_mutex_lock(&self->dst_mutex);
-
-	// TODO: Check if the tile is basic before releasing stream
-	tight_release_zstream(self, (tile->type >> 4) & 3);
-
 	vec_append(self->dst, &rect, sizeof(rect));
 	vec_append(self->dst, &tile->type, sizeof(tile->type));
 	tight_encode_size(self->dst, tile->size);
 	vec_append(self->dst, tile->buffer, tile->size);
-
 	pthread_mutex_unlock(&self->dst_mutex);
 
 	tile->state = TIGHT_TILE_READY;
@@ -320,17 +303,22 @@ static int tight_encode_rect_count(struct tight_encoder_v2* self)
 	return vec_append(self->dst, &msg, sizeof(msg));
 }
 
-static void do_encode_tile(void* obj)
+static void do_tight_zs_work(void* obj)
 {
-	struct tight_tile* tile = aml_get_userdata(obj);
-	struct tight_encoder_v2* self = tile->parent;
-	tight_encode_tile(self, tile);
+	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
+	struct tight_encoder_v2* self = ctx->encoder;
+	int index = ctx->index;
+
+	for (uint32_t y = 0; y < self->grid_height; ++y)
+		for (uint32_t x = index; x < self->grid_width; x += 4)
+			if (tight_tile(self, x, y)->state == TIGHT_TILE_DAMAGED)
+				tight_encode_tile(self, x, y, index);
 }
 
-static void on_encode_tile_done(void* obj)
+static void on_tight_zs_work_done(void* obj)
 {
-	struct tight_tile* tile = aml_get_userdata(obj);
-	struct tight_encoder_v2* self = tile->parent;
+	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
+	struct tight_encoder_v2* self = ctx->encoder;
 
 	pthread_mutex_lock(&self->wait_mutex);
 	if (--self->n_jobs == 0)
@@ -338,33 +326,20 @@ static void on_encode_tile_done(void* obj)
 	pthread_mutex_unlock(&self->wait_mutex);
 }
 
-static int tight_schedule_encode_tile(struct tight_encoder_v2* self,
-		uint32_t x, uint32_t y)
+static int tight_schedule_zs_work(struct tight_encoder_v2* self, int index)
 {
-	struct tight_tile* tile = tight_tile(self, x, y);
-
-	if (tile->state != TIGHT_TILE_DAMAGED)
-		return 0;
-
-	struct aml_work* work = aml_work_new(do_encode_tile,
-			on_encode_tile_done, tile, NULL);
-	if (!work)
-		return -1;
-
-	int rc = aml_start(aml_get_default(), work);
+	int rc = aml_start(aml_get_default(), self->zs_worker[index]);
 	if (rc >= 0)
 		++self->n_jobs;
 
-	aml_unref(work);
 	return rc;
 }
 
 static int tight_schedule_encoding_jobs(struct tight_encoder_v2* self)
 {
-	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = 0; x < self->grid_width; ++x)
-			if (tight_schedule_encode_tile(self, x, y) < 0)
-				return -1;
+	for (int i = 0; i < 4; ++i)
+		if (tight_schedule_zs_work(self, i) < 0)
+			return -1;
 
 	return 0;
 }

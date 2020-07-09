@@ -324,6 +324,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder_v2* self,
 	tile->size = size;
 
 	rc = 0;
+	tjFree(buffer);
 failure:
 	tjDestroy(handle);
 

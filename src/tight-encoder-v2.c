@@ -405,11 +405,17 @@ static int tight_schedule_zs_work(struct tight_encoder_v2* self, int index)
 
 static int tight_schedule_encoding_jobs(struct tight_encoder_v2* self)
 {
+	int rc = -1;
+
+	pthread_mutex_lock(&self->wait_mutex);
 	for (int i = 0; i < 4; ++i)
 		if (tight_schedule_zs_work(self, i) < 0)
-			return -1;
+			goto failure;
 
-	return 0;
+	rc = 0;
+failure:
+	pthread_mutex_unlock(&self->wait_mutex);
+	return rc;
 }
 
 static void tight_finish_tile(struct tight_encoder_v2* self,

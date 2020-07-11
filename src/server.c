@@ -81,9 +81,7 @@ static void client_close(struct nvnc_client* client)
 
 	LIST_REMOVE(client, link);
 	stream_destroy(client->net_stream);
-#ifdef ENABLE_TIGHT
 	tight_encoder_destroy(&client->tight_encoder);
-#endif
 	deflateEnd(&client->z_stream);
 	pixman_region_fini(&client->damage);
 	free(client);
@@ -730,12 +728,10 @@ static void on_connection(void* obj)
 	if (rc != Z_OK)
 		goto deflate_failure;
 
-#ifdef ENABLE_TIGHT
 	int width = server->display->buffer->width;
 	int height = server->display->buffer->height;
 	if (tight_encoder_init(&client->tight_encoder, width, height) < 0)
 		goto tight_failure;
-#endif
 
 	pixman_region_init(&client->damage);
 
@@ -754,13 +750,9 @@ static void on_connection(void* obj)
 	return;
 
 payload_failure:
-#ifdef ENABLE_TIGHT
 	tight_encoder_destroy(&client->tight_encoder);
-#endif
 	pixman_region_fini(&client->damage);
-#ifdef ENABLE_TIGHT
 tight_failure:
-#endif
 	deflateEnd(&client->z_stream);
 deflate_failure:
 	stream_destroy(client->net_stream);
@@ -931,9 +923,7 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
 	for (size_t i = 0; i < client->n_encodings; ++i)
 		switch (client->encodings[i]) {
 		case RFB_ENCODING_RAW:
-#ifdef ENABLE_TIGHT
 		case RFB_ENCODING_TIGHT:
-#endif
 		case RFB_ENCODING_ZRLE:
 			return client->encodings[i];
 		default:
@@ -977,14 +967,12 @@ static void do_client_update_fb(void* work)
 		raw_encode_frame(&update->frame, &client->pixfmt, fb,
 		                 &update->server_fmt, &update->region);
 		break;
-#ifdef ENABLE_TIGHT
 	case RFB_ENCODING_TIGHT:;
 		enum tight_quality quality = client_get_tight_quality(client);
 		tight_encode_frame(&client->tight_encoder, &update->frame,
 				&client->pixfmt, fb, &update->server_fmt,
 				&update->region, quality);
 		break;
-#endif
 	case RFB_ENCODING_ZRLE:
 		zrle_encode_frame(&client->z_stream, &update->frame,
 		                  &client->pixfmt, fb, &update->server_fmt,

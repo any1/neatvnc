@@ -36,7 +36,7 @@ cc = meson.get_compiler('c')
 libm = cc.find_library('m', required: false)
 
 pixman = dependency('pixman-1')
-libturbojpeg = dependency('libturbojpeg', required: get_option('tight-encoding'))
+libturbojpeg = dependency('libturbojpeg', required: get_option('jpeg'))
 gnutls = dependency('gnutls', required: get_option('tls'))
 zlib = dependency('zlib')
 
@@ -60,6 +60,7 @@ sources = [
 	'src/rcbuf.c',
 	'src/stream.c',
 	'src/display.c',
+	'src/tight.c',
 ]
 
 dependencies = [
@@ -73,8 +74,7 @@ config = configuration_data()
 
 if libturbojpeg.found()
 	dependencies += libturbojpeg
-	sources += 'src/tight.c'
-	config.set('ENABLE_TIGHT', true)
+	config.set('HAVE_JPEG', true)
 endif
 
 if gnutls.found()

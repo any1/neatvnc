@@ -21,6 +21,7 @@
 #include "vec.h"
 #include "logging.h"
 #include "tight.h"
+#include "config.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,8 +33,10 @@
 #include <pthread.h>
 #include <assert.h>
 #include <aml.h>
-#include <turbojpeg.h>
 #include <libdrm/drm_fourcc.h>
+#ifdef HAVE_JPEG
+#include <turbojpeg.h>
+#endif
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -277,6 +280,7 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 
 }
 
+#ifdef HAVE_JPEG
 static enum TJPF tight_get_jpeg_pixfmt(uint32_t fourcc)
 {
 	switch (fourcc) {
@@ -350,6 +354,7 @@ failure:
 
 	return rc;
 }
+#endif /* HAVE_JPEG */
 
 static void tight_encode_tile(struct tight_encoder* self,
 		uint32_t gx, uint32_t gy)
@@ -364,6 +369,7 @@ static void tight_encode_tile(struct tight_encoder* self,
 
 	tile->size = 0;
 
+#ifdef HAVE_JPEG
 	switch (self->quality) {
 	case TIGHT_QUALITY_LOSSLESS:
 		tight_encode_tile_basic(self, tile, x, y, width, height, gx % 4);
@@ -376,7 +382,9 @@ static void tight_encode_tile(struct tight_encoder* self,
 	case TIGHT_QUALITY_UNSPEC:
 		abort();
 	}
-	//TODO Jpeg
+#else
+	tight_encode_tile_basic(self, tile, x, y, width, height, gx % 4);
+#endif
 
 	tile->state = TIGHT_TILE_ENCODED;
 }

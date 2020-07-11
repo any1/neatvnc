@@ -133,6 +133,10 @@ int tight_encoder_v2_init(struct tight_encoder_v2* self, uint32_t width,
 	pthread_mutex_init(&self->wait_mutex, NULL);
 	pthread_cond_init(&self->wait_cond, NULL);
 
+	// One worker is blocked while other workers are encoding, so at least
+	// 2 are required.
+	aml_require_workers(aml_get_default(), 2);
+
 	return 0;
 }
 

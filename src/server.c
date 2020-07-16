@@ -651,7 +651,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 {
 	struct nvnc_client* client = stream->userdata;
 
-	assert(client->net_stream == stream);
+	assert(client->net_stream && client->net_stream == stream);
 
 	if (event == STREAM_EVENT_REMOTE_CLOSED) {
 		log_debug("Client %p (%d) hung up\n", client, client->ref);

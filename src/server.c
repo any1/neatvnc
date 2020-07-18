@@ -711,12 +711,16 @@ static void on_connection(void* obj)
 	client->server = server;
 
 	int fd = accept(server->fd, NULL, 0);
-	if (fd < 0)
+	if (fd < 0) {
+		log_debug("Failed to accept a connection\n");
 		goto accept_failure;
+	}
 
 	client->net_stream = stream_new(fd, on_client_event, client);
-	if (!client->net_stream)
+	if (!client->net_stream) {
+		log_debug("OOM\n");
 		goto stream_failure;
+	}
 
 	int rc = deflateInit2(&client->z_stream,
 	                      /* compression level: */ 1,
@@ -725,19 +729,30 @@ static void on_connection(void* obj)
 	                      /*         mem level: */ 9,
 	                      /*          strategy: */ Z_DEFAULT_STRATEGY);
 
-	if (rc != Z_OK)
+	if (rc != Z_OK) {
+		log_debug("OOM\n");
 		goto deflate_failure;
+	}
+
+	if (!server->display->buffer) {
+		log_debug("No display buffer has been set\n");
+		goto buffer_failure;
+	}
 
 	int width = server->display->buffer->width;
 	int height = server->display->buffer->height;
-	if (tight_encoder_init(&client->tight_encoder, width, height) < 0)
+	if (tight_encoder_init(&client->tight_encoder, width, height) < 0) {
+		log_debug("OOM\n");
 		goto tight_failure;
+	}
 
 	pixman_region_init(&client->damage);
 
 	struct rcbuf* payload = rcbuf_from_string(RFB_VERSION_MESSAGE);
-	if (!payload)
+	if (!payload) {
+		log_debug("OOM\n");
 		goto payload_failure;
+	}
 
 	stream_send(client->net_stream, payload, NULL, NULL);
 
@@ -753,6 +768,7 @@ payload_failure:
 	tight_encoder_destroy(&client->tight_encoder);
 	pixman_region_fini(&client->damage);
 tight_failure:
+buffer_failure:
 	deflateEnd(&client->z_stream);
 deflate_failure:
 	stream_destroy(client->net_stream);
@@ -760,8 +776,6 @@ stream_failure:
 	close(fd);
 accept_failure:
 	free(client);
-
-	log_debug("Failed to accept a connection\n");
 }
 
 static int bind_address(const char* name, int port)

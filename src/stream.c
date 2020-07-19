@@ -236,7 +236,6 @@ static void stream__on_readable(struct stream* self)
 		break;
 #endif
 	case STREAM_STATE_CLOSED:
-		abort();
 		break;
 	}
 }
@@ -257,7 +256,6 @@ static void stream__on_writable(struct stream* self)
 		break;
 #endif
 	case STREAM_STATE_CLOSED:
-		abort();
 		break;
 	}
 }

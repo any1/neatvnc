@@ -78,6 +78,8 @@ struct nvnc_client {
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
+	uint32_t known_width;
+	uint32_t known_height;
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);

@@ -384,6 +384,8 @@ static void send_server_init_message(struct nvnc_client* client)
 	struct rcbuf* payload = rcbuf_new(msg, size);
 	stream_send(client->net_stream, payload, NULL, NULL);
 
+	client->known_width = width;
+	client->known_height = height;
 	return;
 
 pixfmt_failure:
@@ -963,6 +965,16 @@ static enum tight_quality client_get_tight_quality(struct nvnc_client* client)
 	return TIGHT_QUALITY_LOSSLESS;
 }
 
+static bool client_has_encoding(const struct nvnc_client* client,
+		enum rfb_encodings encoding)
+{
+	for (size_t i = 0; i < client->n_encodings; ++i)
+		if (client->encodings[i] == encoding)
+			return true;
+
+	return false;
+}
+
 static void do_client_update_fb(void* work)
 {
 	struct fb_update_work* update = aml_get_userdata(work);
@@ -1028,6 +1040,37 @@ static void on_client_update_fb_done(void* work)
 	client_unref(client);
 }
 
+static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
+{
+	if (!client_has_encoding(client, RFB_ENCODING_DESKTOPSIZE)) {
+		log_error("Client does not support desktop resizing. Closing connection...\n");
+		stream_close(client->net_stream);
+		client_unref(client);
+		return -1;
+	}
+
+	client->known_width = fb->width;
+	client->known_height = fb->height;
+
+	pixman_region_union_rect(&client->damage, &client->damage, 0, 0,
+			fb->width, fb->height);
+
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_DESKTOPSIZE),
+		.width = htons(fb->width),
+		.height = htons(fb->height),
+	};
+
+	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
+	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	return 0;
+}
+
 int schedule_client_update_fb(struct nvnc_client* client)
 {
 	struct nvnc_fb* fb = client->server->display->buffer;
@@ -1044,6 +1087,11 @@ int schedule_client_update_fb(struct nvnc_client* client)
 
 	work->client = client;
 	work->fb = fb;
+
+	if (fb->width != client->known_width
+	    || fb->height != client->known_height)
+		if (send_desktop_resize(client, fb) < 0)
+			goto resize_failure;
 
 	/* The client's damage is exchanged for an empty one */
 	work->region = client->damage;
@@ -1080,6 +1128,7 @@ oom_failure:
 	vec_destroy(&work->frame);
 vec_failure:
 pixfmt_failure:
+resize_failure:
 	free(work);
 	return -1;
 }

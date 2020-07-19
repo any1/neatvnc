@@ -123,20 +123,28 @@ failure:
 	return -1;
 }
 
-int tight_encoder_init(struct tight_encoder* self, uint32_t width,
+int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 		uint32_t height)
 {
-	memset(self, 0, sizeof(*self));
-
 	self->width = width;
 	self->height = height;
 
 	self->grid_width = UDIV_UP(width, 64);
 	self->grid_height = UDIV_UP(height, 64);
 
+	if (self->grid)
+		free(self->grid);
+
 	self->grid = calloc(self->grid_width * self->grid_height,
 			sizeof(*self->grid));
-	if (!self->grid)
+	return self->grid ? 0 : -1;
+}
+
+int tight_encoder_init(struct tight_encoder* self, uint32_t width,
+		uint32_t height)
+{
+	memset(self, 0, sizeof(*self));
+	if (tight_encoder_resize(self, width, height) < 0)
 		return -1;
 
 	tight_encoder_init_stream(&self->zs[0]);

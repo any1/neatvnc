@@ -61,6 +61,9 @@ int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 		uint32_t height);
 void tight_encoder_destroy(struct tight_encoder* self);
 
+int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
+		uint32_t height);
+
 int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
 		const struct rfb_pixel_format* dfmt,
 		const struct nvnc_fb* src,

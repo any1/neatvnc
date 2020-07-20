@@ -136,6 +136,8 @@ static int stream__flush_plain(struct stream* self)
 		return bytes_sent;
 	}
 
+	self->bytes_sent += bytes_sent;
+
 	ssize_t bytes_left = bytes_sent;
 
 	struct stream_req* tmp;
@@ -180,6 +182,8 @@ static int stream__flush_tls(struct stream* self)
 				stream_close(self);
 			return -1;
 		}
+
+		self->bytes_sent += rc;
 
 		ssize_t remaining = req->payload->size - rc;
 
@@ -336,6 +340,8 @@ static ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
 	ssize_t rc = read(self->fd, dst, size);
 	if (rc == 0)
 		stream__remote_closed(self);
+	if (rc > 0)
+		self->bytes_received += rc;
 	return rc;
 }
 
@@ -343,8 +349,10 @@ static ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
 static ssize_t stream__read_tls(struct stream* self, void* dst, size_t size)
 {
 	ssize_t rc = gnutls_record_recv(self->tls_session, dst, size);
-	if (rc >= 0)
+	if (rc >= 0) {
+		self->bytes_received += rc;
 		return rc;
+	}
 
 	switch (rc) {
 	case GNUTLS_E_INTERRUPTED:

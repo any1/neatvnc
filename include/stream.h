@@ -18,6 +18,8 @@
 #include "sys/queue.h"
 #include "rcbuf.h"
 
+#include <stdint.h>
+
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
 #endif
@@ -73,6 +75,9 @@ struct stream {
 #ifdef ENABLE_TLS
 	gnutls_session_t tls_session;
 #endif
+
+	uint32_t bytes_sent;
+	uint32_t bytes_received;
 };
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);

@@ -91,7 +91,7 @@ configure_file(
 	configuration: config,
 )
 
-neatvnc = shared_library(
+neatvnc = library(
 	'neatvnc',
 	sources,
 	version: '0.0.0',

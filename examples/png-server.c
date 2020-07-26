@@ -24,7 +24,7 @@
 
 struct nvnc_fb* read_png_file(const char* filename);
 
-void on_sigint()
+static void on_sigint()
 {
 	aml_exit(aml_get_default());
 }

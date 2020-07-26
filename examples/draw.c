@@ -41,15 +41,15 @@ struct draw {
 	int index;
 };
 
-int coord_distance_between(struct coord a, struct coord b)
+static int coord_distance_between(struct coord a, struct coord b)
 {
 	float x = abs(a.x - b.x);
 	float y = abs(a.y - b.y);
 	return round(sqrt(x * x + y * y));
 }
 
-void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
-              struct coord coord, int radius, uint32_t colour)
+static void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
+                     struct coord coord, int radius, uint32_t colour)
 {
 	uint32_t* image = nvnc_fb_get_addr(fb);
 	int width = nvnc_fb_get_width(fb);
@@ -77,8 +77,8 @@ void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
 		}
 }
 
-void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
-                      enum nvnc_button_mask buttons)
+static void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
+                             enum nvnc_button_mask buttons)
 {
 	if (!(buttons & NVNC_BUTTON_LEFT))
 		return;
@@ -106,7 +106,7 @@ void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	pixman_region_fini(&region);
 }
 
-void on_render(struct nvnc_display* display, struct nvnc_fb* fb)
+static void on_render(struct nvnc_display* display, struct nvnc_fb* fb)
 {
 	struct nvnc* server = nvnc_display_get_server(display);
 	assert(server);
@@ -120,7 +120,7 @@ void on_render(struct nvnc_display* display, struct nvnc_fb* fb)
 	draw->index = 0;
 }
 
-void on_sigint()
+static void on_sigint()
 {
 	aml_exit(aml_get_default());
 }

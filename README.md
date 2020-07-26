@@ -1,8 +1,8 @@
-# Neat VNC (Beta)
+# Neat VNC
 
 ## Introduction
 This is a liberally licensed VNC server library that's intended to be fast and
-neat. Note: This is a beta release, so the interface is not yet stable.
+neat.
 
 ## Goals
  * Speed.

@@ -21,14 +21,6 @@ if buildtype != 'debug' and buildtype != 'debugoptimized'
 	c_args += '-DNDEBUG'
 endif
 
-cpu = host_machine.cpu_family()
-
-if cpu == 'x86_64'
-	c_args += '-m' + get_option('x86_64-simd')
-elif cpu == 'arm'
-	c_args += '-mfpu=neon'
-endif
-
 add_project_arguments(c_args, language: 'c')
 
 cc = meson.get_compiler('c')

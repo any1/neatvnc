@@ -2,5 +2,3 @@ option('benchmarks', type: 'boolean', value: false, description: 'Build benchmar
 option('examples', type: 'boolean', value: false, description: 'Build examples')
 option('jpeg', type: 'feature', value: 'auto', description: 'Enable JPEG compression')
 option('tls', type: 'feature', value: 'auto', description: 'Enable encryption & authentication')
-option('x86_64-simd', type: 'string', value: 'sse2',
-       description: 'Choose SIMD extension for x86_64 release build')

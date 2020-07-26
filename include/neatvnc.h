@@ -50,6 +50,8 @@ typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
 typedef void (*nvnc_render_fn)(struct nvnc_display*, struct nvnc_fb*);
 
+extern const char nvnc_version[];
+
 struct nvnc* nvnc_open(const char* addr, uint16_t port);
 void nvnc_close(struct nvnc* self);
 

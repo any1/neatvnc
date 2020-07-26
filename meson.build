@@ -1,7 +1,7 @@
 project(
 	'neatvnc',
 	'c',
-	version: '0.1.0',
+	version: '0.2.0',
 	license: 'ISC',
 	default_options: [
 		'c_std=gnu11',
@@ -12,6 +12,7 @@ buildtype = get_option('buildtype')
 host_system = host_machine.system()
 
 c_args = [
+	'-DPROJECT_VERSION="@0@"'.format(meson.project_version()),
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
 	'-Wmissing-prototypes',
@@ -19,6 +20,18 @@ c_args = [
 
 if buildtype != 'debug' and buildtype != 'debugoptimized'
 	c_args += '-DNDEBUG'
+endif
+
+git = find_program('git', native: true, required: false)
+if git.found()
+	git_describe = run_command([git, 'describe', '--tags', '--long'])
+	git_branch = run_command([git, 'rev-parse', '--abbrev-ref', 'HEAD'])
+	if git_describe.returncode() == 0 and git_branch.returncode() == 0
+		c_args += '-DGIT_VERSION="@0@ (@1@)"'.format(
+			git_describe.stdout().strip(),
+			git_branch.stdout().strip(),
+		)
+	endif
 endif
 
 add_project_arguments(c_args, language: 'c')

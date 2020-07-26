@@ -71,6 +71,14 @@ struct fb_update_work {
 
 int schedule_client_update_fb(struct nvnc_client* client);
 
+#if defined(GIT_VERSION)
+EXPORT const char nvnc_version[] = GIT_VERSION;
+#elif defined(PROJECT_VERSION)
+EXPORT const char nvnc_version[] = PROJECT_VERSION;
+#else
+EXPORT const char nvnc_version[] = "UNKNOWN";
+#endif
+
 static void client_close(struct nvnc_client* client)
 {
 	log_debug("client_close(%p): ref %d\n", client, client->ref);

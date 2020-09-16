@@ -49,6 +49,7 @@ typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
 typedef void (*nvnc_render_fn)(struct nvnc_display*, struct nvnc_fb*);
+typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
 
 extern const char nvnc_version[];
 
@@ -70,6 +71,7 @@ void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
+void nvnc_set_cut_text_receive_fn(struct nvnc* self, nvnc_cut_text_fn fn);
 
 bool nvnc_has_auth(void);
 int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
@@ -111,3 +113,5 @@ void nvnc_display_damage_whole(struct nvnc_display*);
 int nvnc_check_damage(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
                       int x_hint, int y_hint, int width_hint, int height_hint,
                       nvnc_damage_fn on_check_done, void* userdata);
+
+void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);

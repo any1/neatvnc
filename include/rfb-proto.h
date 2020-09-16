@@ -140,11 +140,11 @@ struct rfb_client_pointer_event_msg {
 	uint16_t y;
 } RFB_PACKED;
 
-struct rfb_client_cut_text_msg {
+struct rfb_cut_text_msg {
 	uint8_t type;
 	uint8_t padding[3];
 	uint32_t length;
-	char test[0];
+	char text[0];
 } RFB_PACKED;
 
 struct rfb_server_fb_rect {

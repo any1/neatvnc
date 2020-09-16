@@ -584,18 +584,44 @@ static int on_client_pointer_event(struct nvnc_client* client)
 	return sizeof(*msg);
 }
 
+EXPORT
+void nvnc_send_cut_text(struct nvnc* server, const char* text, uint32_t len)
+{
+	struct rfb_cut_text_msg msg;
+
+	msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
+	msg.length = htonl(len);
+
+	struct nvnc_client* client;
+	LIST_FOREACH (client, &server->clients, link) {
+		stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+		stream_write(client->net_stream, text, len, NULL, NULL);
+	}
+}
+
 static int on_client_cut_text(struct nvnc_client* client)
 {
-	struct rfb_client_cut_text_msg* msg =
-	        (struct rfb_client_cut_text_msg*)(client->msg_buffer +
-	                                          client->buffer_index);
+	struct nvnc* server = client->server;
+	struct rfb_cut_text_msg* msg =
+	        (struct rfb_cut_text_msg*)(client->msg_buffer +
+	                                   client->buffer_index);
 
 	if (client->buffer_len - client->buffer_index < sizeof(*msg))
 		return 0;
 
 	uint32_t length = ntohl(msg->length);
 
-	// TODO
+	/* Messages greater than this size are unsupported */
+	if (length > MSG_BUFFER_SIZE - sizeof(*msg)) {
+		stream_close(client->net_stream);
+		client_unref(client);
+		return 0;
+	}
+
+	nvnc_cut_text_fn fn = server->cut_text_fn;
+	if (fn) {
+		fn(server, msg->text, length);
+	}
 
 	return sizeof(*msg) + length;
 }
@@ -1195,6 +1221,12 @@ EXPORT
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
 {
 	self->cleanup_fn = fn;
+}
+
+EXPORT
+void nvnc_set_cut_text_receive_fn(struct nvnc* self, nvnc_cut_text_fn fn)
+{
+	self->cut_text_fn = fn;
 }
 
 EXPORT

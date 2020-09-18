@@ -618,6 +618,9 @@ static int on_client_cut_text(struct nvnc_client* client)
 		return 0;
 	}
 
+	if (client->buffer_len - client->buffer_index < sizeof(*msg) + length)
+		return 0;
+
 	nvnc_cut_text_fn fn = server->cut_text_fn;
 	if (fn) {
 		fn(server, msg->text, length);
@@ -729,9 +732,9 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	assert(client->buffer_index <= client->buffer_len);
 
-	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,
-	        client->buffer_index);
 	client->buffer_len -= client->buffer_index;
+	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,
+	        client->buffer_len);
 	client->buffer_index = 0;
 }
 

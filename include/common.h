@@ -34,6 +34,7 @@
 #define MAX_ENCODINGS 32
 #define MAX_OUTGOING_FRAMES 4
 #define MSG_BUFFER_SIZE 4096
+#define MAX_CUT_TEXT_SIZE 10000000
 
 enum nvnc_client_state {
 	VNC_CLIENT_STATE_ERROR = -1,
@@ -58,6 +59,12 @@ struct nvnc_common {
 	void* userdata;
 };
 
+struct cut_text {
+	char* buffer;
+	size_t length;
+	size_t index;
+};
+
 struct nvnc_client {
 	struct nvnc_common common;
 	int ref;
@@ -80,6 +87,7 @@ struct nvnc_client {
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
 	uint32_t known_width;
 	uint32_t known_height;
+	struct cut_text cut_text;
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);

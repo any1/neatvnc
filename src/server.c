@@ -92,6 +92,7 @@ static void client_close(struct nvnc_client* client)
 	tight_encoder_destroy(&client->tight_encoder);
 	deflateEnd(&client->z_stream);
 	pixman_region_fini(&client->damage);
+	free(client->cut_text.buffer);
 	free(client);
 }
 
@@ -602,31 +603,95 @@ void nvnc_send_cut_text(struct nvnc* server, const char* text, uint32_t len)
 static int on_client_cut_text(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
+	nvnc_cut_text_fn fn = server->cut_text_fn;
 	struct rfb_cut_text_msg* msg =
 	        (struct rfb_cut_text_msg*)(client->msg_buffer +
 	                                   client->buffer_index);
 
-	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+	size_t left_to_process = client->buffer_len - client->buffer_index;
+
+	if (left_to_process < sizeof(*msg))
 		return 0;
 
 	uint32_t length = ntohl(msg->length);
+	uint32_t max_length = MAX_CUT_TEXT_SIZE;
 
 	/* Messages greater than this size are unsupported */
-	if (length > MSG_BUFFER_SIZE - sizeof(*msg)) {
+	if (length > max_length) {
+		log_error("Copied text length (%d) is greater than max supported length (%d)\n",
+			length, max_length);
 		stream_close(client->net_stream);
 		client_unref(client);
 		return 0;
 	}
 
-	if (client->buffer_len - client->buffer_index < sizeof(*msg) + length)
-		return 0;
+	size_t msg_size = sizeof(*msg) + length;
 
-	nvnc_cut_text_fn fn = server->cut_text_fn;
-	if (fn) {
-		fn(server, msg->text, length);
+	if (msg_size <= left_to_process) {
+		if (fn)
+			fn(server, msg->text, length);
+
+		return msg_size;
 	}
 
-	return sizeof(*msg) + length;
+	assert(!client->cut_text.buffer);
+
+	client->cut_text.buffer = malloc(length);
+	if (!client->cut_text.buffer) {
+		log_error("OOM: %m\n");
+		stream_close(client->net_stream);
+		client_unref(client);
+		return 0;
+	}
+
+	size_t partial_size = left_to_process - sizeof(*msg);
+
+	memcpy(client->cut_text.buffer, msg->text, partial_size);
+
+	client->cut_text.length = length;
+	client->cut_text.index = partial_size;
+
+	return left_to_process;
+}
+
+static void process_big_cut_text(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+	nvnc_cut_text_fn fn = server->cut_text_fn;
+
+	assert(client->cut_text.length > client->cut_text.index);
+
+	void* start = client->cut_text.buffer + client->cut_text.index;
+	size_t space = client->cut_text.length - client->cut_text.index;
+
+	space = MIN(space, MSG_BUFFER_SIZE);
+
+	ssize_t n_read = stream_read(client->net_stream, start, space);
+
+	if (n_read == 0)
+		return;
+
+	if (n_read < 0) {
+		if (errno != EAGAIN) {
+			log_debug("Client connection error: %p (ref %d)\n",
+				  client, client->ref);
+			stream_close(client->net_stream);
+			client_unref(client);
+		}
+
+		return;
+	}
+
+	client->cut_text.index += n_read;
+
+	if (client->cut_text.index != client->cut_text.length)
+		return;
+
+	if (fn)
+		fn(server, client->cut_text.buffer, client->cut_text.length);
+
+	free(client->cut_text.buffer);
+	client->cut_text.buffer = NULL;
 }
 
 static int on_client_message(struct nvnc_client* client)
@@ -696,6 +761,11 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 		log_debug("Client %p (%d) hung up\n", client, client->ref);
 		stream_close(stream);
 		client_unref(client);
+		return;
+	}
+
+	if (client->cut_text.buffer) {
+		process_big_cut_text(client);
 		return;
 	}
 

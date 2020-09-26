@@ -20,6 +20,7 @@
 #include "fb.h"
 #include "pixels.h"
 #include "raw-encoding.h"
+#include "enc-util.h"
 
 #include <pixman.h>
 
@@ -31,15 +32,8 @@ static int raw_encode_box(struct vec* dst,
 {
 	int rc = -1;
 
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_RAW),
-		.x = htons(x_start),
-		.y = htons(y_start),
-		.width = htons(width),
-		.height = htons(height),
-	};
-
-	rc = vec_append(dst, &rect, sizeof(rect));
+	rc = encode_rect_head(dst, RFB_ENCODING_RAW, x_start, y_start, width,
+			height);
 	if (rc < 0)
 		return -1;
 
@@ -77,16 +71,11 @@ int raw_encode_frame(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 		n_rects = 1;
 	}
 
-	struct rfb_server_fb_update_msg head = {
-		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(n_rects),
-	};
-
 	rc = vec_reserve(dst, src->width * src->height * 4);
 	if (rc < 0)
 		return -1;
 
-	rc = vec_append(dst, &head, sizeof(head));
+	rc = encode_rect_count(dst, n_rects);
 	if (rc < 0)
 		return -1;
 

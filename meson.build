@@ -66,6 +66,7 @@ sources = [
 	'src/stream.c',
 	'src/display.c',
 	'src/tight.c',
+	'src/enc-util.c',
 ]
 
 dependencies = [

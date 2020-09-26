@@ -1133,14 +1133,8 @@ static void do_client_update_fb(void* work)
 	}
 }
 
-static void on_client_update_fb_done(void* work)
+static void finish_fb_update(struct nvnc_client* client, struct vec* frame)
 {
-	struct fb_update_work* update = aml_get_userdata(work);
-	struct nvnc_client* client = update->client;
-	struct vec* frame = &update->frame;
-
-	nvnc_fb_unref(update->fb);
-
 	client_ref(client);
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
@@ -1158,6 +1152,17 @@ static void on_client_update_fb_done(void* work)
 	client->n_pending_requests--;
 
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
+}
+
+static void on_client_update_fb_done(void* work)
+{
+	struct fb_update_work* update = aml_get_userdata(work);
+	struct nvnc_client* client = update->client;
+	struct vec* frame = &update->frame;
+
+	nvnc_fb_unref(update->fb);
+
+	finish_fb_update(client, frame);
 
 	pixman_region_fini(&update->region);
 

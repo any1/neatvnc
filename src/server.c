@@ -509,6 +509,11 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	struct nvnc_fb* fb = client->server->display->buffer;
 	assert(fb);
 
+	if (!client->has_pixfmt) {
+		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
+		client->has_pixfmt = true;
+	}
+
 	if (fb->width != client->known_width
 	    || fb->height != client->known_height)
 		send_desktop_resize(client, fb);
@@ -1106,11 +1111,6 @@ static void do_client_update_fb(void* work)
 	struct nvnc_fb* fb = update->fb;
 
 	enum rfb_encodings encoding = choose_frame_encoding(client);
-
-	if (!client->has_pixfmt) {
-		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
-		client->has_pixfmt = true;
-	}
 
 	switch (encoding) {
 	case RFB_ENCODING_RAW:

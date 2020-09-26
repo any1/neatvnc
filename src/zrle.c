@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Andri Yngvason
+ * Copyright (c) 2019 - 2020 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -20,6 +20,7 @@
 #include "neatvnc.h"
 #include "pixels.h"
 #include "fb.h"
+#include "enc-util.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -41,12 +42,6 @@ static inline int find_colour_in_palette(uint32_t* palette, int len,
 			return i;
 
 	return -1;
-}
-
-static inline int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
-{
-	return fmt->bits_per_pixel == 32 ? fmt->depth / 8
-	                                 : fmt->bits_per_pixel / 8;
 }
 
 static int zrle_get_tile_palette(uint32_t* palette, const uint32_t* src,
@@ -222,15 +217,7 @@ static int zrle_encode_box(struct vec* out,
 	if (vec_init(&in, 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH) < 0)
 		goto failure;
 
-	struct rfb_server_fb_rect rect = {
-	        .encoding = htonl(RFB_ENCODING_ZRLE),
-	        .x = htons(x),
-	        .y = htons(y),
-	        .width = htons(width),
-	        .height = htons(height),
-	};
-
-	r = vec_append(out, &rect, sizeof(rect));
+	r = encode_rect_head(out, RFB_ENCODING_ZRLE, x, y, width, height);
 	if (r < 0)
 		goto failure;
 
@@ -289,12 +276,7 @@ int zrle_encode_frame(z_stream* zs, struct vec* dst,
 		n_rects = 1;
 	}
 
-	struct rfb_server_fb_update_msg head = {
-	        .type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-	        .n_rects = htons(n_rects),
-	};
-
-	rc = vec_append(dst, &head, sizeof(head));
+	rc = encode_rect_count(dst, n_rects);
 	if (rc < 0)
 		return -1;
 

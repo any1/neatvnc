@@ -22,6 +22,7 @@
 #include "logging.h"
 #include "tight.h"
 #include "config.h"
+#include "enc-util.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -223,12 +224,6 @@ static void tight_encode_size(struct vec* dst, size_t size)
 		vec_fast_append_8(dst, (size >> 14) & 0xff);
 }
 
-static int calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
-{
-	return fmt->bits_per_pixel == 32 ? fmt->depth / 8
-	                                 : fmt->bits_per_pixel / 8;
-}
-
 static int tight_deflate(struct tight_tile* tile, void* src,
 			 size_t len, z_stream* zs, bool flush)
 {
@@ -397,16 +392,6 @@ static void tight_encode_tile(struct tight_encoder* self,
 	tile->state = TIGHT_TILE_ENCODED;
 }
 
-static int tight_encode_rect_count(struct tight_encoder* self)
-{
-	struct rfb_server_fb_update_msg msg = {
-		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(self->n_rects),
-	};
-
-	return vec_append(self->dst, &msg, sizeof(msg));
-}
-
 static void do_tight_zs_work(void* obj)
 {
 	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
@@ -465,15 +450,8 @@ static void tight_finish_tile(struct tight_encoder* self,
 	uint32_t width = tight_tile_width(self, x);
 	uint32_t height = tight_tile_height(self, y);
 
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_TIGHT),
-		.x = htons(x),
-		.y = htons(y),
-		.width = htons(width),
-		.height = htons(height),
-	};
+	encode_rect_head(self->dst, RFB_ENCODING_TIGHT, x, y, width, height);
 
-	vec_append(self->dst, &rect, sizeof(rect));
 	vec_append(self->dst, &tile->type, sizeof(tile->type));
 	tight_encode_size(self->dst, tile->size);
 	vec_append(self->dst, tile->buffer, tile->size);
@@ -507,7 +485,7 @@ int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
 	self->n_rects = tight_apply_damage(self, damage);
 	assert(self->n_rects > 0);
 
-	tight_encode_rect_count(self);
+	encode_rect_count(dst, self->n_rects);
 
 	if (tight_schedule_encoding_jobs(self) < 0)
 		return -1;

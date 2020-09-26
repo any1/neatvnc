@@ -69,7 +69,9 @@ struct fb_update_work {
 	struct nvnc_fb* fb;
 };
 
-int schedule_client_update_fb(struct nvnc_client* client);
+int schedule_client_update_fb(struct nvnc_client* client,
+		struct pixman_region16* damage);
+static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
 
 #if defined(GIT_VERSION)
 EXPORT const char nvnc_version[] = GIT_VERSION;
@@ -490,7 +492,9 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 static void process_fb_update_requests(struct nvnc_client* client)
 {
-	if (!client->server->display || !client->server->display->buffer)
+	struct nvnc* server = client->server;
+
+	if (!server->display || !server->display->buffer)
 		return;
 
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
@@ -502,8 +506,21 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (client->is_updating || client->n_pending_requests == 0)
 		return;
 
+	struct nvnc_fb* fb = client->server->display->buffer;
+	assert(fb);
+
+	if (fb->width != client->known_width
+	    || fb->height != client->known_height)
+		send_desktop_resize(client, fb);
+
+	DTRACE_PROBE1(neatvnc, update_fb_start, client);
+
+	/* The client's damage is exchanged for an empty one */
+	struct pixman_region16 damage = client->damage;
+	pixman_region_init(&client->damage);
+
 	client->is_updating = true;
-	if (schedule_client_update_fb(client) < 0)
+	if (schedule_client_update_fb(client, &damage) < 0)
 		client->is_updating = false;
 }
 
@@ -1180,12 +1197,11 @@ static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
 	return 0;
 }
 
-int schedule_client_update_fb(struct nvnc_client* client)
+int schedule_client_update_fb(struct nvnc_client* client,
+		struct pixman_region16* damage)
 {
 	struct nvnc_fb* fb = client->server->display->buffer;
 	assert(fb);
-
-	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
 	struct fb_update_work* work = calloc(1, sizeof(*work));
 	if (!work)
@@ -1196,15 +1212,7 @@ int schedule_client_update_fb(struct nvnc_client* client)
 
 	work->client = client;
 	work->fb = fb;
-
-	if (fb->width != client->known_width
-	    || fb->height != client->known_height)
-		if (send_desktop_resize(client, fb) < 0)
-			goto resize_failure;
-
-	/* The client's damage is exchanged for an empty one */
-	work->region = client->damage;
-	pixman_region_init(&client->damage);
+	work->region = *damage;
 
 	int rc = vec_init(&work->frame, fb->width * fb->height * 3 / 2);
 	if (rc < 0)
@@ -1237,7 +1245,6 @@ oom_failure:
 	vec_destroy(&work->frame);
 vec_failure:
 pixfmt_failure:
-resize_failure:
 	free(work);
 	return -1;
 }

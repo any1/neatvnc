@@ -402,8 +402,10 @@ static void on_tight_zs_work_done(void* obj)
 	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
 	struct tight_encoder* self = ctx->encoder;
 
-	if (--self->n_jobs == 0)
+	if (--self->n_jobs == 0) {
+		nvnc_fb_unref(self->fb);
 		schedule_tight_finish(self);
+	}
 }
 
 static int tight_schedule_zs_work(struct tight_encoder* self, int index)
@@ -479,7 +481,7 @@ static int schedule_tight_finish(struct tight_encoder* self)
 
 int tight_encode_frame(struct tight_encoder* self,
 		const struct rfb_pixel_format* dfmt,
-		const struct nvnc_fb* src,
+		struct nvnc_fb* src,
 		const struct rfb_pixel_format* sfmt,
 		struct pixman_region16* damage,
 		enum tight_quality quality,
@@ -503,7 +505,10 @@ int tight_encode_frame(struct tight_encoder* self,
 
 	encode_rect_count(&self->dst, self->n_rects);
 
+	nvnc_fb_ref(self->fb);
+
 	if (tight_schedule_encoding_jobs(self) < 0) {
+		nvnc_fb_unref(self->fb);
 		vec_destroy(&self->dst);
 		return -1;
 	}

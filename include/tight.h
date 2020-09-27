@@ -51,7 +51,7 @@ struct tight_encoder {
 
 	struct rfb_pixel_format dfmt;
 	struct rfb_pixel_format sfmt;
-	const struct nvnc_fb* fb;
+	struct nvnc_fb* fb;
 
 	uint32_t n_rects;
 	uint32_t n_jobs;
@@ -71,7 +71,7 @@ int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 
 int tight_encode_frame(struct tight_encoder* self,
 		const struct rfb_pixel_format* dfmt,
-		const struct nvnc_fb* src,
+		struct nvnc_fb* src,
 		const struct rfb_pixel_format* sfmt,
 		struct pixman_region16* damage,
 		enum tight_quality quality,

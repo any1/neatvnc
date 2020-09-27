@@ -541,13 +541,16 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	case RFB_ENCODING_ZRLE:
 		rc = schedule_client_update_fb(client, &damage);
 		break;
-	case RFB_ENCODING_TIGHT:;
-		enum tight_quality quality = client_get_tight_quality(client);
+	case RFB_ENCODING_TIGHT:
+		client_ref(client);
 
-		// TODO: Make sure we don't have use-after-free on client and fb
+		enum tight_quality quality = client_get_tight_quality(client);
 		rc = tight_encode_frame(&client->tight_encoder, &client->pixfmt,
 				fb, &server_fmt, &damage, quality,
 				on_tight_encode_frame_done, client);
+
+		if (rc < 0)
+			client_unref(client);
 
 		pixman_region_fini(&damage);
 		break;
@@ -1186,6 +1189,7 @@ static void on_tight_encode_frame_done(struct vec* frame, void* userdata)
 {
 	struct nvnc_client* client = userdata;
 	finish_fb_update(client, frame);
+	client_unref(client);
 }
 
 static void on_client_update_fb_done(void* work)

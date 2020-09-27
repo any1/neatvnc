@@ -72,6 +72,9 @@ struct fb_update_work {
 int schedule_client_update_fb(struct nvnc_client* client,
 		struct pixman_region16* damage);
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
+static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client);
+static enum tight_quality client_get_tight_quality(struct nvnc_client* client);
+static void on_tight_encode_frame_done(struct vec* frame, void* userdata);
 
 #if defined(GIT_VERSION)
 EXPORT const char nvnc_version[] = GIT_VERSION;
@@ -525,7 +528,35 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	pixman_region_init(&client->damage);
 
 	client->is_updating = true;
-	if (schedule_client_update_fb(client, &damage) < 0)
+
+	int rc;
+	enum rfb_encodings encoding = choose_frame_encoding(client);
+
+	// TODO: Check the return value
+	struct rfb_pixel_format server_fmt;
+	rfb_pixfmt_from_fourcc(&server_fmt, fb->fourcc_format);
+
+	switch (encoding) {
+	case RFB_ENCODING_RAW:
+	case RFB_ENCODING_ZRLE:
+		rc = schedule_client_update_fb(client, &damage);
+		break;
+	case RFB_ENCODING_TIGHT:;
+		enum tight_quality quality = client_get_tight_quality(client);
+
+		// TODO: Make sure we don't have use-after-free on client and fb
+		rc = tight_encode_frame(&client->tight_encoder, &client->pixfmt,
+				fb, &server_fmt, &damage, quality,
+				on_tight_encode_frame_done, client);
+
+		pixman_region_fini(&damage);
+		break;
+	default:
+		rc = -1;
+		break;
+	}
+
+	if (rc < 0)
 		client->is_updating = false;
 }
 
@@ -1117,11 +1148,8 @@ static void do_client_update_fb(void* work)
 		raw_encode_frame(&update->frame, &client->pixfmt, fb,
 		                 &update->server_fmt, &update->region);
 		break;
-	case RFB_ENCODING_TIGHT:;
-		enum tight_quality quality = client_get_tight_quality(client);
-		tight_encode_frame(&client->tight_encoder, &update->frame,
-				&client->pixfmt, fb, &update->server_fmt,
-				&update->region, quality);
+	case RFB_ENCODING_TIGHT:
+		abort();
 		break;
 	case RFB_ENCODING_ZRLE:
 		zrle_encode_frame(&client->z_stream, &update->frame,
@@ -1152,6 +1180,12 @@ static void finish_fb_update(struct nvnc_client* client, struct vec* frame)
 	client->n_pending_requests--;
 
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
+}
+
+static void on_tight_encode_frame_done(struct vec* frame, void* userdata)
+{
+	struct nvnc_client* client = userdata;
+	finish_fb_update(client, frame);
 }
 
 static void on_client_update_fb_done(void* work)

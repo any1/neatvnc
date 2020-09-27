@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include "rfb-proto.h"
+#include "vec.h"
+
 #include <unistd.h>
 #include <stdint.h>
 #include <zlib.h>
@@ -24,6 +27,8 @@
 struct tight_tile;
 struct pixman_region16;
 struct aml_work;
+
+typedef void (*tight_done_fn)(struct vec* frame, void*);
 
 enum tight_quality {
 	TIGHT_QUALITY_UNSPEC = 0,
@@ -44,17 +49,17 @@ struct tight_encoder {
 	z_stream zs[4];
 	struct aml_work* zs_worker[4];
 
-	const struct rfb_pixel_format* dfmt;
-	const struct rfb_pixel_format* sfmt;
+	struct rfb_pixel_format dfmt;
+	struct rfb_pixel_format sfmt;
 	const struct nvnc_fb* fb;
 
 	uint32_t n_rects;
 	uint32_t n_jobs;
 
-	struct vec* dst;
+	struct vec dst;
 
-	pthread_mutex_t wait_mutex;
-	pthread_cond_t wait_cond;
+	tight_done_fn on_frame_done;
+	void* userdata;
 };
 
 int tight_encoder_init(struct tight_encoder* self, uint32_t width,
@@ -64,9 +69,10 @@ void tight_encoder_destroy(struct tight_encoder* self);
 int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 		uint32_t height);
 
-int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
+int tight_encode_frame(struct tight_encoder* self,
 		const struct rfb_pixel_format* dfmt,
 		const struct nvnc_fb* src,
 		const struct rfb_pixel_format* sfmt,
 		struct pixman_region16* damage,
-		enum tight_quality quality);
+		enum tight_quality quality,
+		tight_done_fn on_done, void* userdata);

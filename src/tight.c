@@ -73,6 +73,7 @@ struct tight_zs_worker_ctx {
 
 static void do_tight_zs_work(void*);
 static void on_tight_zs_work_done(void*);
+static int schedule_tight_finish(struct tight_encoder* self);
 
 static int tight_encoder_init_stream(z_stream* zs)
 {
@@ -158,21 +159,13 @@ int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 	tight_init_zs_worker(self, 2);
 	tight_init_zs_worker(self, 3);
 
-	pthread_mutex_init(&self->wait_mutex, NULL);
-	pthread_cond_init(&self->wait_cond, NULL);
-
-	// One worker is blocked while other workers are encoding, so at least
-	// 2 are required.
-	aml_require_workers(aml_get_default(), 2);
+	aml_require_workers(aml_get_default(), 1);
 
 	return 0;
 }
 
 void tight_encoder_destroy(struct tight_encoder* self)
 {
-	pthread_cond_destroy(&self->wait_cond);
-	pthread_mutex_destroy(&self->wait_mutex);
-
 	aml_unref(self->zs_worker[3]);
 	aml_unref(self->zs_worker[2]);
 	aml_unref(self->zs_worker[1]);
@@ -256,7 +249,7 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	z_stream* zs = &self->zs[zs_index];
 	tile->type = TIGHT_BASIC | TIGHT_STREAM(zs_index);
 
-	int bytes_per_cpixel = calc_bytes_per_cpixel(self->dfmt);
+	int bytes_per_cpixel = calc_bytes_per_cpixel(&self->dfmt);
 	assert(bytes_per_cpixel <= 4);
 	uint8_t row[TSL * 4];
 
@@ -264,7 +257,7 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	if (bytes_per_cpixel == 3)
 		rfb_pixfmt_from_fourcc(&cfmt, DRM_FORMAT_XBGR8888);
 	else
-		memcpy(&cfmt, self->dfmt, sizeof(cfmt));
+		memcpy(&cfmt, &self->dfmt, sizeof(cfmt));
 
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
 	uint32_t stride = nvnc_fb_get_width(self->fb);
@@ -272,8 +265,8 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
 		void* img = addr + x + y * stride;
-		pixel32_to_cpixel(row, &cfmt, img, self->sfmt, bytes_per_cpixel,
-				width);
+		pixel32_to_cpixel(row, &cfmt, img, &self->sfmt,
+				bytes_per_cpixel, width);
 
 		// TODO What to do if the buffer fills up?
 		if (tight_deflate(tile, row, bytes_per_cpixel * width,
@@ -409,10 +402,8 @@ static void on_tight_zs_work_done(void* obj)
 	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
 	struct tight_encoder* self = ctx->encoder;
 
-	pthread_mutex_lock(&self->wait_mutex);
 	if (--self->n_jobs == 0)
-		pthread_cond_signal(&self->wait_cond);
-	pthread_mutex_unlock(&self->wait_mutex);
+		schedule_tight_finish(self);
 }
 
 static int tight_schedule_zs_work(struct tight_encoder* self, int index)
@@ -426,17 +417,11 @@ static int tight_schedule_zs_work(struct tight_encoder* self, int index)
 
 static int tight_schedule_encoding_jobs(struct tight_encoder* self)
 {
-	int rc = -1;
-
-	pthread_mutex_lock(&self->wait_mutex);
 	for (int i = 0; i < 4; ++i)
 		if (tight_schedule_zs_work(self, i) < 0)
-			goto failure;
+			return -1;
 
-	rc = 0;
-failure:
-	pthread_mutex_unlock(&self->wait_mutex);
-	return rc;
+	return 0;
 }
 
 static void tight_finish_tile(struct tight_encoder* self,
@@ -450,11 +435,11 @@ static void tight_finish_tile(struct tight_encoder* self,
 	uint32_t width = tight_tile_width(self, x);
 	uint32_t height = tight_tile_height(self, y);
 
-	encode_rect_head(self->dst, RFB_ENCODING_TIGHT, x, y, width, height);
+	encode_rect_head(&self->dst, RFB_ENCODING_TIGHT, x, y, width, height);
 
-	vec_append(self->dst, &tile->type, sizeof(tile->type));
-	tight_encode_size(self->dst, tile->size);
-	vec_append(self->dst, tile->buffer, tile->size);
+	vec_append(&self->dst, &tile->type, sizeof(tile->type));
+	tight_encode_size(&self->dst, tile->size);
+	vec_append(&self->dst, tile->buffer, tile->size);
 
 	tile->state = TIGHT_TILE_READY;
 }
@@ -467,36 +452,61 @@ static void tight_finish(struct tight_encoder* self)
 				tight_finish_tile(self, x, y);
 }
 
-int tight_encode_frame(struct tight_encoder* self, struct vec* dst,
+static void do_tight_finish(void* obj)
+{
+	// TODO: Make sure there's no use-after-free here
+	struct tight_encoder* self = aml_get_userdata(obj);
+	tight_finish(self);
+}
+
+static void on_tight_finished(void* obj)
+{
+	struct tight_encoder* self = aml_get_userdata(obj);
+	self->on_frame_done(&self->dst, self->userdata);
+}
+
+static int schedule_tight_finish(struct tight_encoder* self)
+{
+	struct aml_work* work = aml_work_new(do_tight_finish, on_tight_finished,
+			self, NULL);
+	if (!work)
+		return -1;
+
+	int rc = aml_start(aml_get_default(), work);
+	aml_unref(work);
+	return rc;
+}
+
+int tight_encode_frame(struct tight_encoder* self,
 		const struct rfb_pixel_format* dfmt,
 		const struct nvnc_fb* src,
 		const struct rfb_pixel_format* sfmt,
 		struct pixman_region16* damage,
-		enum tight_quality quality)
+		enum tight_quality quality,
+		tight_done_fn on_done, void* userdata)
 {
-	self->dfmt = dfmt;
-	self->sfmt = sfmt;
+	memcpy(&self->dfmt, dfmt, sizeof(self->dfmt));
+	memcpy(&self->sfmt, sfmt, sizeof(self->sfmt));
 	self->fb = src;
-	self->dst = dst;
 	self->quality = quality;
+	self->on_frame_done = on_done;
+	self->userdata = userdata;
 
-	vec_clear(dst);
+	uint32_t width = nvnc_fb_get_width(src);
+	uint32_t height = nvnc_fb_get_height(src);
+	int rc = vec_init(&self->dst, width * height * 4);
+	if (rc < 0)
+		return -1;
 
 	self->n_rects = tight_apply_damage(self, damage);
 	assert(self->n_rects > 0);
 
-	encode_rect_count(dst, self->n_rects);
+	encode_rect_count(&self->dst, self->n_rects);
 
-	if (tight_schedule_encoding_jobs(self) < 0)
+	if (tight_schedule_encoding_jobs(self) < 0) {
+		vec_destroy(&self->dst);
 		return -1;
-
-	// TODO Change architecture so we don't have to wait here
-	pthread_mutex_lock(&self->wait_mutex);
-	while (self->n_jobs != 0)
-		pthread_cond_wait(&self->wait_cond, &self->wait_mutex);
-	pthread_mutex_unlock(&self->wait_mutex);
-
-	tight_finish(self);
+	}
 
 	return 0;
 }

@@ -521,16 +521,21 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		client->has_pixfmt = true;
 	}
 
-	// TODO: Return if there are no pending requests after this
 	if (fb->width != client->known_width
-	    || fb->height != client->known_height)
+	    || fb->height != client->known_height) {
 		send_desktop_resize(client, fb);
 
-	// TODO: Return if there are no pending requests after this
+		if (--client->n_pending_requests <= 0)
+			return;
+	}
+
 	if (server->key_code_fn && !client->is_qemu_key_ext_notified
 	    && client_has_encoding(client, RFB_ENCODING_QEMU_EXT_KEY_EVENT)) {
 		send_qemu_key_ext_frame(client);
 		client->is_qemu_key_ext_notified = true;
+
+		if (--client->n_pending_requests <= 0)
+			return;
 	}
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);

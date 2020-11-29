@@ -87,6 +87,8 @@ EXPORT const char nvnc_version[] = PROJECT_VERSION;
 EXPORT const char nvnc_version[] = "UNKNOWN";
 #endif
 
+extern const unsigned short code_map_qnum_to_linux[];
+
 static void client_close(struct nvnc_client* client)
 {
 	log_debug("client_close(%p): ref %d\n", client, client->ref);
@@ -648,11 +650,15 @@ static int on_client_qemu_key_event(struct nvnc_client* client)
 		return 0;
 
 	int down_flag = msg->down_flag;
-	uint32_t keycode = ntohl(msg->keycode);
+	uint32_t xt_keycode = ntohl(msg->keycode);
+
+	uint32_t evdev_keycode = code_map_qnum_to_linux[xt_keycode];
+	if (!evdev_keycode)
+		evdev_keycode = xt_keycode;
 
 	nvnc_key_fn fn = server->key_code_fn;
 	if (fn)
-		fn(client, keycode, !!down_flag);
+		fn(client, evdev_keycode, !!down_flag);
 
 	return sizeof(*msg);
 }

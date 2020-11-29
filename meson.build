@@ -67,6 +67,7 @@ sources = [
 	'src/display.c',
 	'src/tight.c',
 	'src/enc-util.c',
+	'src/qnum-to-evdev.c',
 ]
 
 dependencies = [

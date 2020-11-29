@@ -45,6 +45,11 @@ enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_KEY_EVENT = 4,
 	RFB_CLIENT_TO_SERVER_POINTER_EVENT = 5,
 	RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT = 6,
+	RFB_CLIENT_TO_SERVER_QEMU = 255,
+};
+
+enum rfb_client_to_server_qemu_msg_type {
+	RFB_CLIENT_TO_SERVER_QEMU_KEY_EVENT = 0,
 };
 
 enum rfb_encodings {
@@ -59,6 +64,7 @@ enum rfb_encodings {
 	RFB_ENCODING_DESKTOPSIZE = -223,
 	RFB_ENCODING_JPEG_HIGHQ = -23,
 	RFB_ENCODING_JPEG_LOWQ = -32,
+	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
 };
 
 enum rfb_server_to_client_msg_type {
@@ -131,6 +137,14 @@ struct rfb_client_key_event_msg {
 	uint8_t down_flag;
 	uint16_t padding;
 	uint32_t key;
+} RFB_PACKED;
+
+struct rfb_client_qemu_key_event_msg {
+	uint8_t type;
+	uint8_t subtype;
+	uint16_t down_flag;
+	uint32_t keysym;
+	uint32_t keycode;
 } RFB_PACKED;
 
 struct rfb_client_pointer_event_msg {

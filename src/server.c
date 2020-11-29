@@ -484,6 +484,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_DESKTOPSIZE:
 		case RFB_ENCODING_JPEG_HIGHQ:
 		case RFB_ENCODING_JPEG_LOWQ:
+		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
 			client->encodings[n++] = encoding;
 		}
 	}
@@ -617,6 +618,47 @@ static int on_client_key_event(struct nvnc_client* client)
 		fn(client, keysym, !!down_flag);
 
 	return sizeof(*msg);
+}
+
+static int on_client_qemu_key_event(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	struct rfb_client_qemu_key_event_msg* msg =
+	        (struct rfb_client_qemu_key_event_msg*)(client->msg_buffer +
+		                                        client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	int down_flag = msg->down_flag;
+	uint32_t keycode = ntohl(msg->keycode);
+
+	nvnc_key_fn fn = server->key_code_fn;
+	if (fn)
+		fn(client, keycode, !!down_flag);
+
+	return sizeof(*msg);
+}
+
+static int on_client_qemu_event(struct nvnc_client* client)
+{
+	if (client->buffer_len - client->buffer_index < 2)
+		return 0;
+
+	enum rfb_client_to_server_qemu_msg_type subtype =
+	        client->msg_buffer[client->buffer_index + 1];
+
+	switch (subtype) {
+	case RFB_CLIENT_TO_SERVER_QEMU_KEY_EVENT:
+		return on_client_qemu_key_event(client);
+	}
+
+	log_debug("Got uninterpretable qemu message from client: %p (ref %d)\n",
+	          client, client->ref);
+	stream_close(client->net_stream);
+	client_unref(client);
+	return 0;
 }
 
 static int on_client_pointer_event(struct nvnc_client* client)
@@ -771,6 +813,8 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_pointer_event(client);
 	case RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT:
 		return on_client_cut_text(client);
+	case RFB_CLIENT_TO_SERVER_QEMU:
+		return on_client_qemu_event(client);
 	}
 
 	log_debug("Got uninterpretable message from client: %p (ref %d)\n",
@@ -1320,6 +1364,12 @@ EXPORT
 void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn fn)
 {
 	self->key_fn = fn;
+}
+
+EXPORT
+void nvnc_set_key_code_fn(struct nvnc* self, nvnc_key_fn fn)
+{
+	self->key_code_fn = fn;
 }
 
 EXPORT

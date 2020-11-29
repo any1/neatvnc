@@ -88,6 +88,7 @@ struct nvnc_client {
 	uint32_t known_width;
 	uint32_t known_height;
 	struct cut_text cut_text;
+	bool is_qemu_key_ext_notified;
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);

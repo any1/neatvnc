@@ -72,9 +72,12 @@ struct fb_update_work {
 int schedule_client_update_fb(struct nvnc_client* client,
 		struct pixman_region16* damage);
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
+static int send_qemu_key_ext_frame(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client);
 static enum tight_quality client_get_tight_quality(struct nvnc_client* client);
 static void on_tight_encode_frame_done(struct vec* frame, void* userdata);
+static bool client_has_encoding(const struct nvnc_client* client,
+		enum rfb_encodings encoding);
 
 #if defined(GIT_VERSION)
 EXPORT const char nvnc_version[] = GIT_VERSION;
@@ -518,9 +521,17 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		client->has_pixfmt = true;
 	}
 
+	// TODO: Return if there are no pending requests after this
 	if (fb->width != client->known_width
 	    || fb->height != client->known_height)
 		send_desktop_resize(client, fb);
+
+	// TODO: Return if there are no pending requests after this
+	if (server->key_code_fn && !client->is_qemu_key_ext_notified
+	    && client_has_encoding(client, RFB_ENCODING_QEMU_EXT_KEY_EVENT)) {
+		send_qemu_key_ext_frame(client);
+		client->is_qemu_key_ext_notified = true;
+	}
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
@@ -1277,6 +1288,22 @@ static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
 		.encoding = htonl(RFB_ENCODING_DESKTOPSIZE),
 		.width = htons(fb->width),
 		.height = htons(fb->height),
+	};
+
+	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
+	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	return 0;
+}
+
+static int send_qemu_key_ext_frame(struct nvnc_client* client)
+{
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_QEMU_EXT_KEY_EVENT),
 	};
 
 	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);

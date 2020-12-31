@@ -34,6 +34,10 @@ if git.found()
 	endif
 endif
 
+libdrm_include_dir = dependency('libdrm').get_variable(pkgconfig: 'includedir')
+
+c_args += '-I' + libdrm_include_dir
+
 add_project_arguments(c_args, language: 'c')
 
 cc = meson.get_compiler('c')

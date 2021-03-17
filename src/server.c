@@ -42,6 +42,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netdb.h>
 
 #ifdef ENABLE_TLS
@@ -67,6 +68,11 @@ struct fb_update_work {
 	struct rfb_pixel_format server_fmt;
 	struct vec frame;
 	struct nvnc_fb* fb;
+};
+
+enum addrtype {
+	ADDRTYPE_TCP,
+	ADDRTYPE_UNIX,
 };
 
 int schedule_client_update_fb(struct nvnc_client* client,
@@ -1009,7 +1015,7 @@ accept_failure:
 	free(client);
 }
 
-static int bind_address(const char* name, int port)
+static int bind_address_tcp(const char* name, int port)
 {
 	struct addrinfo hints = {
 		.ai_socktype = SOCK_STREAM,
@@ -1048,6 +1054,43 @@ failure:
 	return fd;
 }
 
+static int bind_address_unix(const char* name)
+{
+	struct sockaddr_un addr = {
+		.sun_family = AF_UNIX,
+	};
+
+	if (strlen(name) >= sizeof(addr.sun_path)) {
+		errno = ENAMETOOLONG;
+		return -1;
+	}
+	strcpy(addr.sun_path, name);
+
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0)
+		return -1;
+
+	if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+		close(fd);
+		return -1;
+	}
+
+	return fd;
+}
+
+static int bind_address(const char* name, uint16_t port, enum addrtype type)
+{
+	switch (type) {
+	case ADDRTYPE_TCP:
+		return bind_address_tcp(name, port);
+	case ADDRTYPE_UNIX:
+		return bind_address_unix(name);
+	}
+
+	log_error("unknown socket address type");
+	abort();
+}
+
 static bool nvnc__is_damaged(struct nvnc* self)
 {
 	struct nvnc_client* client;
@@ -1081,8 +1124,7 @@ static void on_main_dispatch(void* aml_obj)
 		process_fb_update_requests(client);
 }
 
-EXPORT
-struct nvnc* nvnc_open(const char* address, uint16_t port)
+static struct nvnc* open_common(const char* address, uint16_t port, enum addrtype type)
 {
 	aml_require_workers(aml_get_default(), -1);
 
@@ -1094,16 +1136,16 @@ struct nvnc* nvnc_open(const char* address, uint16_t port)
 
 	LIST_INIT(&self->clients);
 
-	self->fd = bind_address(address, port);
+	self->fd = bind_address(address, port, type);
 	if (self->fd < 0)
-		goto failure;
+		goto bind_failure;
 
 	if (listen(self->fd, 16) < 0)
-		goto failure;
+		goto listen_failure;
 
 	self->poll_handle = aml_handler_new(self->fd, on_connection, self, NULL);
 	if (!self->poll_handle)
-		goto failure;
+		goto handle_failure;
 
 	if (aml_start(aml_get_default(), self->poll_handle) < 0)
 		goto poll_start_failure;
@@ -1123,9 +1165,40 @@ new_idle_failure:
 	aml_stop(aml_get_default(), self->poll_handle);
 poll_start_failure:
 	aml_unref(self->poll_handle);
-failure:
+handle_failure:
+listen_failure:
 	close(self->fd);
+	if (type == ADDRTYPE_UNIX) {
+		unlink(address);
+	}
+bind_failure:
+	free(self);
+
 	return NULL;
+}
+
+EXPORT
+struct nvnc* nvnc_open(const char* address, uint16_t port)
+{
+	return open_common(address, port, ADDRTYPE_TCP);
+}
+
+EXPORT
+struct nvnc* nvnc_open_unix(const char* address)
+{
+	return open_common(address, 0, ADDRTYPE_UNIX);
+}
+
+static void unlink_fd_path(int fd)
+{
+	struct sockaddr_un addr;
+	socklen_t addr_len = sizeof(addr);
+
+	if (getsockname(fd, (struct sockaddr*)&addr, &addr_len) == 0) {
+		if (addr.sun_family == AF_UNIX) {
+			unlink(addr.sun_path);
+		}
+	}
 }
 
 EXPORT
@@ -1142,6 +1215,7 @@ void nvnc_close(struct nvnc* self)
 
 	aml_stop(aml_get_default(), self->dispatch_handler);
 	aml_stop(aml_get_default(), self->poll_handle);
+	unlink_fd_path(self->fd);
 	close(self->fd);
 
 #ifdef ENABLE_TLS

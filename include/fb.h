@@ -21,12 +21,14 @@
 #include <stdatomic.h>
 
 #include "neatvnc.h"
+#include "common.h"
 
 struct nvnc_fb {
+	struct nvnc_common common;
 	int ref;
 	int hold_count;
 	nvnc_fb_release_fn on_release;
-	void* userdata;
+	void* release_context;
 	void* addr;
 	enum nvnc_fb_flags flags;
 	size_t size;

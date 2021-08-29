@@ -50,6 +50,7 @@ typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
 typedef void (*nvnc_render_fn)(struct nvnc_display*, struct nvnc_fb*);
 typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
+typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* userdata);
 
 extern const char nvnc_version[];
 
@@ -87,6 +88,8 @@ void nvnc_fb_unref(struct nvnc_fb* fb);
 
 enum nvnc_fb_flags nvnc_fb_get_flags(const struct nvnc_fb*);
 void nvnc_fb_set_flags(struct nvnc_fb*, enum nvnc_fb_flags);
+void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn,
+			    void* userdata);
 
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);

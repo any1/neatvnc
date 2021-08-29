@@ -24,6 +24,9 @@
 
 struct nvnc_fb {
 	int ref;
+	int hold_count;
+	nvnc_fb_release_fn on_release;
+	void* userdata;
 	void* addr;
 	enum nvnc_fb_flags flags;
 	size_t size;
@@ -32,3 +35,6 @@ struct nvnc_fb {
 	uint32_t fourcc_format;
 	uint64_t fourcc_modifier;
 };
+
+void nvnc_fb_hold(struct nvnc_fb* fb);
+void nvnc_fb_release(struct nvnc_fb* fb);

@@ -110,3 +110,21 @@ void nvnc_fb_unref(struct nvnc_fb* fb)
 	if (--fb->ref == 0)
 		nvnc__fb_free(fb);
 }
+
+EXPORT
+void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn, void* userdata)
+{
+	fb->on_release = fn;
+	fb->userdata = userdata;
+}
+
+void nvnc_fb_hold(struct nvnc_fb* fb)
+{
+	fb->hold_count++;
+}
+
+void nvnc_fb_release(struct nvnc_fb* fb)
+{
+	if (--fb->hold_count == 0 && fb->on_release)
+		fb->on_release(fb, fb->userdata);
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,6 +23,7 @@ struct nvnc;
 struct nvnc_client;
 struct nvnc_display;
 struct nvnc_fb;
+struct nvnc_fb_pool;
 struct pixman_region16;
 
 enum nvnc_button_mask {
@@ -95,6 +96,17 @@ void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
+
+struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
+				      uint32_t fourcc_format);
+void nvnc_fb_pool_resize(struct nvnc_fb_pool*, uint16_t width, uint16_t height,
+			 uint32_t fourcc_format);
+
+void nvnc_fb_pool_ref(struct nvnc_fb_pool*);
+void nvnc_fb_pool_unref(struct nvnc_fb_pool*);
+
+struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool*);
+void nvnc_fb_pool_release(struct nvnc_fb_pool*, struct nvnc_fb*);
 
 struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos);
 void nvnc_display_ref(struct nvnc_display*);

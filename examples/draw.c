@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,18 +28,42 @@
 #include <sys/param.h>
 #include <libdrm/drm_fourcc.h>
 
-#define MAX_COORD 128
+#include "sys/queue.h"
+
+// TODO: Align pixel formats
 
 struct coord {
 	int x, y;
 };
 
-struct draw {
-	struct nvnc_display* display;
-	struct nvnc_fb* fb;
-	struct coord coord[MAX_COORD];
-	int index;
+struct fb_side_data {
+	struct pixman_region16 damage;
+	LIST_ENTRY(fb_side_data) link;
 };
+
+LIST_HEAD(fb_side_data_list, fb_side_data);
+
+struct draw {
+	int width;
+	int height;
+	uint32_t format;
+
+	pixman_image_t* whiteboard;
+	uint32_t* whiteboard_buffer;
+
+	struct nvnc_display* display;
+	struct nvnc_fb_pool* fb_pool;
+
+	struct fb_side_data_list fb_side_data_list;
+};
+
+static void fb_side_data_destroy(void* userdata)
+{
+	struct fb_side_data* fb_side_data = userdata;
+	LIST_REMOVE(fb_side_data, link);
+	pixman_region_fini(&fb_side_data->damage);
+	free(fb_side_data);
+}
 
 static int coord_distance_between(struct coord a, struct coord b)
 {
@@ -48,12 +72,60 @@ static int coord_distance_between(struct coord a, struct coord b)
 	return round(sqrt(x * x + y * y));
 }
 
-static void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
-                     struct coord coord, int radius, uint32_t colour)
+static void damage_all_buffers(struct draw* draw,
+		struct pixman_region16* region)
 {
-	uint32_t* image = nvnc_fb_get_addr(fb);
-	int width = nvnc_fb_get_width(fb);
-	int height = nvnc_fb_get_height(fb);
+	struct fb_side_data *item;
+	LIST_FOREACH(item, &draw->fb_side_data_list, link)
+		pixman_region_union(&item->damage, &item->damage, region);
+}
+
+static void update_vnc_buffer(struct draw* draw)
+{
+	struct nvnc_fb *fb = nvnc_fb_pool_acquire(draw->fb_pool);
+	assert(fb);
+
+	struct fb_side_data* fb_side_data = nvnc_get_userdata(fb);
+	if (!fb_side_data) {
+		fb_side_data = calloc(1, sizeof(*fb_side_data));
+		assert(fb_side_data);
+
+		/* This is a new buffer, so the whole surface is damaged. */
+		pixman_region_init_rect(&fb_side_data->damage, 0, 0,
+				draw->width, draw->height);
+
+		nvnc_set_userdata(fb, fb_side_data, fb_side_data_destroy);
+		LIST_INSERT_HEAD(&draw->fb_side_data_list, fb_side_data, link);
+	}
+
+	pixman_image_t* dstimg = pixman_image_create_bits_no_clear(
+			PIXMAN_r8g8b8x8, draw->width, draw->height,
+			nvnc_fb_get_addr(fb), 4 * draw->width);
+
+	/* Clip region is set to limit copying to only the damaged region. */
+	pixman_image_set_clip_region(dstimg, &fb_side_data->damage);
+
+	pixman_image_composite(PIXMAN_OP_OVER, draw->whiteboard, NULL, dstimg,
+			0, 0,
+			0, 0,
+			0, 0,
+			draw->width, draw->height);
+
+	pixman_image_unref(dstimg);
+
+	/* The buffer is now up to date, so the damage region can be cleared. */
+	pixman_region_clear(&fb_side_data->damage);
+
+	nvnc_display_set_buffer(draw->display, fb);
+	nvnc_fb_unref(fb);
+}
+
+static void composite_dot(struct draw *draw, uint32_t* image,
+		struct coord coord, int radius, uint32_t colour,
+		struct pixman_region16* damage)
+{
+	int width = draw->width;
+	int height = draw->height;
 
 	struct coord start, stop;
 
@@ -62,12 +134,6 @@ static void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
 	stop.x = MIN(width, coord.x + radius);
 	stop.y = MIN(height, coord.y + radius);
 
-	struct pixman_region16 region;
-	pixman_region_init_rect(&region, start.x, start.y,
-	                        stop.x - start.x, stop.y - start.y);
-	nvnc_display_damage_region(display, &region);
-	pixman_region_fini(&region);
-
 	/* The brute force method. ;) */
 	for (int y = start.y; y < stop.y; ++y)
 		for (int x = start.x; x < stop.x; ++x) {
@@ -75,6 +141,32 @@ static void draw_dot(struct nvnc_display* display, struct nvnc_fb* fb,
 			if (coord_distance_between(point, coord) <= radius)
 				image[x + y * width] = colour;
 		}
+
+	pixman_region_init_rect(damage, start.x, start.y,
+	                        stop.x - start.x, stop.y - start.y);
+}
+
+static void draw_dot(struct draw *draw, struct coord coord, int radius,
+		uint32_t colour)
+{
+	struct pixman_region16 region;
+	composite_dot(draw, draw->whiteboard_buffer, coord, radius, colour,
+			&region);
+
+	/* All the buffers that are currently in the pool will need to be
+	 * upgraded in this region before being sent to nvnc.
+	 */
+	damage_all_buffers(draw, &region);
+
+	update_vnc_buffer(draw);
+
+	/* This sends the frame damage to nvnc so it knows what needs to be sent
+	 * to the clients. Sending the buffer damage of the current buffer would
+	 * be excessive.
+	 */
+	nvnc_display_damage_region(draw->display, &region);
+
+	pixman_region_fini(&region);
 }
 
 static void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
@@ -89,35 +181,8 @@ static void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	struct draw* draw = nvnc_get_userdata(server);
 	assert(draw);
 
-	int width = nvnc_fb_get_width(draw->fb);
-	int height = nvnc_fb_get_height(draw->fb);
-
-	if (draw->index >= MAX_COORD)
-		return;
-
-	draw->coord[draw->index].x = x;
-	draw->coord[draw->index].y = y;
-	draw->index++;
-
-	struct pixman_region16 region;
-	pixman_region_init_rect(&region, 0, 0, width, height);
-	pixman_region_intersect_rect(&region, &region, x, y, 1, 1);
-	nvnc_display_damage_region(draw->display, &region);
-	pixman_region_fini(&region);
-}
-
-static void on_render(struct nvnc_display* display, struct nvnc_fb* fb)
-{
-	struct nvnc* server = nvnc_display_get_server(display);
-	assert(server);
-
-	struct draw* draw = nvnc_get_userdata(server);
-	assert(draw);
-
-	for (int i = 0; i < draw->index; ++i)
-		draw_dot(draw->display, fb, draw->coord[i], 16, 0);
-
-	draw->index = 0;
+	struct coord coord = { x, y };
+	draw_dot(draw, coord, 16, 0);
 }
 
 static void on_sigint()
@@ -129,40 +194,53 @@ int main(int argc, char* argv[])
 {
 	struct draw draw = { 0 };
 
-	int width = 500, height = 500;
-	uint32_t format = DRM_FORMAT_RGBX8888;
-	draw.fb = nvnc_fb_new(width, height, format);
-	assert(draw.fb);
-
-	void* addr = nvnc_fb_get_addr(draw.fb);
-
-	memset(addr, 0xff, width * height * 4);
+	LIST_INIT(&draw.fb_side_data_list);
 
 	struct aml* aml = aml_new();
 	aml_set_default(aml);
+
+	draw.width = 500;
+	draw.height = 500;
+	draw.format = DRM_FORMAT_RGBX8888;
+
+	draw.whiteboard_buffer = malloc(draw.width * draw.height * 4);
+	assert(draw.whiteboard_buffer);
+
+	memset(draw.whiteboard_buffer, 0xff, draw.width * draw.height * 4);
+
+	draw.whiteboard = pixman_image_create_bits_no_clear(PIXMAN_r8g8b8x8,
+			draw.width, draw.height, draw.whiteboard_buffer,
+			draw.width * 4);
+	assert(draw.whiteboard);
+
+	draw.fb_pool = nvnc_fb_pool_new(draw.width, draw.height, draw.format);
+	assert(draw.fb_pool);
 
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
 	assert(server);
 
 	draw.display = nvnc_display_new(0, 0);
 	assert(draw.display);
-	nvnc_display_set_buffer(draw.display, draw.fb);
-	nvnc_display_set_render_fn(draw.display, on_render);
 
 	nvnc_add_display(server, draw.display);
 
 	nvnc_set_name(server, "Draw");
 	nvnc_set_pointer_fn(server, on_pointer_event);
-	nvnc_set_userdata(server, &draw);
+	nvnc_set_userdata(server, &draw, NULL);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);
 	aml_unref(sig);
 
+	update_vnc_buffer(&draw);
+	nvnc_display_damage_whole(draw.display);
+
 	aml_run(aml);
 
 	nvnc_close(server);
 	nvnc_display_unref(draw.display);
-	nvnc_fb_unref(draw.fb);
+	nvnc_fb_pool_unref(draw.fb_pool);
+	pixman_image_unref(draw.whiteboard);
+	free(draw.whiteboard_buffer);
 	aml_unref(aml);
 }

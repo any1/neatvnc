@@ -17,6 +17,7 @@
 #include "display.h"
 #include "neatvnc.h"
 #include "common.h"
+#include "fb.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -66,11 +67,14 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display* self)
 EXPORT
 void nvnc_display_set_buffer(struct nvnc_display* self, struct nvnc_fb* fb)
 {
-	if (self->buffer)
+	if (self->buffer) {
+		nvnc_fb_release(self->buffer);
 		nvnc_fb_unref(self->buffer);
+	}
 
 	self->buffer = fb;
 	nvnc_fb_ref(fb);
+	nvnc_fb_hold(fb);
 }
 
 EXPORT

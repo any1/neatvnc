@@ -103,6 +103,11 @@ static void client_close(struct nvnc_client* client)
 	if (fn)
 		fn(client);
 
+	if (client->current_fb) {
+		nvnc_fb_release(client->current_fb);
+		nvnc_fb_unref(client->current_fb);
+	}
+
 	LIST_REMOVE(client, link);
 	stream_destroy(client->net_stream);
 	tight_encoder_destroy(&client->tight_encoder);
@@ -553,6 +558,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	pixman_region_init(&client->damage);
 
 	client->is_updating = true;
+	client->current_fb = fb;
+	nvnc_fb_hold(fb);
+	nvnc_fb_ref(fb);
 
 	int rc;
 	enum rfb_encodings encoding = choose_frame_encoding(client);
@@ -584,8 +592,13 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		break;
 	}
 
-	if (rc < 0)
+	if (rc < 0) {
 		client->is_updating = false;
+		assert(client->current_fb);
+		nvnc_fb_release(client->current_fb);
+		nvnc_fb_unref(client->current_fb);
+		client->current_fb = NULL;
+	}
 }
 
 static int on_client_fb_update_request(struct nvnc_client* client)
@@ -1234,6 +1247,10 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 {
 	struct nvnc_client* client = userdata;
 	client->is_updating = false;
+	assert(client->current_fb);
+	nvnc_fb_release(client->current_fb);
+	nvnc_fb_unref(client->current_fb);
+	client->current_fb = NULL;
 	client_unref(client);
 }
 
@@ -1316,6 +1333,10 @@ static void finish_fb_update(struct nvnc_client* client, struct vec* frame)
 		DTRACE_PROBE1(neatvnc, send_fb_done, client);
 	} else {
 		client->is_updating = false;
+		assert(client->current_fb);
+		nvnc_fb_release(client->current_fb);
+		nvnc_fb_unref(client->current_fb);
+		client->current_fb = NULL;
 		vec_destroy(frame);
 		client_unref(client);
 	}

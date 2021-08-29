@@ -79,6 +79,7 @@ struct nvnc_client {
 	struct pixman_region16 damage;
 	int n_pending_requests;
 	bool is_updating;
+	struct nvnc_fb* current_fb;
 	nvnc_client_fn cleanup_fn;
 	z_stream z_stream;
 	struct tight_encoder tight_encoder;

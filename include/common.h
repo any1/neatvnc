@@ -98,7 +98,6 @@ struct nvnc {
 	struct nvnc_common common;
 	int fd;
 	struct aml_handler* poll_handle;
-	struct aml_idle* dispatch_handler;
 	struct nvnc_client_list clients;
 	char name[256];
 	void* userdata;

@@ -49,7 +49,6 @@ typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
-typedef void (*nvnc_render_fn)(struct nvnc_display*, struct nvnc_fb*);
 typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* userdata);
 
@@ -114,7 +113,6 @@ void nvnc_display_unref(struct nvnc_display*);
 
 struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
 
-void nvnc_display_set_render_fn(struct nvnc_display* self, nvnc_render_fn fn);
 void nvnc_display_set_buffer(struct nvnc_display*, struct nvnc_fb*);
 
 void nvnc_display_damage_region(struct nvnc_display*,

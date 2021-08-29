@@ -78,12 +78,6 @@ void nvnc_display_set_buffer(struct nvnc_display* self, struct nvnc_fb* fb)
 }
 
 EXPORT
-void nvnc_display_set_render_fn(struct nvnc_display* self, nvnc_render_fn fn)
-{
-	self->render_fn = fn;
-}
-
-EXPORT
 void nvnc_display_damage_region(struct nvnc_display* self,
                                 const struct pixman_region16* region)
 {

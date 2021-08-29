@@ -1104,39 +1104,6 @@ static int bind_address(const char* name, uint16_t port, enum addrtype type)
 	abort();
 }
 
-static bool nvnc__is_damaged(struct nvnc* self)
-{
-	struct nvnc_client* client;
-	LIST_FOREACH(client, &self->clients, link)
-		if (pixman_region_not_empty(&client->damage))
-			return true;
-
-	return false;
-}
-
-static void on_main_dispatch(void* aml_obj)
-{
-	struct nvnc* self = aml_get_userdata(aml_obj);
-	struct nvnc_client* client;
-
-	if (!nvnc__is_damaged(self))
-		return;
-
-	LIST_FOREACH(client, &self->clients, link)
-		if (client->is_updating) {
-			log_debug("Can't render yet: still encoding for client %p\n",
-			          client);
-			return;
-		}
-
-	struct nvnc_display* display = self->display;
-	if (display && display->render_fn)
-		display->render_fn(display, display->buffer);
-
-	LIST_FOREACH(client, &self->clients, link)
-		process_fb_update_requests(client);
-}
-
 static struct nvnc* open_common(const char* address, uint16_t port, enum addrtype type)
 {
 	aml_require_workers(aml_get_default(), -1);
@@ -1163,19 +1130,8 @@ static struct nvnc* open_common(const char* address, uint16_t port, enum addrtyp
 	if (aml_start(aml_get_default(), self->poll_handle) < 0)
 		goto poll_start_failure;
 
-	self->dispatch_handler = aml_idle_new(on_main_dispatch, self, NULL);
-	if (!self->dispatch_handler)
-		goto new_idle_failure;
-
-	if (aml_start(aml_get_default(), self->dispatch_handler) < 0)
-		goto idle_start_failure;
-
 	return self;
 
-idle_start_failure:
-	aml_unref(self->dispatch_handler);
-new_idle_failure:
-	aml_stop(aml_get_default(), self->poll_handle);
 poll_start_failure:
 	aml_unref(self->poll_handle);
 handle_failure:
@@ -1226,7 +1182,6 @@ void nvnc_close(struct nvnc* self)
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
 		client_unref(client);
 
-	aml_stop(aml_get_default(), self->dispatch_handler);
 	aml_stop(aml_get_default(), self->poll_handle);
 	unlink_fd_path(self->fd);
 	close(self->fd);
@@ -1238,7 +1193,6 @@ void nvnc_close(struct nvnc* self)
 	}
 #endif
 
-	aml_unref(self->dispatch_handler);
 	aml_unref(self->poll_handle);
 	free(self);
 }
@@ -1251,6 +1205,7 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 	nvnc_fb_release(client->current_fb);
 	nvnc_fb_unref(client->current_fb);
 	client->current_fb = NULL;
+	process_fb_update_requests(client);
 	client_unref(client);
 }
 
@@ -1338,6 +1293,7 @@ static void finish_fb_update(struct nvnc_client* client, struct vec* frame)
 		nvnc_fb_unref(client->current_fb);
 		client->current_fb = NULL;
 		vec_destroy(frame);
+		process_fb_update_requests(client);
 		client_unref(client);
 	}
 
@@ -1477,6 +1433,9 @@ void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage
 		if (client->net_stream->state != STREAM_STATE_CLOSED)
 			pixman_region_union(&client->damage, &client->damage,
 					    (struct pixman_region16*)damage);
+
+	LIST_FOREACH(client, &self->clients, link)
+		process_fb_update_requests(client);
 }
 
 EXPORT

@@ -51,6 +51,7 @@ typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
+typedef void (*nvnc_cleanup_fn)(void* userdata);
 
 extern const char nvnc_version[];
 
@@ -61,7 +62,7 @@ void nvnc_close(struct nvnc* self);
 void nvnc_add_display(struct nvnc*, struct nvnc_display*);
 void nvnc_remove_display(struct nvnc*, struct nvnc_display*);
 
-void nvnc_set_userdata(void* self, void* userdata);
+void nvnc_set_userdata(void* self, void* userdata, nvnc_cleanup_fn);
 void* nvnc_get_userdata(const void* self);
 
 struct nvnc* nvnc_client_get_server(const struct nvnc_client* client);

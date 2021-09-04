@@ -99,6 +99,10 @@ static void client_close(struct nvnc_client* client)
 {
 	log_debug("client_close(%p): ref %d\n", client, client->ref);
 
+	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
+	if (cleanup)
+		cleanup(client->common.userdata);
+
 	nvnc_client_fn fn = client->cleanup_fn;
 	if (fn)
 		fn(client);
@@ -1177,6 +1181,10 @@ void nvnc_close(struct nvnc* self)
 {
 	struct nvnc_client* client;
 
+	nvnc_cleanup_fn cleanup = self->common.cleanup_fn;
+	if (cleanup)
+		cleanup(self->common.userdata);
+
 	if (self->display)
 		nvnc_display_unref(self->display);
 
@@ -1441,10 +1449,11 @@ void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage
 }
 
 EXPORT
-void nvnc_set_userdata(void* self, void* userdata)
+void nvnc_set_userdata(void* self, void* userdata, nvnc_cleanup_fn cleanup_fn)
 {
 	struct nvnc_common* common = self;
 	common->userdata = userdata;
+	common->cleanup_fn = cleanup_fn;
 }
 
 EXPORT

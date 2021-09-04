@@ -57,6 +57,7 @@ struct nvnc_display;
 
 struct nvnc_common {
 	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 };
 
 struct cut_text {

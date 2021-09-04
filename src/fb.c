@@ -94,6 +94,10 @@ uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb)
 
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
+	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
+	if (cleanup)
+		cleanup(fb->common.userdata);
+
 	free(fb->addr);
 	free(fb);
 }

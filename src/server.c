@@ -633,6 +633,8 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	if (fn)
 		fn(client, incremental, x, y, width, height);
 
+	process_fb_update_requests(client);
+
 	return sizeof(*msg);
 }
 

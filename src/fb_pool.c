@@ -132,6 +132,8 @@ static struct nvnc_fb* nvnc_fb_pool__acquire_from_list(struct nvnc_fb_pool* self
 	TAILQ_REMOVE(&self->fbs, item, link);
 	free(item);
 
+	nvnc_fb_pool_ref(self);
+
 	return fb;
 }
 

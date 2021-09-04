@@ -65,6 +65,7 @@ static void nvnc_fb_pool__destroy_fbs(struct nvnc_fb_pool* self)
 		struct fbq_item* item = TAILQ_FIRST(&self->fbs);
 		TAILQ_REMOVE(&self->fbs, item, link);
 		nvnc_fb_unref(item->fb);
+		free(item);
 	}
 }
 
@@ -152,9 +153,10 @@ void nvnc_fb_pool_release(struct nvnc_fb_pool* self, struct nvnc_fb* fb)
 {
 	if (fb->width != self->width || fb->height != self->height ||
 			fb->fourcc_format != self->fourcc_format) {
-		nvnc_fb_unref(fb);
 		return;
 	}
+
+	nvnc_fb_ref(fb);
 	
 	struct fbq_item* item = calloc(1, sizeof(*item));
 	assert(item);

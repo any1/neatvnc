@@ -99,7 +99,7 @@ uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 
 struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format);
-void nvnc_fb_pool_resize(struct nvnc_fb_pool*, uint16_t width, uint16_t height,
+bool nvnc_fb_pool_resize(struct nvnc_fb_pool*, uint16_t width, uint16_t height,
 			 uint32_t fourcc_format);
 
 void nvnc_fb_pool_ref(struct nvnc_fb_pool*);

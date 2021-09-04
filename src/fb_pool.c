@@ -75,18 +75,20 @@ static void nvnc_fb_pool__destroy(struct nvnc_fb_pool* self)
 }
 
 EXPORT
-void nvnc_fb_pool_resize(struct nvnc_fb_pool* self, uint16_t width,
+bool nvnc_fb_pool_resize(struct nvnc_fb_pool* self, uint16_t width,
 		uint16_t height, uint32_t fourcc_format)
 {
 	if (width == self->width && height == self->height &&
 			fourcc_format == self->fourcc_format)
-		return;
+		return false;
 
 	nvnc_fb_pool__destroy_fbs(self);
 
 	self->width = width;
 	self->height = height;
 	self->fourcc_format = fourcc_format;
+
+	return true;
 }
 
 EXPORT

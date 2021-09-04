@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -86,7 +86,7 @@ int raw_encode_frame(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 		int box_height = box[i].y2 - y;
 
 		rc = raw_encode_box(dst, dst_fmt, src, src_fmt, x, y,
-		                    src->width, box_width, box_height);
+		                    src->stride, box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}

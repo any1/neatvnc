@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -287,7 +287,7 @@ int zrle_encode_frame(z_stream* zs, struct vec* dst,
 		int box_height = box[i].y2 - y;
 
 		rc = zrle_encode_box(dst, dst_fmt, src, src_fmt, x, y,
-		                     src->width, box_width, box_height, zs);
+		                     src->stride, box_width, box_height, zs);
 		if (rc < 0)
 			return -1;
 	}

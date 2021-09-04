@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,6 +34,7 @@ struct nvnc_fb {
 	size_t size;
 	uint16_t width;
 	uint16_t height;
+	int32_t stride;
 	uint32_t fourcc_format;
 	uint64_t fourcc_modifier;
 };

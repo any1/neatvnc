@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -55,6 +55,7 @@ static int run_benchmark(const char *image)
 	void *addr = nvnc_fb_get_addr(fb);
 	int width = nvnc_fb_get_width(fb);
 	int height = nvnc_fb_get_height(fb);
+	int stride = nvnc_fb_get_stride(fb);
 
 	struct rfb_pixel_format pixfmt;
 	rfb_pixfmt_from_fourcc(&pixfmt, DRM_FORMAT_ARGB8888);
@@ -65,7 +66,7 @@ static int run_benchmark(const char *image)
 	pixman_region_union_rect(&region, &region, 0, 0, width, height);
 
 	struct vec frame;
-	vec_init(&frame, width * height * 3 / 2);
+	vec_init(&frame, stride * height * 3 / 2);
 
 	z_stream zs = { 0 };
 
@@ -75,13 +76,13 @@ static int run_benchmark(const char *image)
 			  /*         mem level: */ 9,
 			  /*          strategy: */ Z_DEFAULT_STRATEGY);
 
-	void *dummy = malloc(width * height * 4);
+	void *dummy = malloc(stride * height * 4);
 	if (!dummy)
 		goto failure;
 
 	uint64_t start_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 
-	memcpy_unoptimized(dummy, addr, width * height * 4);
+	memcpy_unoptimized(dummy, addr, stride * height * 4);
 
 	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("memcpy baseline for %s took %"PRIu64" micro seconds\n", image,
@@ -96,7 +97,7 @@ static int run_benchmark(const char *image)
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
 	       end_time - start_time);
 
-	double orig_size = width * height * 4;
+	double orig_size = stride * height * 4;
 	double compressed_size = frame.len;
 
 	double reduction = (orig_size - compressed_size) / orig_size;

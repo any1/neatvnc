@@ -213,7 +213,8 @@ int main(int argc, char* argv[])
 			draw.width * 4);
 	assert(draw.whiteboard);
 
-	draw.fb_pool = nvnc_fb_pool_new(draw.width, draw.height, draw.format);
+	draw.fb_pool = nvnc_fb_pool_new(draw.width, draw.height, draw.format,
+			draw.width);
 	assert(draw.fb_pool);
 
 	struct nvnc* server = nvnc_open("127.0.0.1", 5900);

@@ -38,12 +38,13 @@ struct nvnc_fb_pool {
 
 	uint16_t width;
 	uint16_t height;
+	int32_t stride;
 	uint32_t fourcc_format;
 };
 
 EXPORT
 struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
-		uint32_t fourcc_format)
+		uint32_t fourcc_format, uint16_t stride)
 {
 	struct nvnc_fb_pool* self = calloc(1, sizeof(*self));
 	if (!self)
@@ -54,6 +55,7 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 	TAILQ_INIT(&self->fbs);
 	self->width = width;
 	self->height = height;
+	self->stride = stride;
 	self->fourcc_format = fourcc_format;
 
 	return self;
@@ -77,16 +79,18 @@ static void nvnc_fb_pool__destroy(struct nvnc_fb_pool* self)
 
 EXPORT
 bool nvnc_fb_pool_resize(struct nvnc_fb_pool* self, uint16_t width,
-		uint16_t height, uint32_t fourcc_format)
+		uint16_t height, uint32_t fourcc_format, uint16_t stride)
 {
 	if (width == self->width && height == self->height &&
-			fourcc_format == self->fourcc_format)
+			fourcc_format == self->fourcc_format &&
+			stride == self->stride)
 		return false;
 
 	nvnc_fb_pool__destroy_fbs(self);
 
 	self->width = width;
 	self->height = height;
+	self->stride = stride;
 	self->fourcc_format = fourcc_format;
 
 	return true;
@@ -116,7 +120,7 @@ static void nvnc_fb_pool__on_fb_release(struct nvnc_fb* fb, void* userdata)
 static struct nvnc_fb* nvnc_fb_pool__acquire_new(struct nvnc_fb_pool* self)
 {
 	struct nvnc_fb* fb = nvnc_fb_new(self->width, self->height,
-			self->fourcc_format);
+			self->fourcc_format, self->stride);
 	if (!fb)
 		return NULL;
 
@@ -152,7 +156,8 @@ EXPORT
 void nvnc_fb_pool_release(struct nvnc_fb_pool* self, struct nvnc_fb* fb)
 {
 	if (fb->width != self->width || fb->height != self->height ||
-			fb->fourcc_format != self->fourcc_format) {
+			fb->fourcc_format != self->fourcc_format ||
+			fb->stride != self->stride) {
 		return;
 	}
 

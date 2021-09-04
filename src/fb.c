@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,7 +28,7 @@
 
 EXPORT
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
-                            uint32_t fourcc_format)
+                            uint32_t fourcc_format, uint16_t stride)
 {
 	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
 	if (!fb)
@@ -38,7 +38,8 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->width = width;
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
-	fb->size = width * height * 4; /* Assume 4 byte format for now */
+	fb->stride = stride;
+	fb->size = width * stride * 4; /* Assume 4 byte format for now */
 
 	size_t alignment = MAX(4, sizeof(void*));
 	size_t aligned_size = ALIGN_UP(fb->size, alignment);
@@ -90,6 +91,12 @@ EXPORT
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb)
 {
 	return fb->fourcc_format;
+}
+
+EXPORT
+int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb)
+{
+	return fb->stride;
 }
 
 static void nvnc__fb_free(struct nvnc_fb* fb)

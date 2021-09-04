@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -260,7 +260,7 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 		memcpy(&cfmt, &self->dfmt, sizeof(cfmt));
 
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
-	uint32_t stride = nvnc_fb_get_width(self->fb);
+	int32_t stride = nvnc_fb_get_stride(self->fb);
 
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
@@ -324,7 +324,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 		return -1;
 
 	uint32_t* addr = nvnc_fb_get_addr(self->fb);
-	uint32_t stride = nvnc_fb_get_width(self->fb);
+	int32_t stride = nvnc_fb_get_stride(self->fb);
 	void* img = (uint32_t*)addr + x + y * stride;
 
 	int rc = -1;

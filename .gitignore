@@ -1,8 +1,10 @@
 .clang_complete
 .ycm_extra_conf.py
+.vimrc
 vgcore.*
 perf.data
 perf.data.old
 build
 experiments
 subprojects
+sandbox

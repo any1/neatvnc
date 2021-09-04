@@ -120,14 +120,4 @@ void nvnc_display_damage_region(struct nvnc_display*,
                                 const struct pixman_region16*);
 void nvnc_display_damage_whole(struct nvnc_display*);
 
-/*
- * Find the regions that differ between fb0 and fb1. Regions outside the hinted
- * rectangle region are not guaranteed to be checked.
- *
- * This is a utility function that may be used to reduce network traffic.
- */
-int nvnc_check_damage(struct nvnc_fb* fb0, struct nvnc_fb* fb1,
-                      int x_hint, int y_hint, int width_hint, int height_hint,
-                      nvnc_damage_fn on_check_done, void* userdata);
-
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);

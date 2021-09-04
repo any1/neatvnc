@@ -64,7 +64,6 @@ sources = [
 	'src/zrle.c',
 	'src/raw-encoding.c',
 	'src/pixels.c',
-	'src/damage.c',
 	'src/fb.c',
 	'src/fb_pool.c',
 	'src/rcbuf.c',

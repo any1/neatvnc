@@ -74,18 +74,6 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t heigh
 }
 
 EXPORT
-enum nvnc_fb_flags nvnc_fb_get_flags(const struct nvnc_fb* fb)
-{
-	return fb->flags;
-}
-
-EXPORT
-void nvnc_fb_set_flags(struct nvnc_fb* fb, enum nvnc_fb_flags flags)
-{
-	fb->flags = flags;
-}
-
-EXPORT
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb)
 {
 	return fb->addr;

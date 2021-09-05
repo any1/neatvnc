@@ -31,7 +31,6 @@ struct nvnc_fb {
 	nvnc_fb_release_fn on_release;
 	void* release_context;
 	void* addr;
-	enum nvnc_fb_flags flags;
 	uint16_t width;
 	uint16_t height;
 	int32_t stride;

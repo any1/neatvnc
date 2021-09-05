@@ -34,10 +34,6 @@ enum nvnc_button_mask {
 	NVNC_SCROLL_DOWN = 1 << 4,
 };
 
-enum nvnc_fb_flags {
-	NVNC_FB_PARTIAL = 1 << 0, // The buffer contains only the damaged region
-};
-
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
                             bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
@@ -89,8 +85,6 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,
 void nvnc_fb_ref(struct nvnc_fb* fb);
 void nvnc_fb_unref(struct nvnc_fb* fb);
 
-enum nvnc_fb_flags nvnc_fb_get_flags(const struct nvnc_fb*);
-void nvnc_fb_set_flags(struct nvnc_fb*, enum nvnc_fb_flags);
 void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn,
 			    void* context);
 

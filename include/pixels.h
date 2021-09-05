@@ -29,3 +29,5 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src);
 uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format* fmt);
+
+int pixel_size_from_fourcc(uint32_t fourcc);

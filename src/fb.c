@@ -15,6 +15,7 @@
  */
 
 #include "fb.h"
+#include "pixels.h"
 #include "neatvnc.h"
 
 #include <stdlib.h>
@@ -97,6 +98,12 @@ EXPORT
 int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb)
 {
 	return fb->stride;
+}
+
+EXPORT
+int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb)
+{
+	return pixel_size_from_fourcc(fb->fourcc_format);
 }
 
 static void nvnc__fb_free(struct nvnc_fb* fb)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -220,4 +220,30 @@ bpp_16:
 	dst->true_colour_flag = 1;
 
 	return 0;
-};
+}
+
+int pixel_size_from_fourcc(uint32_t fourcc)
+{
+	switch (fourcc & ~DRM_FORMAT_BIG_ENDIAN) {
+	case DRM_FORMAT_RGBA8888:
+	case DRM_FORMAT_RGBX8888:
+	case DRM_FORMAT_BGRA8888:
+	case DRM_FORMAT_BGRX8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_XBGR8888:
+		return 4;
+	case DRM_FORMAT_RGBA4444:
+	case DRM_FORMAT_RGBX4444:
+	case DRM_FORMAT_BGRA4444:
+	case DRM_FORMAT_BGRX4444:
+	case DRM_FORMAT_ARGB4444:
+	case DRM_FORMAT_XRGB4444:
+	case DRM_FORMAT_ABGR4444:
+	case DRM_FORMAT_XBGR4444:
+		return 2;
+	}
+
+	return 0;
+}

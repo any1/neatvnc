@@ -83,6 +83,8 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);
+struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,
+		uint16_t height, uint32_t fourcc_format, int32_t stride);
 
 void nvnc_fb_ref(struct nvnc_fb* fb);
 void nvnc_fb_unref(struct nvnc_fb* fb);

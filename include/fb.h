@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 
 #include "neatvnc.h"
 #include "common.h"
@@ -31,12 +32,12 @@ struct nvnc_fb {
 	void* release_context;
 	void* addr;
 	enum nvnc_fb_flags flags;
-	size_t size;
 	uint16_t width;
 	uint16_t height;
 	int32_t stride;
 	uint32_t fourcc_format;
 	uint64_t fourcc_modifier;
+	bool is_external;
 };
 
 void nvnc_fb_hold(struct nvnc_fb* fb);

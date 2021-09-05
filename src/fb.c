@@ -40,20 +40,35 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
-	fb->size = width * stride * 4; /* Assume 4 byte format for now */
 
+	size_t size = width * stride * 4; /* Assume 4 byte format for now */
 	size_t alignment = MAX(4, sizeof(void*));
-	size_t aligned_size = ALIGN_UP(fb->size, alignment);
+	size_t aligned_size = ALIGN_UP(size, alignment);
 
-	/* fb could be allocated in single allocation, but I want to reserve
-	 * the possiblity to create an fb with a pixel buffer passed from the
-	 * user.
-	 */
 	fb->addr = aligned_alloc(alignment, aligned_size);
 	if (!fb->addr) {
 		free(fb);
 		fb = NULL;
 	}
+
+	return fb;
+}
+
+EXPORT
+struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t height,
+                            uint32_t fourcc_format, int32_t stride)
+{
+	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	if (!fb)
+		return NULL;
+
+	fb->ref = 1;
+	fb->addr = buffer;
+	fb->is_external = true;
+	fb->width = width;
+	fb->height = height;
+	fb->fourcc_format = fourcc_format;
+	fb->stride = stride;
 
 	return fb;
 }
@@ -112,7 +127,9 @@ static void nvnc__fb_free(struct nvnc_fb* fb)
 	if (cleanup)
 		cleanup(fb->common.userdata);
 
-	free(fb->addr);
+	if (!fb->is_external)
+		free(fb->addr);
+
 	free(fb);
 }
 

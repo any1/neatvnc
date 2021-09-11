@@ -41,7 +41,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 
-	size_t size = width * stride * 4; /* Assume 4 byte format for now */
+	size_t size = height * stride * 4; /* Assume 4 byte format for now */
 	size_t alignment = MAX(4, sizeof(void*));
 	size_t aligned_size = ALIGN_UP(size, alignment);
 

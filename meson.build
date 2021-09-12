@@ -48,6 +48,7 @@ pixman = dependency('pixman-1')
 libturbojpeg = dependency('libturbojpeg', required: get_option('jpeg'))
 gnutls = dependency('gnutls', required: get_option('tls'))
 zlib = dependency('zlib')
+gbm = dependency('gbm', required: get_option('gbm'))
 
 aml_project = subproject('aml', required: false)
 if aml_project.found()
@@ -95,6 +96,11 @@ endif
 
 if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')
 	config.set('HAVE_USDT', true)
+endif
+
+if gbm.found()
+	dependencies += gbm
+	config.set('HAVE_GBM', true)
 endif
 
 configure_file(

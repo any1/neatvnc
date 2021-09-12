@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,6 @@ struct pixman_region16;
 struct vec;
 
 int raw_encode_frame(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
-                     const struct nvnc_fb* src,
+                     struct nvnc_fb* src,
                      const struct rfb_pixel_format* src_fmt,
                      struct pixman_region16* region);

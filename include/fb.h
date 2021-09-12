@@ -24,20 +24,30 @@
 #include "neatvnc.h"
 #include "common.h"
 
+struct gbm_bo;
+
 struct nvnc_fb {
 	struct nvnc_common common;
+	enum nvnc_fb_type type;
 	int ref;
 	int hold_count;
 	nvnc_fb_release_fn on_release;
 	void* release_context;
-	void* addr;
+	bool is_external;
 	uint16_t width;
 	uint16_t height;
-	int32_t stride;
 	uint32_t fourcc_format;
-	uint64_t fourcc_modifier;
-	bool is_external;
+
+	/* main memory buffer attributes */
+	void* addr;
+	int32_t stride;
+
+	/* dmabuf attributes */
+	struct gbm_bo* bo;
+	void* bo_map_handle;
 };
 
 void nvnc_fb_hold(struct nvnc_fb* fb);
 void nvnc_fb_release(struct nvnc_fb* fb);
+int nvnc_fb_map(struct nvnc_fb* fb);
+void nvnc_fb_unmap(struct nvnc_fb* fb);

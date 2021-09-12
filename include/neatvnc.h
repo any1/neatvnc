@@ -25,6 +25,7 @@ struct nvnc_display;
 struct nvnc_fb;
 struct nvnc_fb_pool;
 struct pixman_region16;
+struct gbm_bo;
 
 enum nvnc_button_mask {
 	NVNC_BUTTON_LEFT = 1 << 0,
@@ -32,6 +33,12 @@ enum nvnc_button_mask {
 	NVNC_BUTTON_RIGHT = 1 << 2,
 	NVNC_SCROLL_UP = 1 << 3,
 	NVNC_SCROLL_DOWN = 1 << 4,
+};
+
+enum nvnc_fb_type {
+	NVNC_FB_UNSPEC = 0,
+	NVNC_FB_SIMPLE,
+	NVNC_FB_GBM_BO,
 };
 
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
@@ -80,7 +87,9 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);
 struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,
-		uint16_t height, uint32_t fourcc_format, int32_t stride);
+				    uint16_t height, uint32_t fourcc_format,
+				    int32_t stride);
+struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo);
 
 void nvnc_fb_ref(struct nvnc_fb* fb);
 void nvnc_fb_unref(struct nvnc_fb* fb);
@@ -94,6 +103,7 @@ uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb);
 int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb);
+struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb);
 
 struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format, uint16_t stride);

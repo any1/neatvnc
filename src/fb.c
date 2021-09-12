@@ -17,11 +17,18 @@
 #include "fb.h"
 #include "pixels.h"
 #include "neatvnc.h"
+#include "logging.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/param.h>
 #include <stdatomic.h>
+
+#include "config.h"
+
+#ifdef HAVE_GBM
+#include <gbm.h>
+#endif
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 #define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
@@ -35,6 +42,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	if (!fb)
 		return NULL;
 
+	fb->type = NVNC_FB_SIMPLE;
 	fb->ref = 1;
 	fb->width = width;
 	fb->height = height;
@@ -62,6 +70,7 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t heigh
 	if (!fb)
 		return NULL;
 
+	fb->type = NVNC_FB_SIMPLE;
 	fb->ref = 1;
 	fb->addr = buffer;
 	fb->is_external = true;
@@ -71,6 +80,29 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t heigh
 	fb->stride = stride;
 
 	return fb;
+}
+
+EXPORT
+struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
+{
+#ifdef HAVE_GBM
+	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	if (!fb)
+		return NULL;
+
+	fb->type = NVNC_FB_GBM_BO;
+	fb->ref = 1;
+	fb->is_external = true;
+	fb->width = gbm_bo_get_width(bo);
+	fb->height = gbm_bo_get_height(bo);
+	fb->fourcc_format = gbm_bo_get_format(bo);
+	fb->bo = bo;
+
+	return fb;
+#else
+	log_error("nvnc_fb_from_gbm_bo was not enabled during build time\n");
+	return NULL;
+#endif
 }
 
 EXPORT
@@ -109,14 +141,31 @@ int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb)
 	return pixel_size_from_fourcc(fb->fourcc_format);
 }
 
+EXPORT
+struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb)
+{
+	return fb->bo;
+}
+
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
 	if (cleanup)
 		cleanup(fb->common.userdata);
 
+	nvnc_fb_unmap(fb);
+
 	if (!fb->is_external)
-		free(fb->addr);
+		switch (fb->type) {
+		case NVNC_FB_UNSPEC:
+			abort();
+		case NVNC_FB_SIMPLE:
+			free(fb->addr);
+			break;
+		case NVNC_FB_GBM_BO:
+			gbm_bo_destroy(fb->bo);
+			break;
+		}
 
 	free(fb);
 }
@@ -150,4 +199,39 @@ void nvnc_fb_release(struct nvnc_fb* fb)
 {
 	if (--fb->hold_count == 0 && fb->on_release)
 		fb->on_release(fb, fb->release_context);
+}
+
+int nvnc_fb_map(struct nvnc_fb* fb)
+{
+#ifdef HAVE_GBM
+	if (fb->type != NVNC_FB_GBM_BO || fb->bo_map_handle)
+		return 0;
+
+	uint32_t stride = 0;
+	fb->addr = gbm_bo_map(fb->bo, 0, 0, fb->width, fb->height,
+			GBM_BO_TRANSFER_READ, &stride, &fb->bo_map_handle);
+	fb->stride = stride;
+	if (fb->addr)
+		return 0;
+
+	fb->bo_map_handle = NULL;
+	return -1;
+#else
+	return 0;
+#endif
+}
+
+void nvnc_fb_unmap(struct nvnc_fb* fb)
+{
+#ifdef HAVE_GBM
+	if (fb->type != NVNC_FB_GBM_BO)
+		return;
+
+	if (fb->bo_map_handle)
+		gbm_bo_unmap(fb->bo, fb->bo_map_handle);
+
+	fb->bo_map_handle = NULL;
+	fb->addr = NULL;
+	fb->stride = 0;
+#endif
 }

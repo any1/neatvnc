@@ -23,6 +23,7 @@
 #include "tight.h"
 #include "config.h"
 #include "enc-util.h"
+#include "fb.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -494,9 +495,13 @@ int tight_encode_frame(struct tight_encoder* self,
 	self->on_frame_done = on_done;
 	self->userdata = userdata;
 
+	int rc = nvnc_fb_map(self->fb);
+	if (rc < 0)
+		return -1;
+
 	uint32_t width = nvnc_fb_get_width(src);
 	uint32_t height = nvnc_fb_get_height(src);
-	int rc = vec_init(&self->dst, width * height * 4);
+	rc = vec_init(&self->dst, width * height * 4);
 	if (rc < 0)
 		return -1;
 

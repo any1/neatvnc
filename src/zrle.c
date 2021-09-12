@@ -263,7 +263,7 @@ failure:
 
 int zrle_encode_frame(z_stream* zs, struct vec* dst,
                       const struct rfb_pixel_format* dst_fmt,
-                      const struct nvnc_fb* src,
+                      struct nvnc_fb* src,
                       const struct rfb_pixel_format* src_fmt,
                       struct pixman_region16* region)
 {
@@ -275,6 +275,10 @@ int zrle_encode_frame(z_stream* zs, struct vec* dst,
 		box = pixman_region_extents(region);
 		n_rects = 1;
 	}
+
+	rc = nvnc_fb_map(src);
+	if (rc < 0)
+		return -1;
 
 	rc = encode_rect_count(dst, n_rects);
 	if (rc < 0)

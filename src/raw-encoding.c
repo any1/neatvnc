@@ -58,7 +58,7 @@ static int raw_encode_box(struct vec* dst,
 }
 
 int raw_encode_frame(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
-                     const struct nvnc_fb* src,
+                     struct nvnc_fb* src,
                      const struct rfb_pixel_format* src_fmt,
                      struct pixman_region16* region)
 {
@@ -70,6 +70,10 @@ int raw_encode_frame(struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 		box = pixman_region_extents(region);
 		n_rects = 1;
 	}
+
+	rc = nvnc_fb_map(src);
+	if (rc < 0)
+		return -1;
 
 	rc = vec_reserve(dst, src->width * src->height * 4);
 	if (rc < 0)

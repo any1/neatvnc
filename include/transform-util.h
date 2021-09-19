@@ -22,3 +22,6 @@
 
 void nvnc_transform_to_pixman_transform(pixman_transform_t* dst,
 		enum nvnc_transform src, int width, int height);
+
+void nvnc_transform_dimensions(enum nvnc_transform transform, uint32_t* width,
+		uint32_t* height);

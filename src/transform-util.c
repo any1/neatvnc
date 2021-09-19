@@ -14,6 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "transform-util.h"
 #include "neatvnc.h"
 
 #include <stdlib.h>
@@ -111,4 +112,29 @@ void nvnc_transform_to_pixman_transform(pixman_transform_t* dst,
 #undef F1
 
 	abort();
+}
+
+static bool is_transform_90_degrees(enum nvnc_transform transform)
+{
+	switch (transform) {
+	case NVNC_TRANSFORM_90:
+	case NVNC_TRANSFORM_270:
+	case NVNC_TRANSFORM_FLIPPED_90:
+	case NVNC_TRANSFORM_FLIPPED_270:
+		return true;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+void nvnc_transform_dimensions(enum nvnc_transform transform, uint32_t* width,
+		uint32_t* height)
+{
+	if (is_transform_90_degrees(transform)) {
+		uint32_t tmp = *width;
+		*width = *height;
+		*height = tmp;
+	}
 }

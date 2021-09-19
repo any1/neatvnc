@@ -26,17 +26,42 @@
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>
 
+struct fb_side_data {
+	struct pixman_region16 buffer_damage;
+	LIST_ENTRY(fb_side_data) link;
+};
+
+LIST_HEAD(fb_side_data_list, fb_side_data);
+
 struct resampler {
 	struct nvnc_fb_pool *pool;
+	struct fb_side_data_list fb_side_data_list;
 };
 
 struct resampler_work {
-	struct pixman_region16 damage;
+	struct pixman_region16 frame_damage;
 	struct nvnc_fb* src;
 	struct nvnc_fb* dst;
 	resampler_fn on_done;
 	void* userdata;
 };
+
+static void fb_side_data_destroy(void* userdata)
+{
+	struct fb_side_data* fb_side_data = userdata;
+	LIST_REMOVE(fb_side_data, link);
+	pixman_region_fini(&fb_side_data->buffer_damage);
+	free(fb_side_data);
+}
+
+static void resampler_damage_all_buffers(struct resampler* self,
+		struct pixman_region16* region)
+{
+	struct fb_side_data *item;
+	LIST_FOREACH(item, &self->fb_side_data_list, link)
+		pixman_region_union(&item->buffer_damage, &item->buffer_damage,
+				region);
+}
 
 static void resampler_work_free(void* userdata)
 {
@@ -47,7 +72,7 @@ static void resampler_work_free(void* userdata)
 
 	nvnc_fb_unref(work->dst);
 
-	pixman_region_fini(&work->damage);
+	pixman_region_fini(&work->frame_damage);
 
 	free(work);
 }
@@ -63,6 +88,8 @@ struct resampler* resampler_create(void)
 		free(self);
 		return NULL;
 	}
+
+	LIST_INIT(&self->fb_side_data_list);
 
 	return self;
 }
@@ -80,6 +107,7 @@ static void do_work(void* handle)
 
 	struct nvnc_fb* src = ctx->src;
 	struct nvnc_fb* dst = ctx->dst;
+	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
 
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
 
@@ -107,7 +135,10 @@ static void do_work(void* handle)
 
 	pixman_image_set_transform(srcimg, &pxform);
 
-	pixman_image_set_clip_region(dstimg, &ctx->damage);
+	/* Side data contains the union of the buffer damage and the frame
+	 * damage.
+	 */
+	pixman_image_set_clip_region(dstimg, &dst_side_data->buffer_damage);
 
 	pixman_image_composite(PIXMAN_OP_OVER, srcimg, NULL, dstimg,
 			0, 0,
@@ -124,7 +155,7 @@ static void on_work_done(void* handle)
 	struct aml_work* work = handle;
 	struct resampler_work* ctx = aml_get_userdata(work);
 
-	ctx->on_done(ctx->dst, &ctx->damage, ctx->userdata);
+	ctx->on_done(ctx->dst, &ctx->frame_damage, ctx->userdata);
 }
 
 int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
@@ -150,10 +181,28 @@ int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
 	if (!ctx)
 		return -1;
 
-	pixman_region_init(&ctx->damage);
-	pixman_region_copy(&ctx->damage, damage);
+	pixman_region_init(&ctx->frame_damage);
+	pixman_region_copy(&ctx->frame_damage, damage);
 
 	ctx->dst = nvnc_fb_pool_acquire(self->pool);
+	if (!ctx->dst)
+		goto acquire_failure;
+
+	struct fb_side_data* fb_side_data = nvnc_get_userdata(fb);
+	if (!fb_side_data) {
+		fb_side_data = calloc(1, sizeof(*fb_side_data));
+		if (!fb_side_data)
+			goto side_data_failure;
+
+		/* This is a new buffer, so the whole surface is damaged. */
+		pixman_region_init_rect(&fb_side_data->buffer_damage, 0, 0,
+				width, height);
+
+		nvnc_set_userdata(fb, fb_side_data, fb_side_data_destroy);
+		LIST_INSERT_HEAD(&self->fb_side_data_list, fb_side_data, link);
+	}
+
+	resampler_damage_all_buffers(self, damage);
 
 	ctx->src = fb;
 	nvnc_fb_ref(fb);
@@ -174,4 +223,10 @@ int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
 	int rc = aml_start(aml, work);
 	aml_unref(work);
 	return rc;
+
+side_data_failure:
+	nvnc_fb_pool_release(self->pool, ctx->dst);
+acquire_failure:
+	free(ctx);
+	return -1;
 }

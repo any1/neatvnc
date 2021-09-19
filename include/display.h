@@ -17,18 +17,18 @@
 #pragma once
 
 #include "neatvnc.h"
-#include "resampler.h"
 
 #include <stdint.h>
 #include <pixels.h>
 
 struct nvnc;
 struct nvnc_fb;
+struct resampler;
 
 struct nvnc_display {
 	int ref;
 	struct nvnc* server;
 	uint16_t x_pos, y_pos;
 	struct nvnc_fb* buffer;
-	struct resampler resampler;
+	struct resampler* resampler;
 };

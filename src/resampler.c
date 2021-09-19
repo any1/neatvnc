@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2021 Andri Yngvason
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+
 #include "resampler.h"
 #include "neatvnc.h"
 #include "fb.h"
@@ -10,11 +26,16 @@
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>
 
+struct resampler {
+	struct nvnc_fb_pool *pool;
+};
+
 struct resampler_work {
 	struct pixman_region16 damage;
 	struct nvnc_fb* src;
 	struct nvnc_fb* dst;
-	struct resampler* resampler;
+	resampler_fn on_done;
+	void* userdata;
 };
 
 static void resampler_work_free(void* userdata)
@@ -31,15 +52,25 @@ static void resampler_work_free(void* userdata)
 	free(work);
 }
 
-int resampler_init(struct resampler* self)
+struct resampler* resampler_create(void)
 {
+	struct resampler* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
 	self->pool = nvnc_fb_pool_new(0, 0, DRM_FORMAT_INVALID, 0);
-	return self->pool ? 0 : -1;
+	if (!self->pool) {
+		free(self);
+		return NULL;
+	}
+
+	return self;
 }
 
 void resampler_destroy(struct resampler* self)
 {
 	nvnc_fb_pool_unref(self->pool);
+	free(self);
 }
 
 static void do_work(void* handle)
@@ -93,14 +124,15 @@ static void on_work_done(void* handle)
 	struct aml_work* work = handle;
 	struct resampler_work* ctx = aml_get_userdata(work);
 
-	ctx->resampler->on_done(ctx->resampler, ctx->dst, &ctx->damage);
+	ctx->on_done(ctx->dst, &ctx->damage, ctx->userdata);
 }
 
 int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
-		struct pixman_region16* damage)
+		struct pixman_region16* damage, resampler_fn on_done,
+		void* userdata)
 {
 	if (fb->transform == NVNC_TRANSFORM_NORMAL) {
-		self->on_done(self, fb, damage);
+		on_done(fb, damage, userdata);
 		return 0;
 	}
 
@@ -127,7 +159,8 @@ int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
 	nvnc_fb_ref(fb);
 	nvnc_fb_hold(fb);
 
-	ctx->resampler = self;
+	ctx->on_done = on_done;
+	ctx->userdata = userdata;
 
 	struct aml_work* work = aml_work_new(do_work, on_work_done, ctx,
 			resampler_work_free);

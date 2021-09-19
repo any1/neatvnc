@@ -18,18 +18,17 @@
 #include "neatvnc.h"
 #include "common.h"
 #include "fb.h"
-#include "type-macros.h"
+#include "resampler.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
 #define EXPORT __attribute__((visibility("default")))
 
-static void nvnc_display__on_resampler_done(struct resampler* resampler,
-		struct nvnc_fb* fb, struct pixman_region16* damage)
+static void nvnc_display__on_resampler_done(struct nvnc_fb* fb,
+		struct pixman_region16* damage, void* userdata)
 {
-	struct nvnc_display* self = container_of(resampler, struct nvnc_display,
-			resampler);
+	struct nvnc_display* self = userdata;
 
 	if (self->buffer) {
 		nvnc_fb_release(self->buffer);
@@ -52,7 +51,8 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 	if (!self)
 		return NULL;
 
-	if (resampler_init(&self->resampler) < 0) {
+	self->resampler = resampler_create();
+	if (!self->resampler) {
 		free(self);
 		return NULL;
 	}
@@ -60,7 +60,6 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 	self->ref = 1;
 	self->x_pos = x_pos;
 	self->y_pos = y_pos;
-	self->resampler.on_done = nvnc_display__on_resampler_done;
 
 	return self;
 }
@@ -71,7 +70,7 @@ static void nvnc__display_free(struct nvnc_display* self)
 		nvnc_fb_release(self->buffer);
 		nvnc_fb_unref(self->buffer);
 	}
-	resampler_destroy(&self->resampler);
+	resampler_destroy(self->resampler);
 	free(self);
 }
 
@@ -98,5 +97,6 @@ EXPORT
 void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
-	resampler_feed(&self->resampler, fb, damage);
+	resampler_feed(self->resampler, fb, damage,
+			nvnc_display__on_resampler_done, self);
 }

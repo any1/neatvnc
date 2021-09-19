@@ -37,6 +37,7 @@ struct nvnc_fb {
 	uint16_t width;
 	uint16_t height;
 	uint32_t fourcc_format;
+	enum nvnc_transform transform;
 
 	/* main memory buffer attributes */
 	void* addr;

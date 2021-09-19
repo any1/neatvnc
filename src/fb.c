@@ -147,6 +147,12 @@ struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb)
 	return fb->bo;
 }
 
+EXPORT
+enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb)
+{
+	return fb->transform;
+}
+
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
@@ -188,6 +194,12 @@ void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn, void* con
 {
 	fb->on_release = fn;
 	fb->release_context = context;
+}
+
+EXPORT
+void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform transform)
+{
+	fb->transform = transform;
 }
 
 void nvnc_fb_hold(struct nvnc_fb* fb)

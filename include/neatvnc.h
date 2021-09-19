@@ -41,6 +41,18 @@ enum nvnc_fb_type {
 	NVNC_FB_GBM_BO,
 };
 
+/* This is the same as wl_output_transform */
+enum nvnc_transform {
+	NVNC_TRANSFORM_NORMAL = 0,
+	NVNC_TRANSFORM_90 = 1,
+	NVNC_TRANSFORM_180 = 2,
+	NVNC_TRANSFORM_270 = 3,
+	NVNC_TRANSFORM_FLIPPED = 4,
+	NVNC_TRANSFORM_FLIPPED_90 = 5,
+	NVNC_TRANSFORM_FLIPPED_180 = 6,
+	NVNC_TRANSFORM_FLIPPED_270 = 7,
+};
+
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
                             bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
@@ -96,6 +108,7 @@ void nvnc_fb_unref(struct nvnc_fb* fb);
 
 void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn,
 			    void* context);
+void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform);
 
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
@@ -104,6 +117,7 @@ uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb);
 int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb);
 struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb);
+enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb);
 
 struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format, uint16_t stride);

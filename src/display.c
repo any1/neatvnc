@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Andri Yngvason
+ * Copyright (c) 2020 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,11 +18,32 @@
 #include "neatvnc.h"
 #include "common.h"
 #include "fb.h"
+#include "type-macros.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
 #define EXPORT __attribute__((visibility("default")))
+
+static void nvnc_display__on_resampler_done(struct resampler* resampler,
+		struct nvnc_fb* fb, struct pixman_region16* damage)
+{
+	struct nvnc_display* self = container_of(resampler, struct nvnc_display,
+			resampler);
+
+	if (self->buffer) {
+		nvnc_fb_release(self->buffer);
+		nvnc_fb_unref(self->buffer);
+	}
+
+	self->buffer = fb;
+	nvnc_fb_ref(fb);
+	nvnc_fb_hold(fb);
+
+	// TODO: Shift according to display position
+	assert(self->server);
+	nvnc__damage_region(self->server, damage);
+}
 
 EXPORT
 struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
@@ -31,9 +52,15 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 	if (!self)
 		return NULL;
 
+	if (resampler_init(&self->resampler) < 0) {
+		free(self);
+		return NULL;
+	}
+
 	self->ref = 1;
 	self->x_pos = x_pos;
 	self->y_pos = y_pos;
+	self->resampler.on_done = nvnc_display__on_resampler_done;
 
 	return self;
 }
@@ -44,6 +71,7 @@ static void nvnc__display_free(struct nvnc_display* self)
 		nvnc_fb_release(self->buffer);
 		nvnc_fb_unref(self->buffer);
 	}
+	resampler_destroy(&self->resampler);
 	free(self);
 }
 
@@ -67,37 +95,8 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display* self)
 }
 
 EXPORT
-void nvnc_display_set_buffer(struct nvnc_display* self, struct nvnc_fb* fb)
+void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
+		struct pixman_region16* damage)
 {
-	if (self->buffer) {
-		nvnc_fb_release(self->buffer);
-		nvnc_fb_unref(self->buffer);
-	}
-
-	self->buffer = fb;
-	nvnc_fb_ref(fb);
-	nvnc_fb_hold(fb);
-}
-
-EXPORT
-void nvnc_display_damage_region(struct nvnc_display* self,
-                                const struct pixman_region16* region)
-{
-	// TODO: Shift according to display position
-	assert(self->server);
-	nvnc__damage_region(self->server, region);
-}
-
-EXPORT
-void nvnc_display_damage_whole(struct nvnc_display* self)
-{
-	assert(self->server);
-
-	uint16_t width = nvnc_fb_get_width(self->buffer);
-	uint16_t height = nvnc_fb_get_height(self->buffer);
-
-	struct pixman_region16 damage;
-	pixman_region_init_rect(&damage, 0, 0, width, height);
-	nvnc_display_damage_region(self, &damage);
-	pixman_region_fini(&damage);
+	resampler_feed(&self->resampler, fb, damage);
 }

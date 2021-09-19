@@ -136,10 +136,7 @@ void nvnc_display_unref(struct nvnc_display*);
 
 struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
 
-void nvnc_display_set_buffer(struct nvnc_display*, struct nvnc_fb*);
-
-void nvnc_display_damage_region(struct nvnc_display*,
-                                const struct pixman_region16*);
-void nvnc_display_damage_whole(struct nvnc_display*);
+void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_fb*,
+			      struct pixman_region16* damage);
 
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);

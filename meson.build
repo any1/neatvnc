@@ -73,6 +73,8 @@ sources = [
 	'src/tight.c',
 	'src/enc-util.c',
 	'src/qnum-to-evdev.c',
+	'src/resampler.c',
+	'src/transform-util.c',
 ]
 
 dependencies = [

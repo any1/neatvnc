@@ -80,7 +80,8 @@ static void damage_all_buffers(struct draw* draw,
 		pixman_region_union(&item->damage, &item->damage, region);
 }
 
-static void update_vnc_buffer(struct draw* draw)
+static void update_vnc_buffer(struct draw* draw,
+		struct pixman_region16* frame_damage)
 {
 	struct nvnc_fb *fb = nvnc_fb_pool_acquire(draw->fb_pool);
 	assert(fb);
@@ -116,7 +117,7 @@ static void update_vnc_buffer(struct draw* draw)
 	/* The buffer is now up to date, so the damage region can be cleared. */
 	pixman_region_clear(&fb_side_data->damage);
 
-	nvnc_display_set_buffer(draw->display, fb);
+	nvnc_display_feed_buffer(draw->display, fb, frame_damage);
 	nvnc_fb_unref(fb);
 }
 
@@ -158,13 +159,7 @@ static void draw_dot(struct draw *draw, struct coord coord, int radius,
 	 */
 	damage_all_buffers(draw, &region);
 
-	update_vnc_buffer(draw);
-
-	/* This sends the frame damage to nvnc so it knows what needs to be sent
-	 * to the clients. Sending the buffer damage of the current buffer would
-	 * be excessive.
-	 */
-	nvnc_display_damage_region(draw->display, &region);
+	update_vnc_buffer(draw, &region);
 
 	pixman_region_fini(&region);
 }
@@ -233,8 +228,10 @@ int main(int argc, char* argv[])
 	aml_start(aml_get_default(), sig);
 	aml_unref(sig);
 
-	update_vnc_buffer(&draw);
-	nvnc_display_damage_whole(draw.display);
+	struct pixman_region16 damage;
+	pixman_region_init_rect(&damage, 0, 0, draw.width, draw.height);
+	update_vnc_buffer(&draw, &damage);
+	pixman_region_fini(&damage);
 
 	aml_run(aml);
 

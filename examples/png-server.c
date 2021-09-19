@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Andri Yngvason
+ * Copyright (c) 2019 - 2021 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -53,12 +53,14 @@ int main(int argc, char* argv[])
 	struct nvnc_display* display = nvnc_display_new(0, 0);
 	assert(display);
 
-	nvnc_display_set_buffer(display, fb);
-
 	nvnc_add_display(server, display);
 	nvnc_set_name(server, file);
 
-	nvnc_display_damage_whole(display);
+	struct pixman_region16 damage;
+	pixman_region_init_rect(&damage, 0, 0, nvnc_fb_get_width(fb),
+			nvnc_fb_get_height(fb));
+	nvnc_display_feed_buffer(display, fb, &damage);
+	pixman_region_fini(&damage);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);

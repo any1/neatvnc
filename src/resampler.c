@@ -99,13 +99,17 @@ static void on_work_done(void* handle)
 int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
-	if (nvnc_fb_get_transform(fb) == NVNC_TRANSFORM_NORMAL) {
+	if (fb->transform == NVNC_TRANSFORM_NORMAL) {
 		self->on_done(self, fb, damage);
 		return 0;
 	}
 
-	nvnc_fb_pool_resize(self->pool, fb->width, fb->height,
-				fb->fourcc_format, fb->stride);
+	uint32_t width = fb->width;
+	uint32_t height = fb->height;
+
+	nvnc_transform_dimensions(fb->transform, &width, &height);
+	nvnc_fb_pool_resize(self->pool, width, height, fb->fourcc_format,
+			fb->stride);
 
 	struct aml* aml = aml_get_default();
 	assert(aml);

@@ -12,6 +12,28 @@
  * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
  * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
+ *
+ * For code borrowed from wlroots:
+ * Copyright (c) 2017, 2018 Drew DeVault
+ * Copyright (c) 2014 Jari Vetoniemi
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 #include "transform-util.h"
@@ -137,4 +159,80 @@ void nvnc_transform_dimensions(enum nvnc_transform transform, uint32_t* width,
 		*width = *height;
 		*height = tmp;
 	}
+}
+
+/* Borrowed this from wlroots */
+void nvnc_transform_region(struct pixman_region16* dst,
+		struct pixman_region16* src, enum nvnc_transform transform,
+		int width, int height)
+{
+	if (transform == NVNC_TRANSFORM_NORMAL) {
+		pixman_region_copy(dst, src);
+		return;
+	}
+
+	int nrects = 0;
+	pixman_box16_t* src_rects = pixman_region_rectangles(src, &nrects);
+
+	pixman_box16_t* dst_rects = malloc(nrects * sizeof(*dst_rects));
+	if (dst_rects == NULL) {
+		return;
+	}
+
+	for (int i = 0; i < nrects; ++i) {
+		switch (transform) {
+		case NVNC_TRANSFORM_NORMAL:
+			dst_rects[i].x1 = src_rects[i].x1;
+			dst_rects[i].y1 = src_rects[i].y1;
+			dst_rects[i].x2 = src_rects[i].x2;
+			dst_rects[i].y2 = src_rects[i].y2;
+			break;
+		case NVNC_TRANSFORM_90:
+			dst_rects[i].x1 = height - src_rects[i].y2;
+			dst_rects[i].y1 = src_rects[i].x1;
+			dst_rects[i].x2 = height - src_rects[i].y1;
+			dst_rects[i].y2 = src_rects[i].x2;
+			break;
+		case NVNC_TRANSFORM_180:
+			dst_rects[i].x1 = width - src_rects[i].x2;
+			dst_rects[i].y1 = height - src_rects[i].y2;
+			dst_rects[i].x2 = width - src_rects[i].x1;
+			dst_rects[i].y2 = height - src_rects[i].y1;
+			break;
+		case NVNC_TRANSFORM_270:
+			dst_rects[i].x1 = src_rects[i].y1;
+			dst_rects[i].y1 = width - src_rects[i].x2;
+			dst_rects[i].x2 = src_rects[i].y2;
+			dst_rects[i].y2 = width - src_rects[i].x1;
+			break;
+		case NVNC_TRANSFORM_FLIPPED:
+			dst_rects[i].x1 = width - src_rects[i].x2;
+			dst_rects[i].y1 = src_rects[i].y1;
+			dst_rects[i].x2 = width - src_rects[i].x1;
+			dst_rects[i].y2 = src_rects[i].y2;
+			break;
+		case NVNC_TRANSFORM_FLIPPED_90:
+			dst_rects[i].x1 = src_rects[i].y1;
+			dst_rects[i].y1 = src_rects[i].x1;
+			dst_rects[i].x2 = src_rects[i].y2;
+			dst_rects[i].y2 = src_rects[i].x2;
+			break;
+		case NVNC_TRANSFORM_FLIPPED_180:
+			dst_rects[i].x1 = src_rects[i].x1;
+			dst_rects[i].y1 = height - src_rects[i].y2;
+			dst_rects[i].x2 = src_rects[i].x2;
+			dst_rects[i].y2 = height - src_rects[i].y1;
+			break;
+		case NVNC_TRANSFORM_FLIPPED_270:
+			dst_rects[i].x1 = height - src_rects[i].y2;
+			dst_rects[i].y1 = width - src_rects[i].x2;
+			dst_rects[i].x2 = height - src_rects[i].y1;
+			dst_rects[i].y2 = width - src_rects[i].x1;
+			break;
+		}
+	}
+
+	pixman_region_fini(dst);
+	pixman_region_init_rects(dst, dst_rects, nrects);
+	free(dst_rects);
 }

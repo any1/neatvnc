@@ -75,6 +75,8 @@ sources = [
 	'src/qnum-to-evdev.c',
 	'src/resampler.c',
 	'src/transform-util.c',
+	'src/damage-refinery.c',
+	'src/murmurhash.c',
 ]
 
 dependencies = [

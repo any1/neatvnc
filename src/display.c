@@ -19,6 +19,7 @@
 #include "common.h"
 #include "fb.h"
 #include "resampler.h"
+#include "transform-util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -52,16 +53,24 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 		return NULL;
 
 	self->resampler = resampler_create();
-	if (!self->resampler) {
-		free(self);
-		return NULL;
-	}
+	if (!self->resampler)
+		goto resampler_failure;
+
+	if (damage_refinery_init(&self->damage_refinery, 0, 0) < 0)
+		goto refinery_failure;
 
 	self->ref = 1;
 	self->x_pos = x_pos;
 	self->y_pos = y_pos;
 
 	return self;
+
+refinery_failure:
+	resampler_destroy(self->resampler);
+resampler_failure:
+	free(self);
+
+	return NULL;
 }
 
 static void nvnc__display_free(struct nvnc_display* self)
@@ -70,6 +79,7 @@ static void nvnc__display_free(struct nvnc_display* self)
 		nvnc_fb_release(self->buffer);
 		nvnc_fb_unref(self->buffer);
 	}
+	damage_refinery_destroy(&self->damage_refinery);
 	resampler_destroy(self->resampler);
 	free(self);
 }
@@ -97,6 +107,20 @@ EXPORT
 void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
-	resampler_feed(self->resampler, fb, damage,
+	damage_refinery_resize(&self->damage_refinery, fb->width, fb->height);
+
+	// TODO: Run the refinery in a worker thread?
+	struct pixman_region16 refined_damage;
+	pixman_region_init(&refined_damage);
+	damage_refine(&self->damage_refinery, &refined_damage, damage, fb);
+
+	struct pixman_region16 transformed_damage;
+	pixman_region_init(&transformed_damage);
+	nvnc_transform_region(&transformed_damage, &refined_damage,
+			fb->transform, fb->width, fb->height);
+
+	resampler_feed(self->resampler, fb, &transformed_damage,
 			nvnc_display__on_resampler_done, self);
+
+	pixman_region_fini(&refined_damage);
 }

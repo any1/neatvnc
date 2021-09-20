@@ -16,16 +16,24 @@
 
 #pragma once
 
-#include "neatvnc.h"
+#include <stdint.h>
 
-#include <pixman.h>
+struct pixman_region16;
+struct nvnc_fb;
 
-void nvnc_transform_to_pixman_transform(pixman_transform_t* dst,
-		enum nvnc_transform src, int width, int height);
+struct damage_refinery {
+	uint32_t* hashes;
+	uint32_t width;
+	uint32_t height;
+};
 
-void nvnc_transform_dimensions(enum nvnc_transform transform, uint32_t* width,
-		uint32_t* height);
+int damage_refinery_init(struct damage_refinery* self, uint32_t width,
+		uint32_t height);
+int damage_refinery_resize(struct damage_refinery* self, uint32_t width,
+		uint32_t height);
+void damage_refinery_destroy(struct damage_refinery* self);
 
-void nvnc_transform_region(struct pixman_region16* dst,
-		struct pixman_region16* src, enum nvnc_transform transform,
-		int width, int height);
+void damage_refine(struct damage_refinery* self,
+		struct pixman_region16* refined, 
+		struct pixman_region16* hint,
+		struct nvnc_fb* buffer);

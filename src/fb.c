@@ -222,7 +222,7 @@ int nvnc_fb_map(struct nvnc_fb* fb)
 	uint32_t stride = 0;
 	fb->addr = gbm_bo_map(fb->bo, 0, 0, fb->width, fb->height,
 			GBM_BO_TRANSFER_READ, &stride, &fb->bo_map_handle);
-	fb->stride = stride;
+	fb->stride = stride / nvnc_fb_get_pixel_size(fb);
 	if (fb->addr)
 		return 0;
 

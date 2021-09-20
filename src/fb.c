@@ -209,7 +209,12 @@ void nvnc_fb_hold(struct nvnc_fb* fb)
 
 void nvnc_fb_release(struct nvnc_fb* fb)
 {
-	if (--fb->hold_count == 0 && fb->on_release)
+	if (--fb->hold_count != 0)
+		return;
+
+	nvnc_fb_unmap(fb);
+
+	if (fb->on_release)
 		fb->on_release(fb, fb->release_context);
 }
 

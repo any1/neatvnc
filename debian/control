@@ -1,0 +1,25 @@
+Source: libneatvnc
+Priority: optional
+Maintainer: jauntywunderkind <jaunty@voodoowarez.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Section: libs
+Homepage: https://github.com/neatvnc
+Vcs-Browser: https://github.com/neatvnc
+Vcs-Git: https://github.com/neatvnc.git
+Rules-Requires-Root: no
+
+Package: libneatvnc-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends: libneatvnc0 (= ${binary:Version}), ${misc:Depends}, libgbm-dev (>=21.0.0), libdrm-dev (>=2.4.0), libpixman-1-dev (>=0.40.0), zlib1g-dev (>=1.2.11), libturbojpeg0-dev (>=2.0.6), libgnutls28-dev (>=3.7.0)
+Description: fast, neat, and interoperable vnc server library (development files)
+ A fast, neat, and interoperable vnc server library
+
+Package: libneatvnc0
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}, libgbm1 (>=21.0.0), libdrm2 (>=2.4.0), libpixman-1-0 (>=0.40.0), zlib1g (>=1.2.11), libturbojpeg0 (>=2.0.6), libgnutls30 (>=3.7.0)
+Description: fast, neat, and interoperable vnc server library
+ A fast, neat, and interoperable vnc server library

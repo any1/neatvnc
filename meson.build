@@ -77,6 +77,7 @@ sources = [
 	'src/transform-util.c',
 	'src/damage-refinery.c',
 	'src/murmurhash.c',
+	'src/encoder.c',
 ]
 
 dependencies = [

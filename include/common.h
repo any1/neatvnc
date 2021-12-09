@@ -24,7 +24,6 @@
 #include "sys/queue.h"
 
 #include "neatvnc.h"
-#include "tight.h"
 #include "config.h"
 
 #ifdef ENABLE_TLS
@@ -82,8 +81,6 @@ struct nvnc_client {
 	bool is_updating;
 	struct nvnc_fb* current_fb;
 	nvnc_client_fn cleanup_fn;
-	z_stream z_stream;
-	struct tight_encoder tight_encoder;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
@@ -91,6 +88,7 @@ struct nvnc_client {
 	uint32_t known_height;
 	struct cut_text cut_text;
 	bool is_qemu_key_ext_notified;
+	struct encoder* encoder;
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "encoder.h"
 #include "rfb-proto.h"
 #include "vec.h"
 
@@ -38,6 +39,8 @@ enum tight_quality {
 };
 
 struct tight_encoder {
+	struct encoder encoder;
+
 	uint32_t width;
 	uint32_t height;
 	uint32_t grid_width;
@@ -61,18 +64,3 @@ struct tight_encoder {
 	tight_done_fn on_frame_done;
 	void* userdata;
 };
-
-int tight_encoder_init(struct tight_encoder* self, uint32_t width,
-		uint32_t height);
-void tight_encoder_destroy(struct tight_encoder* self);
-
-int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
-		uint32_t height);
-
-int tight_encode_frame(struct tight_encoder* self,
-		const struct rfb_pixel_format* dfmt,
-		struct nvnc_fb* src,
-		const struct rfb_pixel_format* sfmt,
-		struct pixman_region16* damage,
-		enum tight_quality quality,
-		tight_done_fn on_done, void* userdata);

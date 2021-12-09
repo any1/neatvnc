@@ -24,6 +24,7 @@
 #include "config.h"
 #include "enc-util.h"
 #include "fb.h"
+#include "rcbuf.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -54,6 +55,8 @@
 
 #define MAX_TILE_SIZE (2 * TSL * TSL * 4)
 
+struct encoder* tight_encoder_new(uint16_t width, uint16_t height);
+
 enum tight_tile_state {
 	TIGHT_TILE_READY = 0,
 	TIGHT_TILE_DAMAGED,
@@ -72,9 +75,17 @@ struct tight_zs_worker_ctx {
 	int index;
 };
 
+struct encoder_impl encoder_impl_tight;
+
 static void do_tight_zs_work(void*);
 static void on_tight_zs_work_done(void*);
 static int schedule_tight_finish(struct tight_encoder* self);
+
+static inline struct tight_encoder* tight_encoder(struct encoder* encoder)
+{
+	assert(encoder->impl == &encoder_impl_tight);
+	return (struct tight_encoder*)encoder;
+}
 
 static int tight_encoder_init_stream(z_stream* zs)
 {
@@ -126,7 +137,7 @@ failure:
 	return -1;
 }
 
-int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
+static int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 		uint32_t height)
 {
 	self->width = width;
@@ -143,7 +154,7 @@ int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 	return self->grid ? 0 : -1;
 }
 
-int tight_encoder_init(struct tight_encoder* self, uint32_t width,
+static int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 		uint32_t height)
 {
 	memset(self, 0, sizeof(*self));
@@ -165,7 +176,7 @@ int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 	return 0;
 }
 
-void tight_encoder_destroy(struct tight_encoder* self)
+static void tight_encoder_destroy(struct tight_encoder* self)
 {
 	aml_unref(self->zs_worker[3]);
 	aml_unref(self->zs_worker[2]);
@@ -465,7 +476,14 @@ static void do_tight_finish(void* obj)
 static void on_tight_finished(void* obj)
 {
 	struct tight_encoder* self = aml_get_userdata(obj);
-	self->on_frame_done(&self->dst, self->userdata);
+
+	struct rcbuf* result = rcbuf_new(self->dst.data, self->dst.len);
+	assert(result);
+
+	if (self->encoder.on_done)
+		self->encoder.on_done(&self->encoder, result);
+
+	rcbuf_unref(result);
 }
 
 static int schedule_tight_finish(struct tight_encoder* self)
@@ -480,27 +498,65 @@ static int schedule_tight_finish(struct tight_encoder* self)
 	return rc;
 }
 
-int tight_encode_frame(struct tight_encoder* self,
-		const struct rfb_pixel_format* dfmt,
-		struct nvnc_fb* src,
-		const struct rfb_pixel_format* sfmt,
-		struct pixman_region16* damage,
-		enum tight_quality quality,
-		tight_done_fn on_done, void* userdata)
+struct encoder* tight_encoder_new(uint16_t width, uint16_t height)
 {
-	memcpy(&self->dfmt, dfmt, sizeof(self->dfmt));
-	memcpy(&self->sfmt, sfmt, sizeof(self->sfmt));
-	self->fb = src;
-	self->quality = quality;
-	self->on_frame_done = on_done;
-	self->userdata = userdata;
+	struct tight_encoder* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
 
-	int rc = nvnc_fb_map(self->fb);
+	if (tight_encoder_init(self, width, height) < 0) {
+		free(self);
+		return NULL;
+	}
+
+	self->encoder.impl = &encoder_impl_tight;
+
+	return (struct encoder*)self;
+}
+
+static void tight_encoder_destroy_wrapper(struct encoder* encoder)
+{
+	tight_encoder_destroy(tight_encoder(encoder));
+	free(encoder);
+}
+
+static void tight_encoder_set_output_format(struct encoder* encoder,
+		const struct rfb_pixel_format* pixfmt)
+{
+	struct tight_encoder* self = tight_encoder(encoder);
+	memcpy(&self->dfmt, pixfmt, sizeof(self->dfmt));
+}
+
+static void tight_encoder_set_quality(struct encoder* encoder, int value)
+{
+	struct tight_encoder* self = tight_encoder(encoder);
+	self->quality = value;
+}
+
+static int tight_encoder_resize_wrapper(struct encoder* encoder, uint16_t width,
+		uint16_t height)
+{
+	struct tight_encoder* self = tight_encoder(encoder);
+	return tight_encoder_resize(self, width, height);
+}
+
+static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
+		struct pixman_region16* damage)
+{
+	struct tight_encoder* self = tight_encoder(encoder);
+	int rc;
+
+	rc = rfb_pixfmt_from_fourcc(&self->sfmt, nvnc_fb_get_fourcc_format(fb));
+	assert(rc == 0);
+
+	self->fb = fb;
+
+	rc = nvnc_fb_map(self->fb);
 	if (rc < 0)
 		return -1;
 
-	uint32_t width = nvnc_fb_get_width(src);
-	uint32_t height = nvnc_fb_get_height(src);
+	uint32_t width = nvnc_fb_get_width(fb);
+	uint32_t height = nvnc_fb_get_height(fb);
 	rc = vec_init(&self->dst, width * height * 4);
 	if (rc < 0)
 		return -1;
@@ -520,3 +576,11 @@ int tight_encode_frame(struct tight_encoder* self,
 
 	return 0;
 }
+
+struct encoder_impl encoder_impl_tight = {
+	.destroy = tight_encoder_destroy_wrapper,
+	.set_output_format = tight_encoder_set_output_format,
+	.set_tight_quality = tight_encoder_set_quality,
+	.resize = tight_encoder_resize_wrapper,
+	.encode = tight_encoder_encode,
+};

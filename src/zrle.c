@@ -227,7 +227,7 @@ static int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
 	return 0;
 }
 
-static int zrle_encode_box(struct vec* out,
+static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
                            const struct rfb_pixel_format* dst_fmt,
                            const struct nvnc_fb* fb,
                            const struct rfb_pixel_format* src_fmt, int x, int y,
@@ -237,6 +237,9 @@ static int zrle_encode_box(struct vec* out,
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 	struct vec in;
 
+	uint16_t x_pos = self->encoder.x_pos;
+	uint16_t y_pos = self->encoder.y_pos;
+
 	uint32_t* tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);
 	if (!tile)
 		goto failure;
@@ -244,7 +247,8 @@ static int zrle_encode_box(struct vec* out,
 	if (vec_init(&in, 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH) < 0)
 		goto failure;
 
-	r = encode_rect_head(out, RFB_ENCODING_ZRLE, x, y, width, height);
+	r = encode_rect_head(out, RFB_ENCODING_ZRLE, x_pos + x, y_pos + y,
+			width, height);
 	if (r < 0)
 		goto failure;
 
@@ -288,11 +292,10 @@ failure:
 #undef CHUNK
 }
 
-static int zrle_encode_frame(z_stream* zs, struct vec* dst,
-                      const struct rfb_pixel_format* dst_fmt,
-                      struct nvnc_fb* src,
-                      const struct rfb_pixel_format* src_fmt,
-                      struct pixman_region16* region)
+static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
+		struct vec* dst, const struct rfb_pixel_format* dst_fmt,
+		struct nvnc_fb* src, const struct rfb_pixel_format* src_fmt,
+		struct pixman_region16* region)
 {
 	int rc = -1;
 
@@ -317,7 +320,7 @@ static int zrle_encode_frame(z_stream* zs, struct vec* dst,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		rc = zrle_encode_box(dst, dst_fmt, src, src_fmt, x, y,
+		rc = zrle_encode_box(self, dst, dst_fmt, src, src_fmt, x, y,
 		                     src->stride, box_width, box_height, zs);
 		if (rc < 0)
 			return -1;
@@ -347,7 +350,7 @@ static void zrle_encoder_do_work(void* obj)
 	rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
 	assert(rc == 0);
 
-	rc = zrle_encode_frame(&self->zs, &dst, &self->output_format, fb,
+	rc = zrle_encode_frame(self, &self->zs, &dst, &self->output_format, fb,
 			&src_fmt, &self->current_damage);
 	assert(rc == 0);
 

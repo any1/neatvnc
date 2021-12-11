@@ -42,6 +42,9 @@ struct encoder_impl {
 struct encoder {
 	struct encoder_impl* impl;
 
+	uint16_t x_pos;
+	uint16_t y_pos;
+
 	void (*on_done)(struct encoder*, struct rcbuf* result);
 	void* userdata;
 };

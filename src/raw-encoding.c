@@ -50,16 +50,19 @@ static inline struct raw_encoder* raw_encoder(struct encoder* encoder)
 	return (struct raw_encoder*)encoder;
 }
 
-static int raw_encode_box(struct vec* dst,
+static int raw_encode_box(struct raw_encoder* self, struct vec* dst,
                           const struct rfb_pixel_format* dst_fmt,
                           const struct nvnc_fb* fb,
                           const struct rfb_pixel_format* src_fmt, int x_start,
                           int y_start, int stride, int width, int height)
 {
+	uint16_t x_pos = self->encoder.x_pos;
+	uint16_t y_pos = self->encoder.y_pos;
+
 	int rc = -1;
 
-	rc = encode_rect_head(dst, RFB_ENCODING_RAW, x_start, y_start, width,
-			height);
+	rc = encode_rect_head(dst, RFB_ENCODING_RAW, x_pos + x_start,
+			y_pos + y_start, width, height);
 	if (rc < 0)
 		return -1;
 
@@ -83,7 +86,7 @@ static int raw_encode_box(struct vec* dst,
 	return 0;
 }
 
-static int raw_encode_frame(struct vec* dst,
+static int raw_encode_frame(struct raw_encoder* self, struct vec* dst,
 		const struct rfb_pixel_format* dst_fmt, struct nvnc_fb* src,
 		const struct rfb_pixel_format* src_fmt,
 		struct pixman_region16* region)
@@ -115,8 +118,8 @@ static int raw_encode_frame(struct vec* dst,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		rc = raw_encode_box(dst, dst_fmt, src, src_fmt, x, y,
-		                    src->stride, box_width, box_height);
+		rc = raw_encode_box(self, dst, dst_fmt, src, src_fmt, x, y,
+				    src->stride, box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}
@@ -145,7 +148,7 @@ static void raw_encoder_do_work(void* obj)
 	rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
 	assert(rc == 0);
 
-	rc = raw_encode_frame(&dst, &self->output_format, fb, &src_fmt,
+	rc = raw_encode_frame(self, &dst, &self->output_format, fb, &src_fmt,
 			&self->current_damage);
 	assert(rc == 0);
 

@@ -473,13 +473,17 @@ static void tight_finish_tile(struct tight_encoder* self,
 {
 	struct tight_tile* tile = tight_tile(self, gx, gy);
 
+	uint16_t x_pos = self->encoder.x_pos;
+	uint16_t y_pos = self->encoder.y_pos;
+
 	uint32_t x = gx * TSL;
 	uint32_t y = gy * TSL;
 
 	uint32_t width = tight_tile_width(self, x);
 	uint32_t height = tight_tile_height(self, y);
 
-	encode_rect_head(&self->dst, RFB_ENCODING_TIGHT, x, y, width, height);
+	encode_rect_head(&self->dst, RFB_ENCODING_TIGHT, x_pos + x, y_pos + y,
+			width, height);
 
 	vec_append(&self->dst, &tile->type, sizeof(tile->type));
 	tight_encode_size(&self->dst, tile->size);

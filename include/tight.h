@@ -16,21 +16,6 @@
 
 #pragma once
 
-#include "encoder.h"
-#include "rfb-proto.h"
-#include "vec.h"
-
-#include <unistd.h>
-#include <stdint.h>
-#include <zlib.h>
-#include <pthread.h>
-
-struct tight_tile;
-struct pixman_region16;
-struct aml_work;
-
-typedef void (*tight_done_fn)(struct vec* frame, void*);
-
 enum tight_quality {
 	TIGHT_QUALITY_UNSPEC = 0,
 	TIGHT_QUALITY_LOSSLESS,
@@ -38,29 +23,3 @@ enum tight_quality {
 	TIGHT_QUALITY_HIGH,
 };
 
-struct tight_encoder {
-	struct encoder encoder;
-
-	uint32_t width;
-	uint32_t height;
-	uint32_t grid_width;
-	uint32_t grid_height;
-	enum tight_quality quality;
-
-	struct tight_tile* grid;
-
-	z_stream zs[4];
-	struct aml_work* zs_worker[4];
-
-	struct rfb_pixel_format dfmt;
-	struct rfb_pixel_format sfmt;
-	struct nvnc_fb* fb;
-
-	uint32_t n_rects;
-	uint32_t n_jobs;
-
-	struct vec dst;
-
-	tight_done_fn on_frame_done;
-	void* userdata;
-};

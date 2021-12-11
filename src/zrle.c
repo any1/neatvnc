@@ -16,7 +16,6 @@
 
 #include "rfb-proto.h"
 #include "vec.h"
-#include "zrle.h"
 #include "neatvnc.h"
 #include "pixels.h"
 #include "fb.h"

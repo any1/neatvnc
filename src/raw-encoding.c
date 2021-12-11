@@ -19,7 +19,6 @@
 #include "vec.h"
 #include "fb.h"
 #include "pixels.h"
-#include "raw-encoding.h"
 #include "enc-util.h"
 #include "encoder.h"
 #include "rcbuf.h"

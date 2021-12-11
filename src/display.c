@@ -122,5 +122,6 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 	resampler_feed(self->resampler, fb, &transformed_damage,
 			nvnc_display__on_resampler_done, self);
 
+	pixman_region_fini(&transformed_damage);
 	pixman_region_fini(&refined_damage);
 }

@@ -28,6 +28,7 @@
 #include "usdt.h"
 #include "encoder.h"
 #include "tight.h"
+#include "enc-util.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -1223,12 +1224,19 @@ static bool client_has_encoding(const struct nvnc_client* client,
 	return false;
 }
 
-static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload)
+static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
+		int n_rects)
 {
 	client_ref(client);
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
 		DTRACE_PROBE1(neatvnc, send_fb_start, client);
+		struct rfb_server_fb_update_msg update_msg = {
+			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+			.n_rects = htons(n_rects),
+		};
+		stream_write(client->net_stream, &update_msg,
+				sizeof(update_msg), NULL, NULL);
 		rcbuf_ref(payload);
 		stream_send(client->net_stream, payload, on_write_frame_done,
 		            client);
@@ -1251,7 +1259,7 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload)
 static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result)
 {
 	struct nvnc_client* client = encoder->userdata;
-	finish_fb_update(client, result);
+	finish_fb_update(client, result, encoder->n_rects);
 	client_unref(client);
 }
 

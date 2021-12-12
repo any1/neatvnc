@@ -22,7 +22,6 @@
 
 struct vec;
 
-int encode_rect_count(struct vec* dst, uint32_t count);
 int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 		uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt);

@@ -299,6 +299,8 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 {
 	int rc = -1;
 
+	self->encoder.n_rects = 0;
+
 	int n_rects = 0;
 	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
 	if (n_rects > UINT16_MAX) {
@@ -307,10 +309,6 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 	}
 
 	rc = nvnc_fb_map(src);
-	if (rc < 0)
-		return -1;
-
-	rc = encode_rect_count(dst, n_rects);
 	if (rc < 0)
 		return -1;
 
@@ -326,6 +324,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 			return -1;
 	}
 
+	self->encoder.n_rects = n_rects;
 	return 0;
 }
 

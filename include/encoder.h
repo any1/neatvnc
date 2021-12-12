@@ -45,6 +45,8 @@ struct encoder {
 	uint16_t x_pos;
 	uint16_t y_pos;
 
+	int n_rects;
+
 	void (*on_done)(struct encoder*, struct rcbuf* result);
 	void* userdata;
 };

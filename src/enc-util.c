@@ -20,16 +20,6 @@
 
 #include <arpa/inet.h>
 
-int encode_rect_count(struct vec* dst, uint32_t count)
-{
-	struct rfb_server_fb_update_msg msg = {
-		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(count),
-	};
-
-	return vec_append(dst, &msg, sizeof(msg));
-}
-
 int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 		uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {

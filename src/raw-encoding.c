@@ -93,6 +93,8 @@ static int raw_encode_frame(struct raw_encoder* self, struct vec* dst,
 {
 	int rc = -1;
 
+	self->encoder.n_rects = 0;
+
 	int n_rects = 0;
 	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
 	if (n_rects > UINT16_MAX) {
@@ -108,10 +110,6 @@ static int raw_encode_frame(struct raw_encoder* self, struct vec* dst,
 	if (rc < 0)
 		return -1;
 
-	rc = encode_rect_count(dst, n_rects);
-	if (rc < 0)
-		return -1;
-
 	for (int i = 0; i < n_rects; ++i) {
 		int x = box[i].x1;
 		int y = box[i].y1;
@@ -124,6 +122,7 @@ static int raw_encode_frame(struct raw_encoder* self, struct vec* dst,
 			return -1;
 	}
 
+	self->encoder.n_rects = n_rects;
 	return 0;
 }
 

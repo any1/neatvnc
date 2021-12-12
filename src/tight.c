@@ -514,6 +514,8 @@ static void on_tight_finished(void* obj)
 	struct rcbuf* result = rcbuf_new(self->dst.data, self->dst.len);
 	assert(result);
 
+	self->encoder.n_rects = self->n_rects;
+
 	if (self->encoder.on_done)
 		self->encoder.on_done(&self->encoder, result);
 
@@ -580,6 +582,8 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	struct tight_encoder* self = tight_encoder(encoder);
 	int rc;
 
+	self->encoder.n_rects = 0;
+
 	rc = rfb_pixfmt_from_fourcc(&self->sfmt, nvnc_fb_get_fourcc_format(fb));
 	assert(rc == 0);
 
@@ -597,8 +601,6 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 
 	self->n_rects = tight_apply_damage(self, damage);
 	assert(self->n_rects > 0);
-
-	encode_rect_count(&self->dst, self->n_rects);
 
 	nvnc_fb_ref(self->fb);
 

@@ -153,6 +153,12 @@ enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb)
 	return fb->transform;
 }
 
+EXPORT
+enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb)
+{
+	return fb->type;
+}
+
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;

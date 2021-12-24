@@ -118,6 +118,7 @@ int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb);
 int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb);
 struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb);
 enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb);
+enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb);
 
 struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format, uint16_t stride);

@@ -4,3 +4,4 @@ option('jpeg', type: 'feature', value: 'auto', description: 'Enable JPEG compres
 option('tls', type: 'feature', value: 'auto', description: 'Enable encryption & authentication')
 option('systemtap', type: 'boolean', value: false, description: 'Enable tracing using sdt')
 option('gbm', type: 'feature', value: 'auto', description: 'Enable GBM integration')
+option('h264', type: 'feature', value: 'disabled', description: 'Enable open h264 encoding (experimental)')

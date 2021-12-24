@@ -50,6 +50,10 @@ gnutls = dependency('gnutls', required: get_option('tls'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
 
+libavcodec = dependency('libavcodec', required: get_option('h264'))
+libavfilter = dependency('libavfilter', required: get_option('h264'))
+libavutil = dependency('libavutil', required: get_option('h264'))
+
 aml_project = subproject('aml', required: false)
 if aml_project.found()
 	aml = aml_project.get_variable('aml_dep')
@@ -106,6 +110,12 @@ endif
 if gbm.found()
 	dependencies += gbm
 	config.set('HAVE_GBM', true)
+endif
+
+if gbm.found() and libavcodec.found() and libavfilter.found() and libavutil.found()
+	sources += [ 'src/h264-encoder.c', 'src/open-h264.c' ]
+	dependencies += [libavcodec, libavfilter, libavutil]
+	config.set('ENABLE_OPEN_H264', true)
 endif
 
 configure_file(

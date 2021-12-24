@@ -20,6 +20,7 @@
 #include "fb.h"
 #include "resampler.h"
 #include "transform-util.h"
+#include "encoder.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -40,8 +41,14 @@ static void nvnc_display__on_resampler_done(struct nvnc_fb* fb,
 	nvnc_fb_ref(fb);
 	nvnc_fb_hold(fb);
 
-	// TODO: Shift according to display position
 	assert(self->server);
+
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->server->clients, link)
+		if (client->encoder)
+			encoder_push(client->encoder, fb, damage);
+
+	// TODO: Shift according to display position
 	nvnc__damage_region(self->server, damage);
 }
 

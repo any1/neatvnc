@@ -68,11 +68,13 @@ enum addrtype {
 
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
 static int send_qemu_key_ext_frame(struct nvnc_client* client);
-static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client);
+static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
+		struct nvnc_fb*);
 static enum tight_quality client_get_tight_quality(struct nvnc_client* client);
 static void on_encode_frame_done(struct encoder*, struct rcbuf*);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
+static void process_fb_update_requests(struct nvnc_client* client);
 
 #if defined(GIT_VERSION)
 EXPORT const char nvnc_version[] = GIT_VERSION;
@@ -488,6 +490,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_TIGHT:
 		case RFB_ENCODING_TRLE:
 		case RFB_ENCODING_ZRLE:
+		case RFB_ENCODING_OPEN_H264:
 		case RFB_ENCODING_CURSOR:
 		case RFB_ENCODING_DESKTOPSIZE:
 		case RFB_ENCODING_JPEG_HIGHQ:
@@ -500,6 +503,14 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	client->n_encodings = n;
 
 	return sizeof(*msg) + 4 * n_encodings;
+}
+
+static void on_encoder_push_done(struct encoder* encoder, struct rcbuf* payload)
+{
+	(void)payload;
+
+	struct nvnc_client* client = encoder->userdata;
+	process_fb_update_requests(client);
 }
 
 static void process_fb_update_requests(struct nvnc_client* client)
@@ -545,16 +556,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
-	/* The client's damage is exchanged for an empty one */
-	struct pixman_region16 damage = client->damage;
-	pixman_region_init(&client->damage);
-
-	client->is_updating = true;
-	client->current_fb = fb;
-	nvnc_fb_hold(fb);
-	nvnc_fb_ref(fb);
-
-	enum rfb_encodings encoding = choose_frame_encoding(client);
+	enum rfb_encodings encoding = choose_frame_encoding(client, fb);
 	if (!client->encoder || encoding != encoder_get_type(client->encoder)) {
 		int width = server->display->buffer->width;
 		int height = server->display->buffer->height;
@@ -562,34 +564,65 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		client->encoder = encoder_new(encoding, width, height);
 		if (!client->encoder) {
 			log_error("Failed to allocate new encoder");
-			goto failure;
+			return;
+		}
+
+		if (encoder_get_kind(client->encoder) == ENCODER_KIND_PUSH_PULL)
+		{
+			client->encoder->on_done = on_encoder_push_done;
+			client->encoder->userdata = client;
 		}
 	}
 
-	client_ref(client);
+	enum encoder_kind kind = encoder_get_kind(client->encoder);
+	if (kind == ENCODER_KIND_PUSH_PULL) {
+		struct rcbuf* buf = encoder_pull(client->encoder);
+		if (!buf)
+			return;
 
-	int q = client_get_tight_quality(client);
-	encoder_set_tight_quality(client->encoder, q);
-	encoder_set_output_format(client->encoder, &client->pixfmt);
+		struct rfb_server_fb_update_msg update_msg = {
+			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+			.n_rects = htons(client->encoder->n_rects),
+		};
+		stream_write(client->net_stream, &update_msg,
+				sizeof(update_msg), NULL, NULL);
 
-	client->encoder->on_done = on_encode_frame_done;
-	client->encoder->userdata = client;
+		stream_send(client->net_stream, buf, NULL, NULL);
+		pixman_region_clear(&client->damage);
+		--client->n_pending_requests;
+	} else if (kind == ENCODER_KIND_REGULAR) {
+		/* The client's damage is exchanged for an empty one */
+		struct pixman_region16 damage = client->damage;
+		pixman_region_init(&client->damage);
 
-	if (encoder_encode(client->encoder, fb, &damage) < 0) {
-		log_error("Failed to encode current frame");
-		client_unref(client);
-		goto failure;
+		client->is_updating = true;
+		client->current_fb = fb;
+		nvnc_fb_hold(fb);
+		nvnc_fb_ref(fb);
+
+		client_ref(client);
+
+		int q = client_get_tight_quality(client);
+		encoder_set_tight_quality(client->encoder, q);
+		encoder_set_output_format(client->encoder, &client->pixfmt);
+
+		client->encoder->on_done = on_encode_frame_done;
+		client->encoder->userdata = client;
+
+		if (encoder_encode(client->encoder, fb, &damage) < 0) {
+			log_error("Failed to encode current frame");
+			client_unref(client);
+			client->is_updating = false;
+			assert(client->current_fb);
+			nvnc_fb_release(client->current_fb);
+			nvnc_fb_unref(client->current_fb);
+			client->current_fb = NULL;
+		}
+
+		pixman_region_fini(&damage);
+	} else {
+		abort();
 	}
-
-	pixman_region_fini(&damage);
-
-	return;
-failure:
-	client->is_updating = false;
-	assert(client->current_fb);
-	nvnc_fb_release(client->current_fb);
-	nvnc_fb_unref(client->current_fb);
-	client->current_fb = NULL;
 }
 
 static int on_client_fb_update_request(struct nvnc_client* client)
@@ -614,9 +647,13 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	/* Note: The region sent from the client is ignored for incremental
 	 * updates. This avoids superfluous complexity.
 	 */
-	if (!incremental)
+	if (!incremental) {
 		pixman_region_union_rect(&client->damage, &client->damage, x, y,
 		                         width, height);
+
+		if (client->encoder)
+			encoder_request_key_frame(client->encoder);
+	}
 
 	DTRACE_PROBE1(neatvnc, update_fb_request, client);
 
@@ -1183,13 +1220,20 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 	client_unref(client);
 }
 
-static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client)
+static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
+		struct nvnc_fb* fb)
 {
 	for (size_t i = 0; i < client->n_encodings; ++i)
 		switch (client->encodings[i]) {
 		case RFB_ENCODING_RAW:
 		case RFB_ENCODING_TIGHT:
 		case RFB_ENCODING_ZRLE:
+#ifdef ENABLE_OPEN_H264
+		case RFB_ENCODING_OPEN_H264:
+			// h264 is useless for sw frames
+			if (fb->type != NVNC_FB_GBM_BO)
+				break;
+#endif
 			return client->encodings[i];
 		default:
 			break;

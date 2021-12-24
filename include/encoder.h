@@ -25,8 +25,13 @@ struct nvnc_fb;
 struct pixman_region16;
 struct rcbuf;
 
+enum encoder_kind {
+	ENCODER_KIND_INVALID = 0,
+	ENCODER_KIND_REGULAR,
+	ENCODER_KIND_PUSH_PULL,
+};
+
 struct encoder_impl {
-	int (*init)(struct encoder*);
 	void (*destroy)(struct encoder*);
 
 	void (*set_output_format)(struct encoder*,
@@ -37,6 +42,12 @@ struct encoder_impl {
 
 	int (*encode)(struct encoder*, struct nvnc_fb* fb,
 			struct pixman_region16* damage);
+
+	int (*push)(struct encoder*, struct nvnc_fb* fb,
+			struct pixman_region16* damage);
+	struct rcbuf* (*pull)(struct encoder*);
+
+	void (*request_key_frame)(struct encoder*);
 };
 
 struct encoder {
@@ -56,6 +67,7 @@ struct encoder* encoder_new(enum rfb_encodings type, uint16_t width,
 void encoder_destroy(struct encoder* self);
 
 enum rfb_encodings encoder_get_type(const struct encoder* self);
+enum encoder_kind encoder_get_kind(const struct encoder* self);
 
 void encoder_set_output_format(struct encoder* self,
 		const struct rfb_pixel_format*);
@@ -65,3 +77,9 @@ int encoder_resize(struct encoder* self, uint16_t width, uint16_t height);
 
 int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage);
+
+int encoder_push(struct encoder* self, struct nvnc_fb* fb,
+		struct pixman_region16* damage);
+struct rcbuf* encoder_pull(struct encoder* self);
+
+void encoder_request_key_frame(struct encoder* self);

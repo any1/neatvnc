@@ -14,16 +14,24 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 #include "encoder.h"
+#include "config.h"
 
 #include <stdlib.h>
+#include <assert.h>
 
 struct encoder* raw_encoder_new(void);
 struct encoder* zrle_encoder_new(void);
 struct encoder* tight_encoder_new(uint16_t width, uint16_t height);
+#ifdef ENABLE_OPEN_H264
+struct encoder* open_h264_new(void);
+#endif
 
 extern struct encoder_impl encoder_impl_raw;
 extern struct encoder_impl encoder_impl_zrle;
 extern struct encoder_impl encoder_impl_tight;
+#ifdef ENABLE_OPEN_H264
+extern struct encoder_impl encoder_impl_open_h264;
+#endif
 
 struct encoder* encoder_new(enum rfb_encodings type, uint16_t width,
 		uint16_t height)
@@ -32,6 +40,9 @@ struct encoder* encoder_new(enum rfb_encodings type, uint16_t width,
 	case RFB_ENCODING_RAW: return raw_encoder_new();
 	case RFB_ENCODING_ZRLE: return zrle_encoder_new();
 	case RFB_ENCODING_TIGHT: return tight_encoder_new(width, height);
+#ifdef ENABLE_OPEN_H264
+	case RFB_ENCODING_OPEN_H264: return open_h264_new();
+#endif
 	default: break;
 	}
 
@@ -46,9 +57,24 @@ enum rfb_encodings encoder_get_type(const struct encoder* self)
 		return RFB_ENCODING_ZRLE;
 	if (self->impl == &encoder_impl_tight)
 		return RFB_ENCODING_TIGHT;
+#ifdef ENABLE_OPEN_H264
+	if (self->impl == &encoder_impl_open_h264)
+		return RFB_ENCODING_OPEN_H264;
+#endif
 
 	abort();
 	return 0;
+}
+
+enum encoder_kind encoder_get_kind(const struct encoder* self)
+{
+	if (self->impl->encode && !self->impl->push && !self->impl->pull)
+		return ENCODER_KIND_REGULAR;
+
+	if (!self->impl->encode && self->impl->push && self->impl->pull)
+		return ENCODER_KIND_PUSH_PULL;
+
+	return ENCODER_KIND_INVALID;
 }
 
 void encoder_destroy(struct encoder* self)
@@ -87,6 +113,31 @@ int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
 	if (self->impl->encode)
 		return self->impl->encode(self, fb, damage);
 
-	abort();
+	assert(self->impl->push && self->impl->pull);
 	return -1;
+}
+
+int encoder_push(struct encoder* self, struct nvnc_fb* fb,
+		struct pixman_region16* damage)
+{
+	if (self->impl->push)
+		return self->impl->push(self, fb, damage);
+
+	assert(self->impl->encode && !self->impl->pull);
+	return -1;
+}
+
+struct rcbuf* encoder_pull(struct encoder* self)
+{
+	if (self->impl->pull)
+		return self->impl->pull(self);
+
+	assert(self->impl->encode && !self->impl->push);
+	return NULL;
+}
+
+void encoder_request_key_frame(struct encoder* self)
+{
+	if (self->impl->request_key_frame)
+		return self->impl->request_key_frame(self);
 }

@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <gbm.h>
+#include <xf86drm.h>
 #include <aml.h>
 
 #include <libavcodec/avcodec.h>
@@ -418,6 +419,26 @@ static void h264_encoder__on_work_done(void* handle)
 	h264_encoder__schedule_work(self);
 }
 
+static int find_render_node(char *node, size_t maxlen) {
+	bool r = -1;
+	drmDevice *devices[64];
+
+	int n = drmGetDevices2(0, devices, sizeof(devices) / sizeof(devices[0]));
+	for (int i = 0; i < n; ++i) {
+		drmDevice *dev = devices[i];
+		if (!(dev->available_nodes & (1 << DRM_NODE_RENDER)))
+			continue;
+
+		strncpy(node, dev->nodes[DRM_NODE_RENDER], maxlen);
+		node[maxlen - 1] = '\0';
+		r = 0;
+		break;
+	}
+
+	drmFreeDevices(devices, n);
+	return r;
+}
+
 struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 		uint32_t format)
 {
@@ -432,9 +453,12 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 	if (!self->work)
 		goto worker_failure;
 
-	// TODO: Figure out the render node...
+	char render_node[64];
+	if (find_render_node(render_node, sizeof(render_node)) < 0)
+		goto render_node_failure;
+
 	rc = av_hwdevice_ctx_create(&self->hw_device_ctx,
-			AV_HWDEVICE_TYPE_DRM, "/dev/dri/renderD128", NULL, 0);
+			AV_HWDEVICE_TYPE_DRM, render_node, NULL, 0);
 	if (rc != 0)
 		goto hwdevice_ctx_failure;
 
@@ -482,6 +506,7 @@ codec_failure:
 pix_fmt_failure:
 	av_buffer_unref(&self->hw_device_ctx);
 hwdevice_ctx_failure:
+render_node_failure:
 	aml_unref(self->work);
 worker_failure:
 	free(self);

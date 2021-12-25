@@ -49,6 +49,7 @@ libturbojpeg = dependency('libturbojpeg', required: get_option('jpeg'))
 gnutls = dependency('gnutls', required: get_option('tls'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
+libdrm = dependency('libdrm', required: get_option('h264'))
 
 libavcodec = dependency('libavcodec', required: get_option('h264'))
 libavfilter = dependency('libavfilter', required: get_option('h264'))
@@ -112,9 +113,9 @@ if gbm.found()
 	config.set('HAVE_GBM', true)
 endif
 
-if gbm.found() and libavcodec.found() and libavfilter.found() and libavutil.found()
+if gbm.found() and libdrm.found() and libavcodec.found() and libavfilter.found() and libavutil.found()
 	sources += [ 'src/h264-encoder.c', 'src/open-h264.c' ]
-	dependencies += [libavcodec, libavfilter, libavutil]
+	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
 	config.set('ENABLE_OPEN_H264', true)
 endif
 

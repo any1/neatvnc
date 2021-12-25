@@ -198,6 +198,7 @@ static void open_h264_request_keyframe(struct encoder* enc)
 }
 
 struct encoder_impl encoder_impl_open_h264 = {
+	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = open_h264_destroy,
 	.push = open_h264_push,
 	.pull = open_h264_pull,

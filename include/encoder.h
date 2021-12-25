@@ -25,6 +25,11 @@ struct nvnc_fb;
 struct pixman_region16;
 struct rcbuf;
 
+enum encoder_impl_flags {
+	ENCODER_IMPL_FLAG_NONE = 0,
+	ENCODER_IMPL_FLAG_IGNORES_DAMAGE = 1 << 0,
+};
+
 enum encoder_kind {
 	ENCODER_KIND_INVALID = 0,
 	ENCODER_KIND_REGULAR,
@@ -32,6 +37,8 @@ enum encoder_kind {
 };
 
 struct encoder_impl {
+	enum encoder_impl_flags flags;
+
 	void (*destroy)(struct encoder*);
 
 	void (*set_output_format)(struct encoder*,

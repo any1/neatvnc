@@ -113,6 +113,8 @@ struct nvnc {
 	nvnc_auth_fn auth_fn;
 	void* auth_ud;
 #endif
+
+	uint32_t n_damage_clients;
 };
 
 void nvnc__damage_region(struct nvnc* self,

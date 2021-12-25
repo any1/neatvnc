@@ -105,6 +105,11 @@ static void client_close(struct nvnc_client* client)
 
 	LIST_REMOVE(client, link);
 	stream_destroy(client->net_stream);
+	if (client->encoder) {
+		client->server->n_damage_clients -=
+			!(client->encoder->impl->flags &
+					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+	}
 	encoder_destroy(client->encoder);
 	pixman_region_fini(&client->damage);
 	free(client->cut_text.buffer);
@@ -560,6 +565,11 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (!client->encoder || encoding != encoder_get_type(client->encoder)) {
 		int width = server->display->buffer->width;
 		int height = server->display->buffer->height;
+		if (client->encoder) {
+			server->n_damage_clients -=
+				!(client->encoder->impl->flags &
+						ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+		}
 		encoder_destroy(client->encoder);
 		client->encoder = encoder_new(encoding, width, height);
 		if (!client->encoder) {
@@ -572,6 +582,10 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			client->encoder->on_done = on_encoder_push_done;
 			client->encoder->userdata = client;
 		}
+
+		server->n_damage_clients +=
+			!(client->encoder->impl->flags &
+					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
 	}
 
 	enum encoder_kind kind = encoder_get_kind(client->encoder);

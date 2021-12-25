@@ -114,17 +114,29 @@ EXPORT
 void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
-	damage_refinery_resize(&self->damage_refinery, fb->width, fb->height);
+	struct nvnc* server = self->server;
+	assert(server);
 
-	// TODO: Run the refinery in a worker thread?
 	struct pixman_region16 refined_damage;
 	pixman_region_init(&refined_damage);
-	damage_refine(&self->damage_refinery, &refined_damage, damage, fb);
+
+	if (server->n_damage_clients != 0) {
+		damage_refinery_resize(&self->damage_refinery, fb->width,
+				fb->height);
+
+		// TODO: Run the refinery in a worker thread?
+		damage_refine(&self->damage_refinery, &refined_damage, damage, fb);
+		damage = &refined_damage;
+	} else {
+		// Resizing to zero causes the damage refinery to be reset when
+		// it's needed.
+		damage_refinery_resize(&self->damage_refinery, 0, 0);
+	}
 
 	struct pixman_region16 transformed_damage;
 	pixman_region_init(&transformed_damage);
-	nvnc_transform_region(&transformed_damage, &refined_damage,
-			fb->transform, fb->width, fb->height);
+	nvnc_transform_region(&transformed_damage, damage, fb->transform,
+			fb->width, fb->height);
 
 	resampler_feed(self->resampler, fb, &transformed_damage,
 			nvnc_display__on_resampler_done, self);

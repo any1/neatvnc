@@ -20,6 +20,8 @@
 
 #include <arpa/inet.h>
 
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+
 int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 		uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
@@ -36,6 +38,6 @@ int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 
 uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 {
-	return fmt->bits_per_pixel == 32 ? fmt->depth / 8
-	                                 : fmt->bits_per_pixel / 8;
+	return fmt->bits_per_pixel == 32 ? UDIV_UP(fmt->depth, 8)
+	                                 : UDIV_UP(fmt->bits_per_pixel, 8);
 }

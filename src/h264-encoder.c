@@ -81,6 +81,12 @@ static enum AVPixelFormat drm_to_av_pixel_format(uint32_t format)
 	case DRM_FORMAT_BGRX8888:
 	case DRM_FORMAT_BGRA8888:
 		return AV_PIX_FMT_0RGB;
+	case DRM_FORMAT_XRGB2101010:
+	case DRM_FORMAT_ARGB2101010:
+		return AV_PIX_FMT_X2RGB10LE;
+	case DRM_FORMAT_BGRX1010102:
+	case DRM_FORMAT_BGRA1010102:
+		return AV_PIX_FMT_X2RGB10BE;
 	}
 
 	return AV_PIX_FMT_NONE;

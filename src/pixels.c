@@ -33,7 +33,7 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 	assert(src_fmt->depth <= 32);
 	assert(dst_fmt->true_colour_flag);
 	assert(dst_fmt->bits_per_pixel <= 32);
-	assert(dst_fmt->depth <= 24);
+	assert(dst_fmt->depth <= 32);
 	assert(bytes_per_cpixel <= 4 && bytes_per_cpixel >= 1);
 
 	uint32_t src_red_shift = src_fmt->red_shift;
@@ -152,6 +152,36 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 /* clang-format off */
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
 	switch (src & ~DRM_FORMAT_BIG_ENDIAN) {
+	case DRM_FORMAT_RGBA1010102:
+	case DRM_FORMAT_RGBX1010102:
+		dst->red_shift = 22;
+		dst->green_shift = 12;
+		dst->blue_shift = 2;
+		goto bpp_32_10bit;
+	case DRM_FORMAT_BGRA1010102:
+	case DRM_FORMAT_BGRX1010102:
+		dst->red_shift = 2;
+		dst->green_shift = 12;
+		dst->blue_shift = 22;
+		goto bpp_32_10bit;
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_XRGB2101010:
+		dst->red_shift = 20;
+		dst->green_shift = 10;
+		dst->blue_shift = 0;
+		goto bpp_32_10bit;
+	case DRM_FORMAT_ABGR2101010:
+	case DRM_FORMAT_XBGR2101010:
+		dst->red_shift = 0;
+		dst->green_shift = 10;
+		dst->blue_shift = 20;
+bpp_32_10bit:
+		dst->bits_per_pixel = 32;
+		dst->depth = 30;
+		dst->red_max = 0x3ff;
+		dst->green_max = 0x3ff;
+		dst->blue_max = 0x3ff;
+		break;
 	case DRM_FORMAT_RGBA8888:
 	case DRM_FORMAT_RGBX8888:
 		dst->red_shift = 24;
@@ -225,6 +255,14 @@ bpp_16:
 int pixel_size_from_fourcc(uint32_t fourcc)
 {
 	switch (fourcc & ~DRM_FORMAT_BIG_ENDIAN) {
+	case DRM_FORMAT_RGBA1010102:
+	case DRM_FORMAT_RGBX1010102:
+	case DRM_FORMAT_BGRA1010102:
+	case DRM_FORMAT_BGRX1010102:
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_XRGB2101010:
+	case DRM_FORMAT_ABGR2101010:
+	case DRM_FORMAT_XBGR2101010:
 	case DRM_FORMAT_RGBA8888:
 	case DRM_FORMAT_RGBX8888:
 	case DRM_FORMAT_BGRA8888:
@@ -299,6 +337,10 @@ bool fourcc_to_pixman_fmt(pixman_format_code_t* dst, uint32_t src)
 
 	/* These are incompatible on big endian */
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	X(A,R,G,B,2,10,10,10);
+	X(X,R,G,B,2,10,10,10);
+	X(A,B,G,R,2,10,10,10);
+	X(X,B,G,R,2,10,10,10);
 	X(A,R,G,B,1,5,5,5);
 	X(A,B,G,R,1,5,5,5);
 	X(X,R,G,B,1,5,5,5);

@@ -57,6 +57,55 @@ struct draw {
 	struct fb_side_data_list fb_side_data_list;
 };
 
+static struct nvnc_fb* create_cursor()
+{
+	static char ascii_art[] =
+		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
+		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  "
+		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXX   "
+		"XXXXXXXXXXXXXXXXXXXXXXXXXXXX    "
+		"XXXXXXXXXXXXXXXXXXXXXXXXXXX     "
+		"XXXXXXXXXXXXXXXXXXXXXXXXXX      "
+		"XXXXXXXXXXXXXXXXXXXXXXXXX       "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXXX                        "
+		"XXXXXXX                         "
+		"XXXXXX                          "
+		"XXXXX                           "
+		"XXXX                            "
+		"XXX                             "
+		"XX                              "
+		"X                               ";
+
+	struct nvnc_fb* fb = nvnc_fb_new(32, 32, DRM_FORMAT_RGBA8888, 32);
+	assert(fb);
+
+	uint32_t colour = 0x0000ffff;
+	uint32_t* pixels = nvnc_fb_get_addr(fb);
+
+	for (int i = 0; i < 32 * 32; ++i) {
+		pixels[i] = ascii_art[i] != ' ' ? colour : 0;
+	}
+
+	return fb;
+}
+
 static void fb_side_data_destroy(void* userdata)
 {
 	struct fb_side_data* fb_side_data = userdata;
@@ -223,6 +272,12 @@ int main(int argc, char* argv[])
 	nvnc_set_name(server, "Draw");
 	nvnc_set_pointer_fn(server, on_pointer_event);
 	nvnc_set_userdata(server, &draw, NULL);
+
+	struct nvnc_fb* cursor = create_cursor();
+	assert(cursor);
+
+	nvnc_set_cursor(server, cursor, 0, 0, NULL);
+	nvnc_fb_unref(cursor);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);

@@ -29,6 +29,7 @@
 #include "encoder.h"
 #include "tight.h"
 #include "enc-util.h"
+#include "cursor.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -518,6 +519,39 @@ static void on_encoder_push_done(struct encoder* encoder, struct rcbuf* payload)
 	process_fb_update_requests(client);
 }
 
+static void send_cursor_update(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	if (!server->cursor.buffer) {
+		// TODO: Empty buffer means that no cursor should be visible
+		return;
+	}
+
+	struct vec payload;
+	vec_init(&payload, 4096);
+
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+
+	vec_append(&payload, &head, sizeof(head));
+
+	int rc = cursor_encode(&payload, &client->pixfmt, server->cursor.buffer,
+			server->cursor.x_hotspot, server->cursor.y_hotspot);
+	if (rc < 0) {
+		log_error("Failed to send cursor to client\n");
+		vec_destroy(&payload);
+		return;
+	}
+
+	client->cursor_seq = server->cursor_seq;
+
+	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len),
+			NULL, NULL);
+}
+
 static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -526,9 +560,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		return;
 
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
-		return;
-
-	if (!pixman_region_not_empty(&client->damage))
 		return;
 
 	if (client->is_updating || client->n_pending_requests == 0)
@@ -558,6 +589,17 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		if (--client->n_pending_requests <= 0)
 			return;
 	}
+
+	if (server->cursor_seq != client->cursor_seq
+			&& client_has_encoding(client, RFB_ENCODING_CURSOR)) {
+		send_cursor_update(client);
+
+		if (--client->n_pending_requests <= 0)
+			return;
+	}
+
+	if (!pixman_region_not_empty(&client->damage))
+		return;
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
@@ -1532,4 +1574,37 @@ cert_alloc_failure:
 	gnutls_global_deinit();
 #endif
 	return -1;
+}
+
+EXPORT
+void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t x_hotspot,
+		uint16_t y_hotspot, struct pixman_region16* damage)
+{
+	if (self->cursor.buffer) {
+		nvnc_fb_release(self->cursor.buffer);
+		nvnc_fb_unref(self->cursor.buffer);
+	}
+
+	self->cursor.buffer = fb;
+	if (!fb) {
+		self->cursor.x_hotspot = 0;
+		self->cursor.y_hotspot = 0;
+		return;
+	}
+
+	nvnc_fb_ref(fb);
+	nvnc_fb_hold(fb);
+
+	self->cursor.x_hotspot = x_hotspot;
+	self->cursor.y_hotspot = y_hotspot;
+
+	if (!damage || pixman_region_not_empty(damage)) {
+		// TODO: Hash cursors to check if they actually changed
+
+		self->cursor_seq++;
+
+		struct nvnc_client* client;
+		LIST_FOREACH(client, &self->clients, link)
+			process_fb_update_requests(client);
+	}
 }

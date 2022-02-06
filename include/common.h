@@ -89,6 +89,7 @@ struct nvnc_client {
 	struct cut_text cut_text;
 	bool is_qemu_key_ext_notified;
 	struct encoder* encoder;
+	uint32_t cursor_seq;
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);
@@ -107,6 +108,11 @@ struct nvnc {
 	nvnc_client_fn new_client_fn;
 	nvnc_cut_text_fn cut_text_fn;
 	struct nvnc_display* display;
+	struct {
+		struct nvnc_fb* buffer;
+		uint32_t x_hotspot, y_hotspot;
+	} cursor;
+	uint32_t cursor_seq;
 
 #ifdef ENABLE_TLS
 	gnutls_certificate_credentials_t tls_creds;

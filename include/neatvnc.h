@@ -141,3 +141,6 @@ void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_fb*,
 			      struct pixman_region16* damage);
 
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
+
+void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t x_hotspot,
+		uint16_t y_hotspot, struct pixman_region16* damage);

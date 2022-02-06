@@ -83,6 +83,7 @@ sources = [
 	'src/damage-refinery.c',
 	'src/murmurhash.c',
 	'src/encoder.c',
+	'src/cursor.c',
 ]
 
 dependencies = [

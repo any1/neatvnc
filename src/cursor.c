@@ -69,15 +69,14 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	dstdata = dst->data;
 	dstdata += dst->len;
 
-	if(image->width == image->stride) {
-		if (!extract_alpha_mask(dstdata, image->addr,
-					image->fourcc_format, size))
+	for (int y = 0; y < image->height; ++y) {
+		if (!extract_alpha_mask(dstdata + y * UDIV_UP(image->width, 8),
+					(uint32_t*)image->addr + y * image->stride,
+					image->fourcc_format, image->width))
 			return -1;
-	} else {
-		// TODO
-		abort();
+
+		dst->len += UDIV_UP(image->width, 8);
 	}
 
-	dst->len += UDIV_UP(size, 8);
 	return 0;
 }

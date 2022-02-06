@@ -21,6 +21,7 @@
 #include <libdrm/drm_fourcc.h>
 
 #define POPCOUNT(x) __builtin_popcount(x)
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
 void pixel32_to_cpixel(uint8_t* restrict dst,
                        const struct rfb_pixel_format* dst_fmt,
@@ -357,4 +358,58 @@ bool fourcc_to_pixman_fmt(pixman_format_code_t* dst, uint32_t src)
 	}
 
 	return true;
+}
+
+static bool extract_alpha_mask_rgba32(uint8_t* dst, const uint32_t* src,
+		size_t len, int alpha_shift, uint32_t alpha_max)
+{
+	for (size_t i = 0; i < len; i++) {
+		uint8_t alpha = (src[i] >> alpha_shift) & alpha_max;
+		uint8_t binary = !!(alpha > alpha_max / 2);
+		dst[i / 8] |= binary << (7 - (i % 8));
+	}
+
+	return true;
+}
+
+static bool extract_alpha_mask_rgba16(uint8_t* dst, const uint16_t* src,
+		size_t len, int alpha_shift)
+{
+	for (size_t i = 0; i < len; i++) {
+		uint8_t alpha = (src[i] >> alpha_shift) & 0xf;
+		uint8_t binary = !!(alpha > 0xf / 2);
+		dst[i / 8] |= binary << (7 - (i % 8));
+	}
+
+	return true;
+}
+
+// Note: The destination buffer must be at least UDIV_UP(len, 8) long.
+bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
+		size_t len)
+{
+	memset(dst, 0, UDIV_UP(len, 8));
+
+	switch (format & ~DRM_FORMAT_BIG_ENDIAN) {
+	case DRM_FORMAT_RGBA1010102:
+	case DRM_FORMAT_BGRA1010102:
+		return extract_alpha_mask_rgba32(dst, src, len, 0, 3);
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_ABGR2101010:
+		return extract_alpha_mask_rgba32(dst, src, len, 30, 3);
+	case DRM_FORMAT_RGBA8888:
+	case DRM_FORMAT_BGRA8888:
+		return extract_alpha_mask_rgba32(dst, src, len, 0, 0xff);
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_ABGR8888:
+		return extract_alpha_mask_rgba32(dst, src, len, 24, 0xff);
+	case DRM_FORMAT_RGBA4444:
+	case DRM_FORMAT_BGRA4444:
+		return extract_alpha_mask_rgba16(dst, src, len, 0);
+	case DRM_FORMAT_ARGB4444:
+	case DRM_FORMAT_ABGR4444:
+		return extract_alpha_mask_rgba16(dst, src, len, 12);
+	}
+
+	return false;
 }

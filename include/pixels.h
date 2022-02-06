@@ -35,3 +35,6 @@ uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format* fmt);
 int pixel_size_from_fourcc(uint32_t fourcc);
 
 bool fourcc_to_pixman_fmt(pixman_format_code_t* dst, uint32_t src);
+
+bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
+		size_t len);

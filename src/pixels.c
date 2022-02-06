@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -391,6 +391,7 @@ bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 	memset(dst, 0, UDIV_UP(len, 8));
 
 	switch (format & ~DRM_FORMAT_BIG_ENDIAN) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	case DRM_FORMAT_RGBA1010102:
 	case DRM_FORMAT_BGRA1010102:
 		return extract_alpha_mask_rgba32(dst, src, len, 0, 3);
@@ -409,6 +410,26 @@ bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 	case DRM_FORMAT_ARGB4444:
 	case DRM_FORMAT_ABGR4444:
 		return extract_alpha_mask_rgba16(dst, src, len, 12);
+#else
+	case DRM_FORMAT_RGBA1010102:
+	case DRM_FORMAT_BGRA1010102:
+		return extract_alpha_mask_rgba32(dst, src, len, 30, 3);
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_ABGR2101010:
+		return extract_alpha_mask_rgba32(dst, src, len, 0, 3);
+	case DRM_FORMAT_RGBA8888:
+	case DRM_FORMAT_BGRA8888:
+		return extract_alpha_mask_rgba32(dst, src, len, 24, 0xff);
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_ABGR8888:
+		return extract_alpha_mask_rgba32(dst, src, len, 0, 0xff);
+	case DRM_FORMAT_RGBA4444:
+	case DRM_FORMAT_BGRA4444:
+		return extract_alpha_mask_rgba16(dst, src, len, 12);
+	case DRM_FORMAT_ARGB4444:
+	case DRM_FORMAT_ABGR4444:
+		return extract_alpha_mask_rgba16(dst, src, len, 0);
+#endif
 	}
 
 	return false;

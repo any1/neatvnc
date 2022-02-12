@@ -38,3 +38,5 @@ bool fourcc_to_pixman_fmt(pixman_format_code_t* dst, uint32_t src);
 
 bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 		size_t len);
+
+const char* drm_format_to_string(uint32_t fmt);

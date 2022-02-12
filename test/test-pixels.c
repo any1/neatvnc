@@ -130,10 +130,25 @@ static bool test_extract_alpha_mask_rgba8888(void)
 	return true;
 }
 
+static bool test_drm_format_to_string(void)
+{
+	if (strcmp(drm_format_to_string(DRM_FORMAT_RGBA8888), "RGBA8888") != 0)
+		return false;
+
+	if (strcmp(drm_format_to_string(DRM_FORMAT_RGBX8888), "RGBX8888") != 0)
+		return false;
+
+	if (strcmp(drm_format_to_string(DRM_FORMAT_RGB565), "RGB565") != 0)
+		return false;
+
+	return true;
+}
+
 int main()
 {
 	bool ok = test_pixel32_to_cpixel_4bpp() &&
 		test_fourcc_to_pixman_fmt() &&
-		test_extract_alpha_mask_rgba8888();
+		test_extract_alpha_mask_rgba8888() &&
+		test_drm_format_to_string();
 	return ok ? 0 : 1;
 }

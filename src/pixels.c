@@ -22,6 +22,8 @@
 
 #define POPCOUNT(x) __builtin_popcount(x)
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+#define XSTR(s) STR(s)
+#define STR(s) #s
 
 void pixel32_to_cpixel(uint8_t* restrict dst,
                        const struct rfb_pixel_format* dst_fmt,
@@ -433,4 +435,38 @@ bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 	}
 
 	return false;
+}
+
+const char* drm_format_to_string(uint32_t fmt)
+{
+	switch (fmt) {
+#define X(x) case DRM_FORMAT_ ## x: return XSTR(x);
+	X(RGBA1010102) \
+	X(RGBX1010102) \
+	X(BGRA1010102) \
+	X(BGRX1010102) \
+	X(ARGB2101010) \
+	X(XRGB2101010) \
+	X(ABGR2101010) \
+	X(XBGR2101010) \
+	X(RGBA8888) \
+	X(RGBX8888) \
+	X(BGRA8888) \
+	X(BGRX8888) \
+	X(ARGB8888) \
+	X(XRGB8888) \
+	X(ABGR8888) \
+	X(XBGR8888) \
+	X(RGBA4444) \
+	X(RGBX4444) \
+	X(BGRA4444) \
+	X(BGRX4444) \
+	X(ARGB4444) \
+	X(XRGB4444) \
+	X(ABGR4444) \
+	X(XBGR4444) \
+	X(RGB565)
+#undef X
+	}
+	return "UNKNOWN";
 }

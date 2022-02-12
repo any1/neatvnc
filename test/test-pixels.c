@@ -1,4 +1,5 @@
 #include "pixels.h"
+#include "rfb-proto.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -20,6 +21,42 @@
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 #define ARRAY_LEN(a) (sizeof(a) / (sizeof(a[0])))
+
+static bool test_pixel32_to_cpixel_4bpp(void)
+{
+	uint32_t src = u32_le(0x11223344);
+	uint32_t dst;
+
+	struct rfb_pixel_format dstfmt = { 0 }, srcfmt = { 0 };
+
+	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_RGBA8888);
+
+	dst = 0;
+	rfb_pixfmt_from_fourcc(&srcfmt, DRM_FORMAT_RGBA8888);
+	pixel32_to_cpixel((uint8_t*)&dst, &dstfmt, &src, &srcfmt, 4, 1);
+	if ((src & 0xffffff00) != (dst & 0xffffff00))
+		return false;
+
+	dst = 0;
+	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_ABGR8888);
+	pixel32_to_cpixel((uint8_t*)&dst, &dstfmt, &src, &srcfmt, 4, 1);
+	if (dst != u32_le(0x00332211))
+		return false;
+
+	dst = 0;
+	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_ARGB8888);
+	pixel32_to_cpixel((uint8_t*)&dst, &dstfmt, &src, &srcfmt, 4, 1);
+	if (dst != u32_le(0x00112233))
+		return false;
+
+	dst = 0;
+	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_BGRA8888);
+	pixel32_to_cpixel((uint8_t*)&dst, &dstfmt, &src, &srcfmt, 4, 1);
+	if (dst != u32_le(0x33221100))
+		return false;
+
+	return true;
+}
 
 static bool test_fourcc_to_pixman_fmt(void)
 {
@@ -95,7 +132,8 @@ static bool test_extract_alpha_mask_rgba8888(void)
 
 int main()
 {
-	bool ok = test_fourcc_to_pixman_fmt() &&
+	bool ok = test_pixel32_to_cpixel_4bpp() &&
+		test_fourcc_to_pixman_fmt() &&
 		test_extract_alpha_mask_rgba8888();
 	return ok ? 0 : 1;
 }

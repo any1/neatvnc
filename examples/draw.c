@@ -96,7 +96,12 @@ static struct nvnc_fb* create_cursor()
 	struct nvnc_fb* fb = nvnc_fb_new(32, 32, DRM_FORMAT_RGBA8888, 32);
 	assert(fb);
 
-	uint32_t colour = 0x0000ffff;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	uint32_t colour = 0x00ff00ffULL;
+#else
+	uint32_t colour = 0xff00ff00ULL;
+#endif
+
 	uint32_t* pixels = nvnc_fb_get_addr(fb);
 
 	for (int i = 0; i < 32 * 32; ++i) {

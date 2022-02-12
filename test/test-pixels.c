@@ -144,11 +144,39 @@ static bool test_drm_format_to_string(void)
 	return true;
 }
 
+static bool test_rfb_pixfmt_to_string(void)
+{
+	struct rfb_pixel_format rgbx8888;
+	struct rfb_pixel_format bgrx8888;
+	struct rfb_pixel_format xrgb8888;
+	struct rfb_pixel_format xbgr8888;
+
+	rfb_pixfmt_from_fourcc(&rgbx8888, DRM_FORMAT_RGBX8888);
+	rfb_pixfmt_from_fourcc(&bgrx8888, DRM_FORMAT_BGRX8888);
+	rfb_pixfmt_from_fourcc(&xrgb8888, DRM_FORMAT_XRGB8888);
+	rfb_pixfmt_from_fourcc(&xbgr8888, DRM_FORMAT_XBGR8888);
+
+	if (strcmp(rfb_pixfmt_to_string(&rgbx8888), "RGBX8888") != 0)
+		return false;
+
+	if (strcmp(rfb_pixfmt_to_string(&bgrx8888), "BGRX8888") != 0)
+		return false;
+
+	if (strcmp(rfb_pixfmt_to_string(&xrgb8888), "XRGB8888") != 0)
+		return false;
+
+	if (strcmp(rfb_pixfmt_to_string(&xbgr8888), "XBGR8888") != 0)
+		return false;
+
+	return true;
+}
+
 int main()
 {
 	bool ok = test_pixel32_to_cpixel_4bpp() &&
 		test_fourcc_to_pixman_fmt() &&
 		test_extract_alpha_mask_rgba8888() &&
-		test_drm_format_to_string();
+		test_drm_format_to_string() &&
+		test_rfb_pixfmt_to_string();
 	return ok ? 0 : 1;
 }

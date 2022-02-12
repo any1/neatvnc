@@ -40,3 +40,4 @@ bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 		size_t len);
 
 const char* drm_format_to_string(uint32_t fmt);
+const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt);

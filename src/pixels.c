@@ -470,3 +470,34 @@ const char* drm_format_to_string(uint32_t fmt)
 	}
 	return "UNKNOWN";
 }
+
+// Not exact, but close enough for debugging
+const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt)
+{
+	if (!(fmt->red_max == fmt->green_max && fmt->red_max == fmt->blue_max))
+		goto failure;
+
+	uint32_t profile = (fmt->red_shift << 16) | (fmt->green_shift << 8)
+		| (fmt->blue_shift);
+
+	switch (profile) {
+#define CASE(r, g, b) case ((r << 16) | (g << 8) | b)
+	CASE(22, 10, 2): return "RGBX1010102";
+	CASE(2, 12, 22): return "BGRX1010102";
+	CASE(20, 10, 0): return "XRGB2101010";
+	CASE(0, 10, 20): return "XBGR2101010";
+	CASE(24, 16, 8): return "RGBX8888";
+	CASE(8, 16, 24): return "BGRX8888";
+	CASE(16, 8, 0):  return "XRGB8888";
+	CASE(0, 8, 16):  return "XBGR8888";
+	CASE(12, 8, 4):  return "RGBX4444";
+	CASE(4, 8, 12):  return "BGRX4444";
+	CASE(8, 4, 0):   return "XRGB4444";
+	CASE(0, 4, 8):   return "XBGR4444";
+	CASE(11, 5, 0):  return "RGB565";
+#undef CASE
+	}
+
+failure:
+	return "UNKNOWN";
+}

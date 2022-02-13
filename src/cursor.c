@@ -35,6 +35,9 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	int rc = -1;
 
+	if (nvnc_fb_map(image) < 0)
+		return -1;
+
 	struct rfb_pixel_format srcfmt = { 0 };
 	rc = rfb_pixfmt_from_fourcc(&srcfmt, image->fourcc_format);
 	if (rc < 0)

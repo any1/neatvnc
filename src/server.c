@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -467,6 +467,9 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 
 	memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 
+	if (client->has_pixfmt && client->cursor_seq)
+		client->cursor_seq--;
+
 	client->has_pixfmt = true;
 
 	return 4 + sizeof(struct rfb_pixel_format);
@@ -525,6 +528,7 @@ static void send_cursor_update(struct nvnc_client* client)
 
 	if (!server->cursor.buffer) {
 		// TODO: Empty buffer means that no cursor should be visible
+		client->cursor_seq = server->cursor_seq;
 		return;
 	}
 
@@ -539,7 +543,8 @@ static void send_cursor_update(struct nvnc_client* client)
 	vec_append(&payload, &head, sizeof(head));
 
 	int rc = cursor_encode(&payload, &client->pixfmt, server->cursor.buffer,
-			server->cursor.x_hotspot, server->cursor.y_hotspot);
+			server->cursor.width, server->cursor.height,
+			server->cursor.hotspot_x, server->cursor.hotspot_y);
 	if (rc < 0) {
 		log_error("Failed to send cursor to client\n");
 		vec_destroy(&payload);
@@ -1577,8 +1582,8 @@ cert_alloc_failure:
 }
 
 EXPORT
-void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t x_hotspot,
-		uint16_t y_hotspot, struct pixman_region16* damage)
+void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
+		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y)
 {
 	if (self->cursor.buffer) {
 		nvnc_fb_release(self->cursor.buffer);
@@ -1587,24 +1592,26 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t x_hotspot,
 
 	self->cursor.buffer = fb;
 	if (!fb) {
-		self->cursor.x_hotspot = 0;
-		self->cursor.y_hotspot = 0;
+		self->cursor.hotspot_x = 0;
+		self->cursor.hotspot_y = 0;
 		return;
 	}
+
+	// TODO: Hash cursors to check if they actually changed?
 
 	nvnc_fb_ref(fb);
 	nvnc_fb_hold(fb);
 
-	self->cursor.x_hotspot = x_hotspot;
-	self->cursor.y_hotspot = y_hotspot;
+	self->cursor.width = width;
+	self->cursor.height = height;
+	self->cursor.hotspot_x = hotspot_x;
+	self->cursor.hotspot_y = hotspot_y;
 
-	if (!damage || pixman_region_not_empty(damage)) {
-		// TODO: Hash cursors to check if they actually changed
+	self->cursor_seq++;
 
-		self->cursor_seq++;
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link)
+		process_fb_update_requests(client);
 
-		struct nvnc_client* client;
-		LIST_FOREACH(client, &self->clients, link)
-			process_fb_update_requests(client);
-	}
+	log_debug("Setting cursor\n");
 }

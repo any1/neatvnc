@@ -110,7 +110,8 @@ struct nvnc {
 	struct nvnc_display* display;
 	struct {
 		struct nvnc_fb* buffer;
-		uint32_t x_hotspot, y_hotspot;
+		uint32_t width, height;
+		uint32_t hotspot_x, hotspot_y;
 	} cursor;
 	uint32_t cursor_seq;
 

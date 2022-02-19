@@ -29,11 +29,15 @@
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
 int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
-		struct nvnc_fb* image, int x_hotspot, int y_hotspot)
+		struct nvnc_fb* image, uint32_t width, uint32_t height,
+		uint32_t hotspot_x, uint32_t hotspot_y)
 {
 	// TODO: Handle rotated cursors
 
 	int rc = -1;
+
+	assert(width <= image->width);
+	assert(height <= image->height);
 
 	if (nvnc_fb_map(image) < 0)
 		return -1;
@@ -43,13 +47,13 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	if (rc < 0)
 		return -1;
 
-	rc = encode_rect_head(dst, RFB_ENCODING_CURSOR, x_hotspot, y_hotspot,
-			image->width, image->height);
+	rc = encode_rect_head(dst, RFB_ENCODING_CURSOR, hotspot_x, hotspot_y,
+			width, height);
 	if (rc < 0)
 		return -1;
 
 	int bpp = pixfmt->bits_per_pixel / 8;
-	size_t size = image->width * image->height;
+	size_t size = width * height;
 
 	rc = vec_reserve(dst, dst->len + size * bpp + UDIV_UP(size, 8));
 	if (rc < 0)
@@ -58,13 +62,13 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	uint8_t* dstdata = dst->data;
 	dstdata += dst->len;
 
-	if(image->width == image->stride) {
+	if((int32_t)width == image->stride) {
 		pixel32_to_cpixel(dstdata, pixfmt, image->addr, &srcfmt, bpp, size);
 	} else {
-		for (int y = 0; y < image->height; ++y) {
-			pixel32_to_cpixel(dstdata + y * bpp * image->width, pixfmt,
+		for (int y = 0; y < height; ++y) {
+			pixel32_to_cpixel(dstdata + y * bpp * width, pixfmt,
 					(uint32_t*)image->addr + y * image->stride,
-					&srcfmt, bpp, image->width);
+					&srcfmt, bpp, width);
 		}
 	}
 
@@ -72,13 +76,13 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	dstdata = dst->data;
 	dstdata += dst->len;
 
-	for (int y = 0; y < image->height; ++y) {
-		if (!extract_alpha_mask(dstdata + y * UDIV_UP(image->width, 8),
+	for (int y = 0; y < height; ++y) {
+		if (!extract_alpha_mask(dstdata + y * UDIV_UP(width, 8),
 					(uint32_t*)image->addr + y * image->stride,
-					image->fourcc_format, image->width))
+					image->fourcc_format, width))
 			return -1;
 
-		dst->len += UDIV_UP(image->width, 8);
+		dst->len += UDIV_UP(width, 8);
 	}
 
 	return 0;

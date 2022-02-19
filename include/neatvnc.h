@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -142,5 +142,5 @@ void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_fb*,
 
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 
-void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t x_hotspot,
-		uint16_t y_hotspot, struct pixman_region16* damage);
+void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t width,
+		     uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y);

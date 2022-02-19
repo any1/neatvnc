@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -281,7 +281,7 @@ int main(int argc, char* argv[])
 	struct nvnc_fb* cursor = create_cursor();
 	assert(cursor);
 
-	nvnc_set_cursor(server, cursor, 0, 0, NULL);
+	nvnc_set_cursor(server, cursor, 0, 0, 32, 32);
 	nvnc_fb_unref(cursor);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);

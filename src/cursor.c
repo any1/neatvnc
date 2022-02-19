@@ -64,7 +64,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 		for (int y = 0; y < image->height; ++y) {
 			pixel32_to_cpixel(dstdata + y * bpp * image->width, pixfmt,
 					(uint32_t*)image->addr + y * image->stride,
-					&srcfmt, bpp, size);
+					&srcfmt, bpp, image->width);
 		}
 	}
 

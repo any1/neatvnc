@@ -36,6 +36,10 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	int rc = -1;
 
+	// Empty cursor
+	if (!image)
+		return encode_rect_head(dst, RFB_ENCODING_CURSOR, 0, 0, 0, 0);
+
 	assert(width <= image->width);
 	assert(height <= image->height);
 
@@ -65,7 +69,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	if((int32_t)width == image->stride) {
 		pixel32_to_cpixel(dstdata, pixfmt, image->addr, &srcfmt, bpp, size);
 	} else {
-		for (int y = 0; y < height; ++y) {
+		for (uint32_t y = 0; y < height; ++y) {
 			pixel32_to_cpixel(dstdata + y * bpp * width, pixfmt,
 					(uint32_t*)image->addr + y * image->stride,
 					&srcfmt, bpp, width);
@@ -76,7 +80,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	dstdata = dst->data;
 	dstdata += dst->len;
 
-	for (int y = 0; y < height; ++y) {
+	for (uint32_t y = 0; y < height; ++y) {
 		if (!extract_alpha_mask(dstdata + y * UDIV_UP(width, 8),
 					(uint32_t*)image->addr + y * image->stride,
 					image->fourcc_format, width))

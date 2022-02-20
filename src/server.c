@@ -467,9 +467,6 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 
 	memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 
-	if (client->has_pixfmt && client->cursor_seq)
-		client->cursor_seq--;
-
 	client->has_pixfmt = true;
 
 	return 4 + sizeof(struct rfb_pixel_format);
@@ -525,12 +522,6 @@ static void on_encoder_push_done(struct encoder* encoder, struct rcbuf* payload)
 static void send_cursor_update(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
-
-	if (!server->cursor.buffer) {
-		// TODO: Empty buffer means that no cursor should be visible
-		client->cursor_seq = server->cursor_seq;
-		return;
-	}
 
 	struct vec payload;
 	vec_init(&payload, 4096);
@@ -1591,27 +1582,26 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 	}
 
 	self->cursor.buffer = fb;
-	if (!fb) {
+	if (fb) {
+		// TODO: Hash cursors to check if they actually changed?
+		nvnc_fb_ref(fb);
+		nvnc_fb_hold(fb);
+
+		self->cursor.width = width;
+		self->cursor.height = height;
+		self->cursor.hotspot_x = hotspot_x;
+		self->cursor.hotspot_y = hotspot_y;
+
+	} else {
+		self->cursor.width = width;
+		self->cursor.height = height;
 		self->cursor.hotspot_x = 0;
 		self->cursor.hotspot_y = 0;
-		return;
 	}
-
-	// TODO: Hash cursors to check if they actually changed?
-
-	nvnc_fb_ref(fb);
-	nvnc_fb_hold(fb);
-
-	self->cursor.width = width;
-	self->cursor.height = height;
-	self->cursor.hotspot_x = hotspot_x;
-	self->cursor.hotspot_y = hotspot_y;
 
 	self->cursor_seq++;
 
 	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link)
 		process_fb_update_requests(client);
-
-	log_debug("Setting cursor\n");
 }

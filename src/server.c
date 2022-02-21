@@ -1574,7 +1574,8 @@ cert_alloc_failure:
 
 EXPORT
 void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
-		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y)
+		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
+		bool is_damaged)
 {
 	if (self->cursor.buffer) {
 		nvnc_fb_release(self->cursor.buffer);
@@ -1582,6 +1583,7 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 	}
 
 	self->cursor.buffer = fb;
+
 	if (fb) {
 		// TODO: Hash cursors to check if they actually changed?
 		nvnc_fb_ref(fb);
@@ -1598,6 +1600,9 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 		self->cursor.hotspot_x = 0;
 		self->cursor.hotspot_y = 0;
 	}
+
+	if (!is_damaged)
+		return;
 
 	self->cursor_seq++;
 

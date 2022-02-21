@@ -281,7 +281,7 @@ int main(int argc, char* argv[])
 	struct nvnc_fb* cursor = create_cursor();
 	assert(cursor);
 
-	nvnc_set_cursor(server, cursor, 0, 0, 32, 32);
+	nvnc_set_cursor(server, cursor, 0, 0, 32, 32, true);
 	nvnc_fb_unref(cursor);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);

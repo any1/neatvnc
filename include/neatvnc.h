@@ -143,4 +143,5 @@ void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_fb*,
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 
 void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t width,
-		     uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y);
+		     uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
+		     bool is_damaged);

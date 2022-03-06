@@ -288,7 +288,7 @@ static int h264_encoder__init_codec_context(struct h264_encoder* self,
 
 	struct AVCodecContext* c = self->codec_ctx;
 	c->width = self->width;
-	c->height = self->width;
+	c->height = self->height;
 	c->time_base = self->timebase;
 	c->sample_aspect_ratio = self->sample_aspect_ratio;
 	c->pix_fmt = AV_PIX_FMT_VAAPI;

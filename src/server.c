@@ -661,7 +661,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		client->encoder->on_done = on_encode_frame_done;
 		client->encoder->userdata = client;
 
-		if (encoder_encode(client->encoder, fb, &damage) < 0) {
+		if (encoder_encode(client->encoder, fb, &damage) >= 0) {
+			--client->n_pending_requests;
+		} else {
 			log_error("Failed to encode current frame");
 			client_unref(client);
 			client->is_updating = false;
@@ -1346,8 +1348,6 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 		process_fb_update_requests(client);
 		client_unref(client);
 	}
-
-	client->n_pending_requests--;
 
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 }

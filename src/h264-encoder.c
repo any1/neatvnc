@@ -2,6 +2,7 @@
 #include "neatvnc.h"
 #include "fb.h"
 #include "sys/queue.h"
+#include "vec.h"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -60,7 +61,7 @@ struct h264_encoder {
 
 	struct aml_work* work;
 	struct nvnc_fb* current_fb;
-	AVPacket* current_packet;
+	struct vec current_packet;
 	bool current_frame_is_keyframe;
 
 	bool please_destroy;
@@ -336,8 +337,7 @@ static int h264_encoder__schedule_work(struct h264_encoder* self)
 	return aml_start(aml_get_default(), self->work);
 }
 
-static int h264_encoder__encode(struct h264_encoder* self,
-		AVFrame* frame_in, AVPacket* packet_out)
+static int h264_encoder__encode(struct h264_encoder* self, AVFrame* frame_in)
 {
 	int rc;
 
@@ -358,13 +358,30 @@ static int h264_encoder__encode(struct h264_encoder* self,
 	if (rc != 0)
 		goto send_frame_failure;
 
-	rc = avcodec_receive_packet(self->codec_ctx, packet_out);
+	AVPacket* packet = av_packet_alloc();
+	assert(packet); // TODO
 
+	while (1) {
+		rc = avcodec_receive_packet(self->codec_ctx, packet);
+		if (rc != 0)
+			break;
+
+		vec_append(&self->current_packet, packet->data, packet->size);
+
+		packet->stream_index = 0;
+		av_packet_unref(packet);
+	}
+
+	// Frame should always start with a zero:
+	assert(self->current_packet.len == 0 ||
+			((char*)self->current_packet.data)[0] == 0);
+
+	av_packet_free(&packet);
 send_frame_failure:
 	av_frame_unref(filtered_frame);
 get_frame_failure:
 	av_frame_free(&filtered_frame);
-	return rc;
+	return rc == AVERROR(EAGAIN) ? 0 : rc;
 }
 
 static void h264_encoder__do_work(void* handle)
@@ -384,17 +401,11 @@ static void h264_encoder__do_work(void* handle)
 		frame->pict_type = AV_PICTURE_TYPE_P;
 	}
 
-	AVPacket* packet = av_packet_alloc();
-	assert(packet); // TODO
-
-	int rc = h264_encoder__encode(self, frame, packet);
+	int rc = h264_encoder__encode(self, frame);
 	if (rc != 0) {
 		// TODO: log failure
-		av_packet_free(&packet);
 		goto failure;
 	}
-
-	self->current_packet = packet;
 
 failure:
 	av_frame_unref(frame);
@@ -410,17 +421,17 @@ static void h264_encoder__on_work_done(void* handle)
 	self->current_fb = NULL;
 
 	if (self->please_destroy) {
-		av_packet_free(&self->current_packet);
+		vec_destroy(&self->current_packet);
 		h264_encoder_destroy(self);
 		return;
 	}
 
-	if (!self->current_packet)
+	if (self->current_packet.len == 0)
 		return;
 
-	self->on_packet_ready(self->current_packet->data,
-			self->current_packet->size, self->userdata);
-	av_packet_free(&self->current_packet);
+	self->on_packet_ready(self->current_packet.data,
+			self->current_packet.len, self->userdata);
+	vec_clear(&self->current_packet);
 
 	h264_encoder__schedule_work(self);
 }
@@ -453,6 +464,9 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 	struct h264_encoder* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
+
+	if (vec_init(&self->current_packet, 65536) < 0)
+		goto packet_failure;
 
 	self->work = aml_work_new(h264_encoder__do_work,
 			h264_encoder__on_work_done, self, NULL);
@@ -515,6 +529,8 @@ hwdevice_ctx_failure:
 render_node_failure:
 	aml_unref(self->work);
 worker_failure:
+	vec_destroy(&self->current_packet);
+packet_failure:
 	free(self);
 	return NULL;
 }

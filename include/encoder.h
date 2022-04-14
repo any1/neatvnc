@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Andri Yngvason
+ * Copyright (c) 2021 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -52,7 +52,7 @@ struct encoder_impl {
 
 	int (*push)(struct encoder*, struct nvnc_fb* fb,
 			struct pixman_region16* damage);
-	struct rcbuf* (*pull)(struct encoder*);
+	struct rcbuf* (*pull)(struct encoder*, uint64_t* pts);
 
 	void (*request_key_frame)(struct encoder*);
 };
@@ -65,7 +65,7 @@ struct encoder {
 
 	int n_rects;
 
-	void (*on_done)(struct encoder*, struct rcbuf* result);
+	void (*on_done)(struct encoder*, struct rcbuf* result, uint64_t pts);
 	void* userdata;
 };
 
@@ -87,6 +87,6 @@ int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
 
 int encoder_push(struct encoder* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage);
-struct rcbuf* encoder_pull(struct encoder* self);
+struct rcbuf* encoder_pull(struct encoder* self, uint64_t* pts);
 
 void encoder_request_key_frame(struct encoder* self);

@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2021 - 2022 Andri Yngvason
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+
 #include "h264-encoder.h"
 #include "neatvnc.h"
 #include "fb.h"
@@ -416,6 +432,7 @@ static void h264_encoder__on_work_done(void* handle)
 {
 	struct h264_encoder* self = aml_get_userdata(handle);
 
+	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
 	nvnc_fb_release(self->current_fb);
 	nvnc_fb_unref(self->current_fb);
 	self->current_fb = NULL;
@@ -430,7 +447,7 @@ static void h264_encoder__on_work_done(void* handle)
 		return;
 
 	self->on_packet_ready(self->current_packet.data,
-			self->current_packet.len, self->userdata);
+			self->current_packet.len, pts, self->userdata);
 	vec_clear(&self->current_packet);
 
 	h264_encoder__schedule_work(self);

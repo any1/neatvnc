@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Andri Yngvason
+ * Copyright (c) 2021 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,7 @@ struct open_h264 {
 	struct h264_encoder* encoder;
 
 	struct vec pending;
+	uint64_t pts;
 
 	uint32_t width;
 	uint32_t height;
@@ -60,7 +61,7 @@ static inline struct open_h264* open_h264(struct encoder* enc)
 	return (struct open_h264*)enc;
 }
 
-static void open_h264_handle_packet(const void* data, size_t size,
+static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 		void* userdata)
 {
 	struct open_h264* self = userdata;
@@ -73,9 +74,10 @@ static void open_h264_handle_packet(const void* data, size_t size,
 	}
 
 	vec_append(&self->pending, data, size);
+	self->pts = pts;
 
 	if (self->parent.on_done)
-		self->parent.on_done(&self->parent, NULL);
+		self->parent.on_done(&self->parent, NULL, NVNC_NO_PTS);
 }
 
 static int open_h264_init_pending(struct open_h264* self)
@@ -101,6 +103,8 @@ struct encoder* open_h264_new(void)
 		free(self);
 		return NULL;
 	}
+
+	self->pts = NVNC_NO_PTS;
 
 	return (struct encoder*)self;
 }
@@ -158,7 +162,7 @@ static int open_h264_push(struct encoder* enc, struct nvnc_fb* fb,
 	return 0;
 }
 
-static struct rcbuf* open_h264_pull(struct encoder* enc)
+static struct rcbuf* open_h264_pull(struct encoder* enc, uint64_t* pts)
 {
 	struct open_h264* self = open_h264(enc);
 
@@ -167,6 +171,10 @@ static struct rcbuf* open_h264_pull(struct encoder* enc)
 		- sizeof(struct open_h264_header);
 	if (payload_size == 0)
 		return NULL;
+
+	if (pts)
+		*pts = self->pts;
+	self->pts = NVNC_NO_PTS;
 
 	uint32_t flags = self->needs_reset ? OPEN_H264_FLAG_RESET_CONTEXT : 0;
 	self->needs_reset = false;

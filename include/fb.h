@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -38,6 +38,7 @@ struct nvnc_fb {
 	uint16_t height;
 	uint32_t fourcc_format;
 	enum nvnc_transform transform;
+	uint64_t pts; // in micro seconds
 
 	/* main memory buffer attributes */
 	void* addr;

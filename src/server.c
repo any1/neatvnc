@@ -45,6 +45,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netdb.h>
+#include <byteswap.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -72,7 +73,7 @@ static int send_qemu_key_ext_frame(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		struct nvnc_fb*);
 static enum tight_quality client_get_tight_quality(struct nvnc_client* client);
-static void on_encode_frame_done(struct encoder*, struct rcbuf*);
+static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
 static void process_fb_update_requests(struct nvnc_client* client);
@@ -86,6 +87,15 @@ EXPORT const char nvnc_version[] = "UNKNOWN";
 #endif
 
 extern const unsigned short code_map_qnum_to_linux[];
+
+static uint64_t nvnc__htonll(uint64_t x)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	return bswap_64(x);
+#else
+	return x;
+#endif
+}
 
 static void client_close(struct nvnc_client* client)
 {
@@ -502,6 +512,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_JPEG_HIGHQ:
 		case RFB_ENCODING_JPEG_LOWQ:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
+		case RFB_ENCODING_PTS:
 			client->encodings[n++] = encoding;
 		}
 	}
@@ -511,9 +522,11 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	return sizeof(*msg) + 4 * n_encodings;
 }
 
-static void on_encoder_push_done(struct encoder* encoder, struct rcbuf* payload)
+static void on_encoder_push_done(struct encoder* encoder, struct rcbuf* payload,
+		uint64_t pts)
 {
 	(void)payload;
+	(void)pts;
 
 	struct nvnc_client* client = encoder->userdata;
 	process_fb_update_requests(client);
@@ -546,6 +559,25 @@ static void send_cursor_update(struct nvnc_client* client)
 
 	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len),
 			NULL, NULL);
+}
+
+static bool will_send_pts(const struct nvnc_client* client, uint64_t pts)
+{
+	return pts != NVNC_NO_PTS && client_has_encoding(client, RFB_ENCODING_PTS);
+}
+
+static void send_pts_rect(struct nvnc_client* client, uint64_t pts)
+{
+	if (!will_send_pts(client, pts))
+		return;
+
+	uint8_t buf[sizeof(struct rfb_server_fb_rect) + 8] = { 0 };
+	struct rfb_server_fb_rect* head = (struct rfb_server_fb_rect*)buf;
+	head->encoding = htonl(RFB_ENCODING_PTS);
+	uint64_t* msg_pts = (uint64_t*)&buf[sizeof(struct rfb_server_fb_rect)];
+	*msg_pts = nvnc__htonll(pts);
+
+	stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
 }
 
 static void process_fb_update_requests(struct nvnc_client* client)
@@ -628,16 +660,22 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	enum encoder_kind kind = encoder_get_kind(client->encoder);
 	if (kind == ENCODER_KIND_PUSH_PULL) {
-		struct rcbuf* buf = encoder_pull(client->encoder);
+		uint64_t pts = NVNC_NO_PTS;
+		struct rcbuf* buf = encoder_pull(client->encoder, &pts);
 		if (!buf)
 			return;
 
+		int n_rects = client->encoder->n_rects;
+		n_rects += will_send_pts(client, pts) ? 1 : 0;
+
 		struct rfb_server_fb_update_msg update_msg = {
 			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-			.n_rects = htons(client->encoder->n_rects),
+			.n_rects = htons(n_rects),
 		};
 		stream_write(client->net_stream, &update_msg,
 				sizeof(update_msg), NULL, NULL);
+
+		send_pts_rect(client, pts);
 
 		stream_send(client->net_stream, buf, NULL, NULL);
 		pixman_region_clear(&client->damage);
@@ -1323,18 +1361,20 @@ static bool client_has_encoding(const struct nvnc_client* client,
 }
 
 static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
-		int n_rects)
+		int n_rects, uint64_t pts)
 {
 	client_ref(client);
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
 		DTRACE_PROBE1(neatvnc, send_fb_start, client);
+		n_rects += will_send_pts(client, pts) ? 1 : 0;
 		struct rfb_server_fb_update_msg update_msg = {
 			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
 			.n_rects = htons(n_rects),
 		};
 		stream_write(client->net_stream, &update_msg,
 				sizeof(update_msg), NULL, NULL);
+		send_pts_rect(client, pts);
 		rcbuf_ref(payload);
 		stream_send(client->net_stream, payload, on_write_frame_done,
 		            client);
@@ -1352,10 +1392,11 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 }
 
-static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result)
+static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,
+		uint64_t pts)
 {
 	struct nvnc_client* client = encoder->userdata;
-	finish_fb_update(client, result, encoder->n_rects);
+	finish_fb_update(client, result, encoder->n_rects, pts);
 	client_unref(client);
 }
 

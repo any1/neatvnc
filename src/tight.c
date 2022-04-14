@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -77,6 +77,7 @@ struct tight_encoder {
 	struct rfb_pixel_format dfmt;
 	struct rfb_pixel_format sfmt;
 	struct nvnc_fb* fb;
+	uint64_t pts;
 
 	uint32_t n_rects;
 	uint32_t n_jobs;
@@ -202,6 +203,8 @@ static int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 	tight_init_zs_worker(self, 3);
 
 	aml_require_workers(aml_get_default(), 1);
+
+	self->pts = NVNC_NO_PTS;
 
 	return 0;
 }
@@ -517,8 +520,9 @@ static void on_tight_finished(void* obj)
 	self->encoder.n_rects = self->n_rects;
 
 	if (self->encoder.on_done)
-		self->encoder.on_done(&self->encoder, result);
+		self->encoder.on_done(&self->encoder, result, self->pts);
 
+	self->pts = NVNC_NO_PTS;
 	rcbuf_unref(result);
 }
 
@@ -588,6 +592,7 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	assert(rc == 0);
 
 	self->fb = fb;
+	self->pts = nvnc_fb_get_pts(fb);
 
 	rc = nvnc_fb_map(self->fb);
 	if (rc < 0)

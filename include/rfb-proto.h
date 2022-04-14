@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -66,6 +66,7 @@ enum rfb_encodings {
 	RFB_ENCODING_JPEG_HIGHQ = -23,
 	RFB_ENCODING_JPEG_LOWQ = -32,
 	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
+	RFB_ENCODING_PTS = -1000,
 };
 
 enum rfb_server_to_client_msg_type {

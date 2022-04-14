@@ -18,6 +18,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
+
+#define NVNC_NO_PTS UINT64_MAX
 
 struct nvnc;
 struct nvnc_client;
@@ -110,6 +113,8 @@ void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn,
 			    void* context);
 void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform);
 
+void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts);
+
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
@@ -119,6 +124,7 @@ int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb);
 struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb);
 enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb);
 enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb);
+uint64_t nvnc_fb_get_pts(const struct nvnc_fb* fb);
 
 struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format, uint16_t stride);

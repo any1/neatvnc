@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -48,6 +48,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
+	fb->pts = NVNC_NO_PTS;
 
 	size_t size = height * stride * 4; /* Assume 4 byte format for now */
 	size_t alignment = MAX(4, sizeof(void*));
@@ -78,6 +79,7 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t heigh
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
+	fb->pts = NVNC_NO_PTS;
 
 	return fb;
 }
@@ -97,6 +99,7 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
 	fb->height = gbm_bo_get_height(bo);
 	fb->fourcc_format = gbm_bo_get_format(bo);
 	fb->bo = bo;
+	fb->pts = NVNC_NO_PTS;
 
 	return fb;
 #else
@@ -159,6 +162,12 @@ enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb)
 	return fb->type;
 }
 
+EXPORT
+uint64_t nvnc_fb_get_pts(const struct nvnc_fb* fb)
+{
+	return fb->pts;
+}
+
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
@@ -208,6 +217,12 @@ void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform transform)
 	fb->transform = transform;
 }
 
+EXPORT
+void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts)
+{
+	fb->pts = pts;
+}
+
 void nvnc_fb_hold(struct nvnc_fb* fb)
 {
 	fb->hold_count++;
@@ -219,6 +234,7 @@ void nvnc_fb_release(struct nvnc_fb* fb)
 		return;
 
 	nvnc_fb_unmap(fb);
+	fb->pts = NVNC_NO_PTS;
 
 	if (fb->on_release)
 		fb->on_release(fb, fb->release_context);

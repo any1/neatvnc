@@ -127,10 +127,10 @@ int encoder_push(struct encoder* self, struct nvnc_fb* fb,
 	return -1;
 }
 
-struct rcbuf* encoder_pull(struct encoder* self)
+struct rcbuf* encoder_pull(struct encoder* self, uint64_t* pts)
 {
 	if (self->impl->pull)
-		return self->impl->pull(self);
+		return self->impl->pull(self, pts);
 
 	assert(self->impl->encode && !self->impl->push);
 	return NULL;

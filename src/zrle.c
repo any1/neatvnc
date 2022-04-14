@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -363,6 +363,7 @@ static void zrle_encoder_on_done(void* obj)
 
 	assert(self->current_result);
 
+	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
 	nvnc_fb_unref(self->current_fb);
 	self->current_fb = NULL;
 
@@ -375,7 +376,7 @@ static void zrle_encoder_on_done(void* obj)
 	self->work = NULL;
 
 	if (self->encoder.on_done)
-		self->encoder.on_done(&self->encoder, result);
+		self->encoder.on_done(&self->encoder, result, pts);
 
 	rcbuf_unref(result);
 }

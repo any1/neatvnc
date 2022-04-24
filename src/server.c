@@ -45,7 +45,6 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netdb.h>
-#include <byteswap.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -91,7 +90,7 @@ extern const unsigned short code_map_qnum_to_linux[];
 static uint64_t nvnc__htonll(uint64_t x)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	return bswap_64(x);
+	return __builtin_bswap64(x);
 #else
 	return x;
 #endif

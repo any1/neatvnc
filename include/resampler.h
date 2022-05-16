@@ -32,3 +32,6 @@ void resampler_destroy(struct resampler*);
 int resampler_feed(struct resampler*, struct nvnc_fb* fb,
 		struct pixman_region16* damage, resampler_fn on_done,
 		void* userdata);
+
+void resample_now(struct nvnc_fb* dst, struct nvnc_fb* src,
+		struct pixman_region16* damage);

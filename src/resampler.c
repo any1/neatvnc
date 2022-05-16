@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Andri Yngvason
+ * Copyright (c) 2021 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -100,15 +100,9 @@ void resampler_destroy(struct resampler* self)
 	free(self);
 }
 
-static void do_work(void* handle)
+void resample_now(struct nvnc_fb* dst, struct nvnc_fb* src,
+		struct pixman_region16* damage)
 {
-	struct aml_work* work = handle;
-	struct resampler_work* ctx = aml_get_userdata(work);
-
-	struct nvnc_fb* src = ctx->src;
-	struct nvnc_fb* dst = ctx->dst;
-	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
-
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
 
 	bool ok __attribute__((unused));
@@ -138,7 +132,9 @@ static void do_work(void* handle)
 	/* Side data contains the union of the buffer damage and the frame
 	 * damage.
 	 */
-	pixman_image_set_clip_region(dstimg, &dst_side_data->buffer_damage);
+	if (damage) {
+		pixman_image_set_clip_region(dstimg, damage);
+	}
 
 	pixman_image_composite(PIXMAN_OP_OVER, srcimg, NULL, dstimg,
 			0, 0,
@@ -148,6 +144,18 @@ static void do_work(void* handle)
 
 	pixman_image_unref(srcimg);
 	pixman_image_unref(dstimg);
+}
+
+static void do_work(void* handle)
+{
+	struct aml_work* work = handle;
+	struct resampler_work* ctx = aml_get_userdata(work);
+
+	struct nvnc_fb* src = ctx->src;
+	struct nvnc_fb* dst = ctx->dst;
+	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
+
+	resample_now(dst, src, &dst_side_data->buffer_damage);
 }
 
 static void on_work_done(void* handle)

@@ -184,7 +184,11 @@ static void nvnc__fb_free(struct nvnc_fb* fb)
 			free(fb->addr);
 			break;
 		case NVNC_FB_GBM_BO:
+#ifdef HAVE_GBM
 			gbm_bo_destroy(fb->bo);
+#else
+			abort();
+#endif
 			break;
 		}
 

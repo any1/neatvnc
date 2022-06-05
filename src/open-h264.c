@@ -76,8 +76,7 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	vec_append(&self->pending, data, size);
 	self->pts = pts;
 
-	if (self->parent.on_done)
-		self->parent.on_done(&self->parent, NULL, NVNC_NO_PTS);
+	encoder_finish_frame(&self->parent, NULL, NVNC_NO_PTS);
 }
 
 static int open_h264_init_pending(struct open_h264* self)

@@ -90,3 +90,6 @@ int encoder_push(struct encoder* self, struct nvnc_fb* fb,
 struct rcbuf* encoder_pull(struct encoder* self, uint64_t* pts);
 
 void encoder_request_key_frame(struct encoder* self);
+
+void encoder_finish_frame(struct encoder* self, struct rcbuf* result,
+		uint64_t pts);

@@ -375,8 +375,7 @@ static void zrle_encoder_on_done(void* obj)
 	aml_unref(self->work);
 	self->work = NULL;
 
-	if (self->encoder.on_done)
-		self->encoder.on_done(&self->encoder, result, pts);
+	encoder_finish_frame(&self->encoder, result, pts);
 
 	rcbuf_unref(result);
 }

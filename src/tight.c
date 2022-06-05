@@ -519,8 +519,7 @@ static void on_tight_finished(void* obj)
 
 	self->encoder.n_rects = self->n_rects;
 
-	if (self->encoder.on_done)
-		self->encoder.on_done(&self->encoder, result, self->pts);
+	encoder_finish_frame(&self->encoder, result, self->pts);
 
 	self->pts = NVNC_NO_PTS;
 	rcbuf_unref(result);

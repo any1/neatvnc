@@ -19,8 +19,34 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <assert.h>
 
 #define NVNC_NO_PTS UINT64_MAX
+
+#define nvnc_log(lvl, fmt, ...) do { \
+	assert(lvl != NVNC_LOG_TRACE); \
+	struct nvnc_log_data ld = { \
+		.level = lvl, \
+		.file = __FILE__, \
+		.line = __LINE__, \
+	}; \
+	nvnc__log(&ld, fmt, ## __VA_ARGS__); \
+} while(0)
+
+#ifndef NDEBUG
+#define nvnc_trace(fmt, ...) do { \
+	struct nvnc_log_data ld = { \
+		.level = NVNC_LOG_TRACE, \
+		.file = __FILE__, \
+		.line = __LINE__, \
+	}; \
+	nvnc__log(&ld, fmt, ## __VA_ARGS__); \
+} while(0)
+#else
+#define nvnc_trace(...)
+#endif
 
 struct nvnc;
 struct nvnc_client;
@@ -56,6 +82,21 @@ enum nvnc_transform {
 	NVNC_TRANSFORM_FLIPPED_270 = 7,
 };
 
+enum nvnc_log_level {
+	NVNC_LOG_PANIC = 0,
+	NVNC_LOG_ERROR = 1,
+	NVNC_LOG_WARNING = 2,
+	NVNC_LOG_INFO = 3,
+	NVNC_LOG_DEBUG = 4,
+	NVNC_LOG_TRACE = 5,
+};
+
+struct nvnc_log_data {
+	enum nvnc_log_level level;
+	const char* file;
+	int line;
+};
+
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
                             bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
@@ -70,6 +111,7 @@ typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
 typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
 typedef void (*nvnc_cleanup_fn)(void* userdata);
+typedef void (*nvnc_log_fn)(const struct nvnc_log_data*, const char* message);
 
 extern const char nvnc_version[];
 
@@ -151,3 +193,7 @@ void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t width,
 		     uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
 		     bool is_damaged);
+
+void nvnc_set_log_fn(nvnc_log_fn);
+void nvnc_set_log_level(enum nvnc_log_level);
+void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);

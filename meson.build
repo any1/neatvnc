@@ -84,6 +84,7 @@ sources = [
 	'src/murmurhash.c',
 	'src/encoder.c',
 	'src/cursor.c',
+	'src/logging.c',
 ]
 
 dependencies = [

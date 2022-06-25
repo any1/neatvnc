@@ -21,7 +21,6 @@
 #include "fb.h"
 #include "rcbuf.h"
 #include "encoder.h"
-#include "logging.h"
 
 #include <stdlib.h>
 
@@ -69,7 +68,7 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	// Let's not deplete the RAM if the client isn't pulling
 	if (self->pending.len > 100000000) {
 		// TODO: Drop buffer and request a keyframe?
-		log_debug("Pending buffer grew too large. Dropping packet...\n");
+		nvnc_log(NVNC_LOG_DEBUG, "Pending buffer grew too large. Dropping packet...");
 		return;
 	}
 

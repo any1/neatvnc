@@ -19,7 +19,6 @@
 #include "common.h"
 #include "pixels.h"
 #include "vec.h"
-#include "logging.h"
 #include "tight.h"
 #include "config.h"
 #include "enc-util.h"
@@ -376,12 +375,13 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	rc = tjCompress2(handle, img, width, stride * 4, height, tjfmt, &buffer,
 			&size, TJSAMP_422, quality, TJFLAG_FASTDCT);
 	if (rc < 0) {
-		log_error("Failed to encode tight JPEG box: %s\n", tjGetErrorStr());
+		nvnc_log(NVNC_LOG_ERROR, "Failed to encode tight JPEG box: %s",
+				tjGetErrorStr());
 		goto failure;
 	}
 
 	if (size > MAX_TILE_SIZE) {
-		log_error("Whoops, encoded JPEG was too big for the buffer\n");
+		nvnc_log(NVNC_LOG_ERROR, "Whoops, encoded JPEG was too big for the buffer");
 		goto failure;
 	}
 

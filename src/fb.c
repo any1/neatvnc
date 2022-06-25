@@ -17,7 +17,6 @@
 #include "fb.h"
 #include "pixels.h"
 #include "neatvnc.h"
-#include "logging.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -103,7 +102,7 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
 
 	return fb;
 #else
-	log_error("nvnc_fb_from_gbm_bo was not enabled during build time\n");
+	nvnc_log(NVNC_LOG_ERROR, "nvnc_fb_from_gbm_bo was not enabled during build time");
 	return NULL;
 #endif
 }

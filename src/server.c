@@ -24,13 +24,13 @@
 #include "pixels.h"
 #include "stream.h"
 #include "config.h"
-#include "logging.h"
 #include "usdt.h"
 #include "encoder.h"
 #include "tight.h"
 #include "enc-util.h"
 #include "cursor.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/queue.h>
@@ -98,7 +98,7 @@ static uint64_t nvnc__htonll(uint64_t x)
 
 static void client_close(struct nvnc_client* client)
 {
-	log_debug("client_close(%p): ref %d\n", client, client->ref);
+	nvnc_log(NVNC_LOG_DEBUG, "client_close(%p): ref %d", client, client->ref);
 
 	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
 	if (cleanup)
@@ -142,7 +142,8 @@ static inline void client_ref(struct nvnc_client* client)
 static void close_after_write(void* userdata, enum stream_req_status status)
 {
 	struct nvnc_client* client = userdata;
-	log_debug("close_after_write(%p): ref %d\n", client, client->ref);
+	nvnc_log(NVNC_LOG_DEBUG, "close_after_write(%p): ref %d", client,
+			client->ref);
 	stream_close(client->net_stream);
 	client_unref(client);
 }
@@ -328,11 +329,11 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	password[MIN(plen, sizeof(password) - 1)] = '\0';
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
-		log_debug("User \"%s\" authenticated\n", username);
+		nvnc_log(NVNC_LOG_DEBUG, "User \"%s\" authenticated", username);
 		security_handshake_ok(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	} else {
-		log_debug("User \"%s\" rejected\n", username);
+		nvnc_log(NVNC_LOG_DEBUG, "User \"%s\" rejected", username);
 		security_handshake_failed(client, "Invalid username or password");
 	}
 
@@ -373,8 +374,9 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 
 	LIST_FOREACH_SAFE (node, &client->server->clients, link, tmp)
 		if (node != client) {
-			log_debug("disconnect other client %p (ref %d)\n",
-			          node, node->ref);
+			nvnc_log(NVNC_LOG_DEBUG,
+					"disconnect other client %p (ref %d)",
+					node, node->ref);
 			stream_close(node->net_stream);
 			client_unref(node);
 		}
@@ -390,12 +392,12 @@ static void send_server_init_message(struct nvnc_client* client)
 	size_t size = sizeof(struct rfb_server_init_msg) + name_len;
 
 	if (!display) {
-		log_debug("Tried to send init message, but no display has been added\n");
+		nvnc_log(NVNC_LOG_DEBUG, "Tried to send init message, but no display has been added");
 		goto close;
 	}
 
 	if (!display->buffer) {
-		log_debug("Tried to send init message, but no framebuffers have been set\n");
+		nvnc_log(NVNC_LOG_DEBUG, "Tried to send init message, but no framebuffers have been set");
 		goto close;
 	}
 
@@ -549,7 +551,7 @@ static void send_cursor_update(struct nvnc_client* client)
 			server->cursor.width, server->cursor.height,
 			server->cursor.hotspot_x, server->cursor.hotspot_y);
 	if (rc < 0) {
-		log_error("Failed to send cursor to client\n");
+		nvnc_log(NVNC_LOG_ERROR, "Failed to send cursor to client");
 		vec_destroy(&payload);
 		return;
 	}
@@ -642,7 +644,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		encoder_destroy(client->encoder);
 		client->encoder = encoder_new(encoding, width, height);
 		if (!client->encoder) {
-			log_error("Failed to allocate new encoder");
+			nvnc_log(NVNC_LOG_ERROR, "Failed to allocate new encoder");
 			return;
 		}
 
@@ -701,7 +703,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		if (encoder_encode(client->encoder, fb, &damage) >= 0) {
 			--client->n_pending_requests;
 		} else {
-			log_error("Failed to encode current frame");
+			nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
 			client_unref(client);
 			client->is_updating = false;
 			assert(client->current_fb);
@@ -816,7 +818,7 @@ static int on_client_qemu_event(struct nvnc_client* client)
 		return on_client_qemu_key_event(client);
 	}
 
-	log_debug("Got uninterpretable qemu message from client: %p (ref %d)\n",
+	nvnc_log(NVNC_LOG_DEBUG, "Got uninterpretable qemu message from client: %p (ref %d)",
 	          client, client->ref);
 	stream_close(client->net_stream);
 	client_unref(client);
@@ -878,7 +880,7 @@ static int on_client_cut_text(struct nvnc_client* client)
 
 	/* Messages greater than this size are unsupported */
 	if (length > max_length) {
-		log_error("Copied text length (%d) is greater than max supported length (%d)\n",
+		nvnc_log(NVNC_LOG_ERROR, "Copied text length (%d) is greater than max supported length (%d)",
 			length, max_length);
 		stream_close(client->net_stream);
 		client_unref(client);
@@ -898,7 +900,7 @@ static int on_client_cut_text(struct nvnc_client* client)
 
 	client->cut_text.buffer = malloc(length);
 	if (!client->cut_text.buffer) {
-		log_error("OOM: %m\n");
+		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
 		stream_close(client->net_stream);
 		client_unref(client);
 		return 0;
@@ -933,7 +935,7 @@ static void process_big_cut_text(struct nvnc_client* client)
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
-			log_debug("Client connection error: %p (ref %d)\n",
+			nvnc_log(NVNC_LOG_DEBUG, "Client connection error: %p (ref %d)",
 				  client, client->ref);
 			stream_close(client->net_stream);
 			client_unref(client);
@@ -979,7 +981,7 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_qemu_event(client);
 	}
 
-	log_debug("Got uninterpretable message from client: %p (ref %d)\n",
+	nvnc_log(NVNC_LOG_DEBUG, "Got uninterpretable message from client: %p (ref %d)",
 	          client, client->ref);
 	stream_close(client->net_stream);
 	client_unref(client);
@@ -1020,7 +1022,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	assert(client->net_stream && client->net_stream == stream);
 
 	if (event == STREAM_EVENT_REMOTE_CLOSED) {
-		log_debug("Client %p (%d) hung up\n", client, client->ref);
+		nvnc_log(NVNC_LOG_DEBUG, "Client %p (%d) hung up", client, client->ref);
 		stream_close(stream);
 		client_unref(client);
 		return;
@@ -1042,7 +1044,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
-			log_debug("Client connection error: %p (ref %d)\n",
+			nvnc_log(NVNC_LOG_DEBUG, "Client connection error: %p (ref %d)",
 				  client, client->ref);
 			stream_close(stream);
 			client_unref(client);
@@ -1083,18 +1085,18 @@ static void on_connection(void* obj)
 
 	int fd = accept(server->fd, NULL, 0);
 	if (fd < 0) {
-		log_debug("Failed to accept a connection\n");
+		nvnc_log(NVNC_LOG_DEBUG, "Failed to accept a connection");
 		goto accept_failure;
 	}
 
 	client->net_stream = stream_new(fd, on_client_event, client);
 	if (!client->net_stream) {
-		log_debug("OOM\n");
+		nvnc_log(NVNC_LOG_DEBUG, "OOM");
 		goto stream_failure;
 	}
 
 	if (!server->display->buffer) {
-		log_debug("No display buffer has been set\n");
+		nvnc_log(NVNC_LOG_DEBUG, "No display buffer has been set");
 		goto buffer_failure;
 	}
 
@@ -1102,7 +1104,7 @@ static void on_connection(void* obj)
 
 	struct rcbuf* payload = rcbuf_from_string(RFB_VERSION_MESSAGE);
 	if (!payload) {
-		log_debug("OOM\n");
+		nvnc_log(NVNC_LOG_DEBUG, "OOM");
 		goto payload_failure;
 	}
 
@@ -1112,7 +1114,7 @@ static void on_connection(void* obj)
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
 
-	log_debug("New client connection: %p (ref %d)\n", client, client->ref);
+	nvnc_log(NVNC_LOG_DEBUG, "New client connection: %p (ref %d)", client, client->ref);
 
 	return;
 
@@ -1198,7 +1200,7 @@ static int bind_address(const char* name, uint16_t port, enum addrtype type)
 		return bind_address_unix(name);
 	}
 
-	log_error("unknown socket address type");
+	nvnc_log(NVNC_LOG_ERROR, "unknown socket address type");
 	abort();
 }
 
@@ -1402,7 +1404,7 @@ static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
 {
 	if (!client_has_encoding(client, RFB_ENCODING_DESKTOPSIZE)) {
-		log_error("Client does not support desktop resizing. Closing connection...\n");
+		nvnc_log(NVNC_LOG_ERROR, "Client does not support desktop resizing. Closing connection...");
 		stream_close(client->net_stream);
 		client_unref(client);
 		return -1;
@@ -1522,7 +1524,7 @@ EXPORT
 void nvnc_add_display(struct nvnc* self, struct nvnc_display* display)
 {
 	if (self->display) {
-		log_error("Multiple displays are not implemented. Aborting!\n");
+		nvnc_log(NVNC_LOG_ERROR, "Multiple displays are not implemented. Aborting!");
 		abort();
 	}
 
@@ -1578,14 +1580,14 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 	 */
 	int rc = gnutls_global_init();
 	if (rc != GNUTLS_E_SUCCESS) {
-		log_error("GnuTLS: Failed to initialise: %s\n",
+		nvnc_log(NVNC_LOG_ERROR, "GnuTLS: Failed to initialise: %s",
 		          gnutls_strerror(rc));
 		return -1;
 	}
 
 	rc = gnutls_certificate_allocate_credentials(&self->tls_creds);
 	if (rc != GNUTLS_E_SUCCESS) {
-		log_error("GnuTLS: Failed to allocate credentials: %s\n",
+		nvnc_log(NVNC_LOG_ERROR, "GnuTLS: Failed to allocate credentials: %s",
 		          gnutls_strerror(rc));
 		goto cert_alloc_failure;
 	}
@@ -1593,7 +1595,7 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 	rc = gnutls_certificate_set_x509_key_file(
 		self->tls_creds, cert_path, privkey_path, GNUTLS_X509_FMT_PEM);
 	if (rc != GNUTLS_E_SUCCESS) {
-		log_error("GnuTLS: Failed to load credentials: %s\n",
+		nvnc_log(NVNC_LOG_ERROR, "GnuTLS: Failed to load credentials: %s",
 		          gnutls_strerror(rc));
 		goto cert_set_failure;
 	}

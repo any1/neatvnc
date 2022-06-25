@@ -98,7 +98,8 @@ static uint64_t nvnc__htonll(uint64_t x)
 
 static void client_close(struct nvnc_client* client)
 {
-	nvnc_log(NVNC_LOG_DEBUG, "client_close(%p): ref %d", client, client->ref);
+	nvnc_log(NVNC_LOG_INFO, "Closing client connection %p: ref %d", client,
+			client->ref);
 
 	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
 	if (cleanup)
@@ -329,11 +330,11 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	password[MIN(plen, sizeof(password) - 1)] = '\0';
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
-		nvnc_log(NVNC_LOG_DEBUG, "User \"%s\" authenticated", username);
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
 		security_handshake_ok(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	} else {
-		nvnc_log(NVNC_LOG_DEBUG, "User \"%s\" rejected", username);
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
 		security_handshake_failed(client, "Invalid username or password");
 	}
 
@@ -392,12 +393,12 @@ static void send_server_init_message(struct nvnc_client* client)
 	size_t size = sizeof(struct rfb_server_init_msg) + name_len;
 
 	if (!display) {
-		nvnc_log(NVNC_LOG_DEBUG, "Tried to send init message, but no display has been added");
+		nvnc_log(NVNC_LOG_WARNING, "Tried to send init message, but no display has been added");
 		goto close;
 	}
 
 	if (!display->buffer) {
-		nvnc_log(NVNC_LOG_DEBUG, "Tried to send init message, but no framebuffers have been set");
+		nvnc_log(NVNC_LOG_WARNING, "Tried to send init message, but no framebuffers have been set");
 		goto close;
 	}
 
@@ -818,7 +819,7 @@ static int on_client_qemu_event(struct nvnc_client* client)
 		return on_client_qemu_key_event(client);
 	}
 
-	nvnc_log(NVNC_LOG_DEBUG, "Got uninterpretable qemu message from client: %p (ref %d)",
+	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p (ref %d)",
 	          client, client->ref);
 	stream_close(client->net_stream);
 	client_unref(client);
@@ -935,7 +936,7 @@ static void process_big_cut_text(struct nvnc_client* client)
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
-			nvnc_log(NVNC_LOG_DEBUG, "Client connection error: %p (ref %d)",
+			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
 				  client, client->ref);
 			stream_close(client->net_stream);
 			client_unref(client);
@@ -981,7 +982,7 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_qemu_event(client);
 	}
 
-	nvnc_log(NVNC_LOG_DEBUG, "Got uninterpretable message from client: %p (ref %d)",
+	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p (ref %d)",
 	          client, client->ref);
 	stream_close(client->net_stream);
 	client_unref(client);
@@ -1022,7 +1023,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	assert(client->net_stream && client->net_stream == stream);
 
 	if (event == STREAM_EVENT_REMOTE_CLOSED) {
-		nvnc_log(NVNC_LOG_DEBUG, "Client %p (%d) hung up", client, client->ref);
+		nvnc_log(NVNC_LOG_INFO, "Client %p (%d) hung up", client, client->ref);
 		stream_close(stream);
 		client_unref(client);
 		return;
@@ -1044,7 +1045,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
-			nvnc_log(NVNC_LOG_DEBUG, "Client connection error: %p (ref %d)",
+			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
 				  client, client->ref);
 			stream_close(stream);
 			client_unref(client);
@@ -1085,18 +1086,18 @@ static void on_connection(void* obj)
 
 	int fd = accept(server->fd, NULL, 0);
 	if (fd < 0) {
-		nvnc_log(NVNC_LOG_DEBUG, "Failed to accept a connection");
+		nvnc_log(NVNC_LOG_WARNING, "Failed to accept a connection");
 		goto accept_failure;
 	}
 
 	client->net_stream = stream_new(fd, on_client_event, client);
 	if (!client->net_stream) {
-		nvnc_log(NVNC_LOG_DEBUG, "OOM");
+		nvnc_log(NVNC_LOG_WARNING, "OOM");
 		goto stream_failure;
 	}
 
 	if (!server->display->buffer) {
-		nvnc_log(NVNC_LOG_DEBUG, "No display buffer has been set");
+		nvnc_log(NVNC_LOG_WARNING, "No display buffer has been set");
 		goto buffer_failure;
 	}
 
@@ -1104,7 +1105,7 @@ static void on_connection(void* obj)
 
 	struct rcbuf* payload = rcbuf_from_string(RFB_VERSION_MESSAGE);
 	if (!payload) {
-		nvnc_log(NVNC_LOG_DEBUG, "OOM");
+		nvnc_log(NVNC_LOG_WARNING, "OOM");
 		goto payload_failure;
 	}
 
@@ -1114,7 +1115,7 @@ static void on_connection(void* obj)
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
 
-	nvnc_log(NVNC_LOG_DEBUG, "New client connection: %p (ref %d)", client, client->ref);
+	nvnc_log(NVNC_LOG_INFO, "New client connection: %p (ref %d)", client, client->ref);
 
 	return;
 

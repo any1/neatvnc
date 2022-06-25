@@ -52,6 +52,7 @@ enum open_h264_flags {
 };
 
 struct encoder* open_h264_new(void);
+static struct rcbuf* open_h264_pull(struct encoder* enc, uint64_t* pts);
 
 struct encoder_impl encoder_impl_open_h264;
 
@@ -75,7 +76,9 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	vec_append(&self->pending, data, size);
 	self->pts = pts;
 
-	encoder_finish_frame(&self->parent, NULL, NVNC_NO_PTS);
+	uint64_t rpts = NVNC_NO_PTS;
+	struct rcbuf* result = open_h264_pull(&self->parent, &rpts);
+	encoder_finish_frame(&self->parent, result, rpts);
 }
 
 static int open_h264_init_pending(struct open_h264* self)
@@ -141,7 +144,7 @@ static int open_h264_resize(struct open_h264* self, struct nvnc_fb* fb)
 	return 0;
 }
 
-static int open_h264_push(struct encoder* enc, struct nvnc_fb* fb,
+static int open_h264_encode(struct encoder* enc, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
 	struct open_h264* self = open_h264(enc);
@@ -206,7 +209,6 @@ static void open_h264_request_keyframe(struct encoder* enc)
 struct encoder_impl encoder_impl_open_h264 = {
 	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = open_h264_destroy,
-	.push = open_h264_push,
-	.pull = open_h264_pull,
+	.encode = open_h264_encode,
 	.request_key_frame = open_h264_request_keyframe,
 };

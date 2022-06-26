@@ -21,6 +21,7 @@
 #include "resampler.h"
 #include "transform-util.h"
 #include "encoder.h"
+#include "usdt.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -31,6 +32,8 @@ static void nvnc_display__on_resampler_done(struct nvnc_fb* fb,
 		struct pixman_region16* damage, void* userdata)
 {
 	struct nvnc_display* self = userdata;
+
+	DTRACE_PROBE2(neatvnc, nvnc_display__on_resampler_done, self, fb->pts);
 
 	if (self->buffer) {
 		nvnc_fb_release(self->buffer);
@@ -114,6 +117,8 @@ EXPORT
 void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
+	DTRACE_PROBE2(neatvnc, nvnc_display_feed_buffer, self, fb->pts);
+
 	struct nvnc* server = self->server;
 	assert(server);
 

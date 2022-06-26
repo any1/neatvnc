@@ -83,6 +83,8 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	DTRACE_PROBE1(neatvnc, open_h264_finish_frame, rpts);
 
 	encoder_finish_frame(&self->parent, result, rpts);
+
+	rcbuf_unref(result);
 }
 
 static int open_h264_init_pending(struct open_h264* self)

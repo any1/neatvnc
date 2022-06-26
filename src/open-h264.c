@@ -21,6 +21,7 @@
 #include "fb.h"
 #include "rcbuf.h"
 #include "encoder.h"
+#include "usdt.h"
 
 #include <stdlib.h>
 
@@ -69,7 +70,7 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	// Let's not deplete the RAM if the client isn't pulling
 	if (self->pending.len > 100000000) {
 		// TODO: Drop buffer and request a keyframe?
-		nvnc_log(NVNC_LOG_DEBUG, "Pending buffer grew too large. Dropping packet...");
+		nvnc_log(NVNC_LOG_WARNING, "Pending buffer grew too large. Dropping packet...");
 		return;
 	}
 
@@ -78,6 +79,9 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 
 	uint64_t rpts = NVNC_NO_PTS;
 	struct rcbuf* result = open_h264_pull(&self->parent, &rpts);
+
+	DTRACE_PROBE1(neatvnc, open_h264_finish_frame, rpts);
+
 	encoder_finish_frame(&self->parent, result, rpts);
 }
 
@@ -147,6 +151,8 @@ static int open_h264_resize(struct open_h264* self, struct nvnc_fb* fb)
 static int open_h264_encode(struct encoder* enc, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
+	DTRACE_PROBE1(neatvnc, open_h264_encode, fb->pts);
+
 	struct open_h264* self = open_h264(enc);
 	(void)damage;
 

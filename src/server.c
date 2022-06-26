@@ -667,6 +667,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		if (!buf)
 			return;
 
+		DTRACE_PROBE2(neatvnc, process_fb_update_requests__pull, client,
+				pts);
+
 		int n_rects = client->encoder->n_rects;
 		n_rects += will_send_pts(client, pts) ? 1 : 0;
 
@@ -700,6 +703,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 		client->encoder->on_done = on_encode_frame_done;
 		client->encoder->userdata = client;
+
+		DTRACE_PROBE2(neatvnc, process_fb_update_requests__encode,
+				client, fb->pts);
 
 		if (encoder_encode(client->encoder, fb, &damage) >= 0) {
 			--client->n_pending_requests;
@@ -1368,7 +1374,7 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 	client_ref(client);
 
 	if (client->net_stream->state != STREAM_STATE_CLOSED) {
-		DTRACE_PROBE1(neatvnc, send_fb_start, client);
+		DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
 		n_rects += will_send_pts(client, pts) ? 1 : 0;
 		struct rfb_server_fb_update_msg update_msg = {
 			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
@@ -1380,7 +1386,7 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 		rcbuf_ref(payload);
 		stream_send(client->net_stream, payload, on_write_frame_done,
 		            client);
-		DTRACE_PROBE1(neatvnc, send_fb_done, client);
+		DTRACE_PROBE2(neatvnc, send_fb_done, client, pts);
 	} else {
 		client->is_updating = false;
 		assert(client->current_fb);
@@ -1391,7 +1397,7 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 		client_unref(client);
 	}
 
-	DTRACE_PROBE1(neatvnc, update_fb_done, client);
+	DTRACE_PROBE2(neatvnc, update_fb_done, client, pts);
 }
 
 static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,

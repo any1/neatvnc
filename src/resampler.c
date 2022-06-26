@@ -19,6 +19,7 @@
 #include "fb.h"
 #include "transform-util.h"
 #include "pixels.h"
+#include "usdt.h"
 
 #include <stdlib.h>
 #include <aml.h>
@@ -170,6 +171,8 @@ int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage, resampler_fn on_done,
 		void* userdata)
 {
+	DTRACE_PROBE2(neatvnc, resampler_feed, self, fb->pts);
+
 	if (fb->transform == NVNC_TRANSFORM_NORMAL) {
 		on_done(fb, damage, userdata);
 		return 0;

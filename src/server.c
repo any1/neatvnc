@@ -1404,6 +1404,8 @@ static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,
 		uint64_t pts)
 {
 	struct nvnc_client* client = encoder->userdata;
+	client->encoder->on_done = NULL;
+	client->encoder->userdata = NULL;
 	finish_fb_update(client, result, encoder->n_rects, pts);
 	client_unref(client);
 }

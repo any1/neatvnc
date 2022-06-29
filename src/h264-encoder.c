@@ -568,6 +568,7 @@ void h264_encoder_destroy(struct h264_encoder* self)
 		return;
 	}
 
+	vec_destroy(&self->current_packet);
 	av_buffer_unref(&self->hw_frames_ctx);
 	avcodec_free_context(&self->codec_ctx);
 	av_buffer_unref(&self->hw_device_ctx);

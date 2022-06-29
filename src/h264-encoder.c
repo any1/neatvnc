@@ -446,11 +446,20 @@ static void h264_encoder__on_work_done(void* handle)
 	if (self->current_packet.len == 0)
 		return;
 
-	self->on_packet_ready(self->current_packet.data,
-			self->current_packet.len, pts, self->userdata);
-	vec_clear(&self->current_packet);
+	void* userdata = self->userdata;
 
+	// Must make a copy of packet because the callback might destroy the
+	// encoder object.
+	struct vec packet;
+	vec_init(&packet, self->current_packet.len);
+	vec_append(&packet, self->current_packet.data,
+			self->current_packet.len);
+
+	vec_clear(&self->current_packet);
 	h264_encoder__schedule_work(self);
+
+	self->on_packet_ready(packet.data, packet.len, pts, userdata);
+	vec_destroy(&packet);
 }
 
 static int find_render_node(char *node, size_t maxlen) {

@@ -19,6 +19,7 @@
 #include "fb.h"
 #include "sys/queue.h"
 #include "vec.h"
+#include "usdt.h"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -347,6 +348,8 @@ static int h264_encoder__schedule_work(struct h264_encoder* self)
 	if (!self->current_fb)
 		return 0;
 
+	DTRACE_PROBE1(neatvnc, h264_encode_frame_begin, self->current_fb->pts);
+
 	self->current_frame_is_keyframe = self->next_frame_should_be_keyframe;
 	self->next_frame_should_be_keyframe = false;
 
@@ -436,6 +439,8 @@ static void h264_encoder__on_work_done(void* handle)
 	nvnc_fb_release(self->current_fb);
 	nvnc_fb_unref(self->current_fb);
 	self->current_fb = NULL;
+
+	DTRACE_PROBE1(neatvnc, h264_encode_frame_end, pts);
 
 	if (self->please_destroy) {
 		vec_destroy(&self->current_packet);

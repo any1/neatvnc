@@ -6,6 +6,7 @@ pixels = executable('pixels',
 	include_directories: inc,
 	dependencies: [
 		pixman,
+		libdrm_inc,
 	],
 )
 test('pixels', pixels)

@@ -582,6 +582,20 @@ static void send_pts_rect(struct nvnc_client* client, uint64_t pts)
 	stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
 }
 
+static const char* encoding_to_string(enum rfb_encodings encoding)
+{
+	switch (encoding) {
+	case RFB_ENCODING_RAW: return "raw";
+	case RFB_ENCODING_TIGHT: return "tight";
+	case RFB_ENCODING_ZRLE: return "zrle";
+	case RFB_ENCODING_OPEN_H264: return "open-h264";
+	default:
+		break;
+	}
+
+	return "UNKNOWN";
+}
+
 static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -658,6 +672,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		server->n_damage_clients +=
 			!(client->encoder->impl->flags &
 					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+
+		nvnc_log(NVNC_LOG_INFO, "Choosing %s encoding for client %p",
+				encoding_to_string(encoding), client);
 	}
 
 	enum encoder_kind kind = encoder_get_kind(client->encoder);

@@ -34,9 +34,7 @@ if git.found()
 	endif
 endif
 
-libdrm_include_dir = dependency('libdrm').get_variable(pkgconfig: 'includedir')
-
-c_args += '-I=' + libdrm_include_dir
+libdrm_inc = dependency('libdrm').partial_dependency(compile_args: true)
 
 add_project_arguments(c_args, language: 'c')
 
@@ -92,6 +90,7 @@ dependencies = [
 	pixman,
 	aml,
 	zlib,
+	libdrm_inc,
 ]
 
 config = configuration_data()

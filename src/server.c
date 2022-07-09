@@ -29,6 +29,7 @@
 #include "tight.h"
 #include "enc-util.h"
 #include "cursor.h"
+#include "logging.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1234,6 +1235,8 @@ static int bind_address(const char* name, uint16_t port, enum addrtype type)
 
 static struct nvnc* open_common(const char* address, uint16_t port, enum addrtype type)
 {
+	nvnc__log_init();
+
 	aml_require_workers(aml_get_default(), -1);
 
 	struct nvnc* self = calloc(1, sizeof(*self));

@@ -45,6 +45,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -1112,6 +1113,9 @@ static void on_connection(void* obj)
 		nvnc_log(NVNC_LOG_WARNING, "Failed to accept a connection");
 		goto accept_failure;
 	}
+
+	int one = 1;
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 
 	client->net_stream = stream_new(fd, on_client_event, client);
 	if (!client->net_stream) {

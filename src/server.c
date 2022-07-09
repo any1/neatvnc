@@ -46,6 +46,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <netinet/tcp.h>
 
 #ifdef ENABLE_TLS

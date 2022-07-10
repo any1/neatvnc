@@ -24,6 +24,7 @@
 #include "usdt.h"
 
 #include <stdlib.h>
+#include <math.h>
 
 typedef void (*open_h264_ready_fn)(void*);
 
@@ -45,6 +46,9 @@ struct open_h264 {
 	uint32_t format;
 
 	bool needs_reset;
+
+	int quality;
+	bool quality_changed;
 };
 
 enum open_h264_flags {
@@ -112,6 +116,7 @@ struct encoder* open_h264_new(void)
 	}
 
 	self->pts = NVNC_NO_PTS;
+	self->quality = 6;
 
 	return (struct encoder*)self;
 }
@@ -129,8 +134,10 @@ static void open_h264_destroy(struct encoder* enc)
 
 static int open_h264_resize(struct open_h264* self, struct nvnc_fb* fb)
 {
+	int quality = 51 - round((50.0 / 9.0) * (float)self->quality);
+
 	struct h264_encoder* encoder = h264_encoder_create(fb->width,
-			fb->height, fb->fourcc_format);
+			fb->height, fb->fourcc_format, quality);
 	if (!encoder)
 		return -1;
 
@@ -146,6 +153,7 @@ static int open_h264_resize(struct open_h264* self, struct nvnc_fb* fb)
 	self->height = fb->height;
 	self->format = fb->fourcc_format;
 	self->needs_reset = true;
+	self->quality_changed = false;
 
 	return 0;
 }
@@ -159,7 +167,8 @@ static int open_h264_encode(struct encoder* enc, struct nvnc_fb* fb,
 	(void)damage;
 
 	if (fb->width != self->width || fb->height != self->height ||
-			fb->fourcc_format != self->format) {
+			fb->fourcc_format != self->format ||
+			self->quality_changed) {
 		if (open_h264_resize(self, fb) < 0)
 			return -1;
 	}
@@ -214,9 +223,19 @@ static void open_h264_request_keyframe(struct encoder* enc)
 	h264_encoder_request_keyframe(self->encoder);
 }
 
+static void open_h264_set_quality(struct encoder* enc, int value)
+{
+	struct open_h264* self = open_h264(enc);
+	if (value == 10)
+		value = 6;
+	self->quality_changed |= self->quality != value;
+	self->quality = value;
+}
+
 struct encoder_impl encoder_impl_open_h264 = {
 	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = open_h264_destroy,
 	.encode = open_h264_encode,
 	.request_key_frame = open_h264_request_keyframe,
+	.set_quality = open_h264_set_quality,
 };

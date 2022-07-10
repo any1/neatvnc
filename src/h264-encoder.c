@@ -298,7 +298,7 @@ failure:
 }
 
 static int h264_encoder__init_codec_context(struct h264_encoder* self,
-		const AVCodec* codec)
+		const AVCodec* codec, int quality)
 {
 	self->codec_ctx = avcodec_alloc_context3(codec);
 	if (!self->codec_ctx)
@@ -312,7 +312,7 @@ static int h264_encoder__init_codec_context(struct h264_encoder* self,
 	c->pix_fmt = AV_PIX_FMT_VAAPI;
 	c->gop_size = INT32_MAX; /* We'll select key frames manually */
 	c->max_b_frames = 0; /* B-frames are bad for latency */
-	c->global_quality = 20;
+	c->global_quality = quality;
 
 	/* open-h264 requires baseline profile, so we use constrained
 	 * baseline.
@@ -489,7 +489,7 @@ static int find_render_node(char *node, size_t maxlen) {
 }
 
 struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
-		uint32_t format)
+		uint32_t format, int quality)
 {
 	int rc;
 
@@ -536,7 +536,7 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 	if (h264_encoder__init_filters(self) < 0)
 		goto filter_failure;
 
-	if (h264_encoder__init_codec_context(self, codec) < 0)
+	if (h264_encoder__init_codec_context(self, codec, quality) < 0)
 		goto codec_context_failure;
 
 	self->codec_ctx->hw_frames_ctx =

@@ -90,6 +90,7 @@ struct nvnc_client {
 	bool is_qemu_key_ext_notified;
 	struct encoder* encoder;
 	uint32_t cursor_seq;
+	int quality;
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);

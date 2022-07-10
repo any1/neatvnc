@@ -26,7 +26,6 @@
 #include "config.h"
 #include "usdt.h"
 #include "encoder.h"
-#include "tight.h"
 #include "enc-util.h"
 #include "cursor.h"
 #include "logging.h"
@@ -74,7 +73,6 @@ static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
 static int send_qemu_key_ext_frame(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		struct nvnc_fb*);
-static enum tight_quality client_get_tight_quality(struct nvnc_client* client);
 static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
@@ -500,6 +498,8 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	    sizeof(*msg) + n_encodings * 4)
 		return 0;
 
+	client->quality = 10;
+
 	for (size_t i = 0; i < n_encodings; ++i) {
 		enum rfb_encodings encoding = htonl(msg->encodings[i]);
 
@@ -514,12 +514,14 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_OPEN_H264:
 		case RFB_ENCODING_CURSOR:
 		case RFB_ENCODING_DESKTOPSIZE:
-		case RFB_ENCODING_JPEG_HIGHQ:
-		case RFB_ENCODING_JPEG_LOWQ:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
 		case RFB_ENCODING_PTS:
 			client->encodings[n++] = encoding;
 		}
+
+		if (RFB_ENCODING_JPEG_LOWQ <= encoding &&
+				encoding <= RFB_ENCODING_JPEG_HIGHQ)
+			client->quality = encoding - RFB_ENCODING_JPEG_LOWQ;
 	}
 
 	client->n_encodings = n;
@@ -717,8 +719,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 		client_ref(client);
 
-		int q = client_get_tight_quality(client);
-		encoder_set_tight_quality(client->encoder, q);
+		encoder_set_quality(client->encoder, client->quality);
 		encoder_set_output_format(client->encoder, &client->pixfmt);
 
 		client->encoder->on_done = on_encode_frame_done;
@@ -1109,6 +1110,7 @@ static void on_connection(void* obj)
 
 	client->ref = 1;
 	client->server = server;
+	client->quality = 10; /* default to lossless */
 
 	int fd = accept(server->fd, NULL, 0);
 	if (fd < 0) {
@@ -1365,22 +1367,6 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		}
 
 	return RFB_ENCODING_RAW;
-}
-
-static enum tight_quality client_get_tight_quality(struct nvnc_client* client)
-{
-	if (client->pixfmt.bits_per_pixel != 16 &&
-	    client->pixfmt.bits_per_pixel != 32)
-		return TIGHT_QUALITY_LOSSLESS;
-
-	for (size_t i = 0; i < client->n_encodings; ++i)
-		switch (client->encodings[i]) {
-		case RFB_ENCODING_JPEG_HIGHQ: return TIGHT_QUALITY_HIGH;
-		case RFB_ENCODING_JPEG_LOWQ: return TIGHT_QUALITY_LOW;
-		default:;
-		}
-
-	return TIGHT_QUALITY_LOSSLESS;
 }
 
 static bool client_has_encoding(const struct nvnc_client* client,

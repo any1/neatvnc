@@ -93,10 +93,10 @@ void encoder_set_output_format(struct encoder* self,
 		self->impl->set_output_format(self, pixfmt);
 }
 
-void encoder_set_tight_quality(struct encoder* self, int value)
+void encoder_set_quality(struct encoder* self, int value)
 {
-	if (self->impl->set_tight_quality)
-		self->impl->set_tight_quality(self, value);
+	if (self->impl->set_quality)
+		self->impl->set_quality(self, value);
 }
 
 int encoder_resize(struct encoder* self, uint16_t width, uint16_t height)

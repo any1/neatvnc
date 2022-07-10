@@ -19,7 +19,6 @@
 #include "common.h"
 #include "pixels.h"
 #include "vec.h"
-#include "tight.h"
 #include "config.h"
 #include "enc-util.h"
 #include "fb.h"
@@ -66,7 +65,7 @@ struct tight_encoder {
 	uint32_t height;
 	uint32_t grid_width;
 	uint32_t grid_height;
-	enum tight_quality quality;
+	int quality;
 
 	struct tight_tile* grid;
 
@@ -350,13 +349,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	unsigned char* buffer = NULL;
 	unsigned long size = 0;
 
-	int quality; /* 1 - 100 */
-
-	switch (self->quality) {
-	case TIGHT_QUALITY_HIGH: quality = 66; break;
-	case TIGHT_QUALITY_LOW: quality = 33; break;
-	default: abort();
-	}
+	int quality = 11 * self->quality + 1;
 
 	uint32_t fourcc = nvnc_fb_get_fourcc_format(self->fb);
 	enum TJPF tjfmt = tight_get_jpeg_pixfmt(fourcc);
@@ -411,17 +404,10 @@ static void tight_encode_tile(struct tight_encoder* self,
 	tile->size = 0;
 
 #ifdef HAVE_JPEG
-	switch (self->quality) {
-	case TIGHT_QUALITY_LOSSLESS:
+	if (self->quality >= 10) {
 		tight_encode_tile_basic(self, tile, x, y, width, height, gx % 4);
-		break;
-	case TIGHT_QUALITY_HIGH:
-	case TIGHT_QUALITY_LOW:
-		// TODO: Use more workers for jpeg
+	} else {
 		tight_encode_tile_jpeg(self, tile, x, y, width, height);
-		break;
-	case TIGHT_QUALITY_UNSPEC:
-		abort();
 	}
 #else
 	tight_encode_tile_basic(self, tile, x, y, width, height, gx % 4);
@@ -620,7 +606,7 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 struct encoder_impl encoder_impl_tight = {
 	.destroy = tight_encoder_destroy_wrapper,
 	.set_output_format = tight_encoder_set_output_format,
-	.set_tight_quality = tight_encoder_set_quality,
+	.set_quality = tight_encoder_set_quality,
 	.resize = tight_encoder_resize_wrapper,
 	.encode = tight_encoder_encode,
 };

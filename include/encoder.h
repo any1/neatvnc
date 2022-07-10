@@ -43,7 +43,7 @@ struct encoder_impl {
 
 	void (*set_output_format)(struct encoder*,
 			const struct rfb_pixel_format*);
-	void (*set_tight_quality)(struct encoder*, int quality);
+	void (*set_quality)(struct encoder*, int quality);
 
 	int (*resize)(struct encoder*, uint16_t width, uint16_t height);
 
@@ -78,7 +78,7 @@ enum encoder_kind encoder_get_kind(const struct encoder* self);
 
 void encoder_set_output_format(struct encoder* self,
 		const struct rfb_pixel_format*);
-void encoder_set_tight_quality(struct encoder* self, int value);
+void encoder_set_quality(struct encoder* self, int value);
 
 int encoder_resize(struct encoder* self, uint16_t width, uint16_t height);
 

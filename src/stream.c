@@ -399,7 +399,7 @@ static int stream__try_tls_accept(struct stream* self)
 	}
 
 	if (gnutls_error_is_fatal(rc)) {
-		aml_stop(aml_get_default(), &self->handler);
+		aml_stop(aml_get_default(), self->handler);
 		return -1;
 	}
 

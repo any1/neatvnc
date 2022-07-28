@@ -1570,6 +1570,16 @@ struct nvnc* nvnc_client_get_server(const struct nvnc_client* client)
 }
 
 EXPORT
+bool nvnc_client_supports_cursor(const struct nvnc_client* client)
+{
+	for (size_t i = 0; i < client->n_encodings; ++i) {
+		if (client->encodings[i] == RFB_ENCODING_CURSOR)
+			return true;
+	}
+	return false;
+}
+
+EXPORT
 void nvnc_set_name(struct nvnc* self, const char* name)
 {
 	strncpy(self->name, name, sizeof(self->name));

@@ -13,7 +13,10 @@ neat.
 
 ### Runtime Dependencies
  * aml - https://github.com/any1/aml/
+ * ffmpeg (optional)
+ * gbm (optional)
  * gnutls (optional)
+ * libdrm (optional)
  * libturbojpeg (optional)
  * pixman
  * zlib

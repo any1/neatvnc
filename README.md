@@ -12,16 +12,16 @@ neat.
 ## Building
 
 ### Runtime Dependencies
- * pixman
  * aml - https://github.com/any1/aml/
- * zlib
  * gnutls (optional)
  * libturbojpeg (optional)
+ * pixman
+ * zlib
 
 ### Build Dependencies
+ * libdrm
  * meson
  * pkg-config
- * libdrm
 
 To build just run:
 ```

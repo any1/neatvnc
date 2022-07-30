@@ -28,13 +28,3 @@ To build just run:
 meson build
 ninja -C build
 ```
-
-## Client Compatibility
- Name    | ZRLE Encoding | Tight Encoding | Crypto & Auth | SSH Tunneling
----------|---------------|----------------|---------------|--------------
-bVNC     |           Yes |              ? |           Yes |          Yes
-RealVNC  |           Yes |              ? |             ? |            ?
-Remmina  |           Yes |            Yes |             ? |          Yes
-TigerVNC |           Yes |            Yes |           Yes |            ?
-TightVNC |            No |            Yes |             ? |            ?
-UltraVNC |             ? |              ? |             ? |            ?

@@ -52,6 +52,10 @@
 #include <gnutls/gnutls.h>
 #endif
 
+#ifdef HAVE_SYSTEMD
+#include <systemd/sd-daemon.h>
+#endif
+
 #ifndef DRM_FORMAT_INVALID
 #define DRM_FORMAT_INVALID 0
 #endif
@@ -1236,7 +1240,19 @@ static int bind_address(const char* name, uint16_t port, enum addrtype type)
 	abort();
 }
 
-static struct nvnc* open_common(const char* address, uint16_t port, enum addrtype type)
+static void unlink_fd_path(int fd)
+{
+	struct sockaddr_un addr;
+	socklen_t addr_len = sizeof(addr);
+
+	if (getsockname(fd, (struct sockaddr*)&addr, &addr_len) == 0) {
+		if (addr.sun_family == AF_UNIX) {
+			unlink(addr.sun_path);
+		}
+	}
+}
+
+static struct nvnc* open_common(int fd)
 {
 	nvnc__log_init();
 
@@ -1250,7 +1266,7 @@ static struct nvnc* open_common(const char* address, uint16_t port, enum addrtyp
 
 	LIST_INIT(&self->clients);
 
-	self->fd = bind_address(address, port, type);
+	self->fd = fd;
 	if (self->fd < 0)
 		goto bind_failure;
 
@@ -1271,9 +1287,7 @@ poll_start_failure:
 handle_failure:
 listen_failure:
 	close(self->fd);
-	if (type == ADDRTYPE_UNIX) {
-		unlink(address);
-	}
+	unlink_fd_path(self->fd);
 bind_failure:
 	free(self);
 
@@ -1283,26 +1297,22 @@ bind_failure:
 EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
-	return open_common(address, port, ADDRTYPE_TCP);
+	return open_common(bind_address(address, port, ADDRTYPE_TCP));
 }
 
 EXPORT
 struct nvnc* nvnc_open_unix(const char* address)
 {
-	return open_common(address, 0, ADDRTYPE_UNIX);
+	return open_common(bind_address(address, 0, ADDRTYPE_UNIX));
 }
 
-static void unlink_fd_path(int fd)
+#ifdef HAVE_SYSTEMD
+EXPORT
+struct nvnc* nvnc_open_systemd_socket(void)
 {
-	struct sockaddr_un addr;
-	socklen_t addr_len = sizeof(addr);
-
-	if (getsockname(fd, (struct sockaddr*)&addr, &addr_len) == 0) {
-		if (addr.sun_family == AF_UNIX) {
-			unlink(addr.sun_path);
-		}
-	}
+	return open_common(SD_LISTEN_FDS_START);
 }
+#endif
 
 EXPORT
 void nvnc_close(struct nvnc* self)

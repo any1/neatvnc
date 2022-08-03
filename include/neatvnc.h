@@ -119,6 +119,7 @@ extern const char nvnc_version[];
 
 struct nvnc* nvnc_open(const char* addr, uint16_t port);
 struct nvnc* nvnc_open_unix(const char *addr);
+struct nvnc* nvnc_open_systemd_socket(void);
 void nvnc_close(struct nvnc* self);
 
 void nvnc_add_display(struct nvnc*, struct nvnc_display*);

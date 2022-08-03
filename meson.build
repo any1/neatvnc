@@ -62,6 +62,8 @@ endif
 
 inc = include_directories('include')
 
+systemd = dependency('systemd')
+
 sources = [
 	'src/server.c',
 	'src/vec.c',
@@ -122,6 +124,11 @@ if gbm.found() and libdrm.found() and libavcodec.found() and libavfilter.found()
 	sources += [ 'src/h264-encoder.c', 'src/open-h264.c' ]
 	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
 	config.set('ENABLE_OPEN_H264', true)
+endif
+
+if systemd.found()
+	dependencies += systemd
+	config.set('HAVE_SYSTEMD', true)
 endif
 
 configure_file(

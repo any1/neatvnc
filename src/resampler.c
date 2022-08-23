@@ -183,7 +183,7 @@ int resampler_feed(struct resampler* self, struct nvnc_fb* fb,
 
 	nvnc_transform_dimensions(fb->transform, &width, &height);
 	nvnc_fb_pool_resize(self->pool, width, height, fb->fourcc_format,
-			fb->stride);
+			width);
 
 	struct aml* aml = aml_get_default();
 	assert(aml);

@@ -34,6 +34,7 @@
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_drm.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/dict.h>
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
@@ -417,7 +418,9 @@ static void h264_encoder__do_work(void* handle)
 
 	int rc = h264_encoder__encode(self, frame);
 	if (rc != 0) {
-		// TODO: log failure
+		char err[256];
+		av_strerror(rc, err, sizeof(err));
+		nvnc_log(NVNC_LOG_ERROR, "Failed to encode packet: %s", err);
 		goto failure;
 	}
 
@@ -443,8 +446,10 @@ static void h264_encoder__on_work_done(void* handle)
 		return;
 	}
 
-	if (self->current_packet.len == 0)
+	if (self->current_packet.len == 0) {
+		nvnc_log(NVNC_LOG_WARNING, "Whoops, encoded packet length is 0");
 		return;
+	}
 
 	void* userdata = self->userdata;
 
@@ -536,7 +541,12 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 	self->codec_ctx->hw_frames_ctx =
 		av_buffer_ref(self->filter_out->inputs[0]->hw_frames_ctx);
 
-	rc = avcodec_open2(self->codec_ctx, codec, NULL);
+	AVDictionary *opts = NULL;
+	av_dict_set_int(&opts, "async_depth", 1, 0);
+
+	rc = avcodec_open2(self->codec_ctx, codec, &opts);
+	av_dict_free(&opts);
+
 	if (rc != 0)
 		goto avcodec_open_failure;
 

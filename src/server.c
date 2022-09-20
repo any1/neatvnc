@@ -1434,7 +1434,8 @@ static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
 	client->known_width = fb->width;
 	client->known_height = fb->height;
 
-	encoder_resize(client->encoder, fb->width, fb->height);
+	if (client->encoder)
+		encoder_resize(client->encoder, fb->width, fb->height);
 
 	pixman_region_union_rect(&client->damage, &client->damage, 0, 0,
 			fb->width, fb->height);

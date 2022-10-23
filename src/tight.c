@@ -364,9 +364,11 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	int32_t stride = nvnc_fb_get_stride(self->fb);
 	void* img = (uint32_t*)addr + x + y * stride;
 
+	enum TJSAMP subsampling = (quality == 9) ? TJSAMP_444 : TJSAMP_420;
+
 	int rc = -1;
 	rc = tjCompress2(handle, img, width, stride * 4, height, tjfmt, &buffer,
-			&size, TJSAMP_422, quality, TJFLAG_FASTDCT);
+			&size, subsampling, quality, TJFLAG_FASTDCT);
 	if (rc < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to encode tight JPEG box: %s",
 				tjGetErrorStr());

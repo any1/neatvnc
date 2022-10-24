@@ -742,7 +742,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 		pixman_region_fini(&damage);
 	} else {
-		abort();
+		nvnc_log(NVNC_LOG_PANIC, "Invalid encoder kind");
 	}
 }
 
@@ -1039,7 +1039,7 @@ static int try_read_client_message(struct nvnc_client* client)
 		return on_client_message(client);
 	}
 
-	abort();
+	nvnc_log(NVNC_LOG_PANIC, "Invalid client state");
 	return 0;
 }
 
@@ -1232,8 +1232,8 @@ static int bind_address(const char* name, uint16_t port, enum addrtype type)
 		return bind_address_unix(name);
 	}
 
-	nvnc_log(NVNC_LOG_ERROR, "unknown socket address type");
-	abort();
+	nvnc_log(NVNC_LOG_PANIC, "Unknown socket address type");
+	return -1;
 }
 
 static struct nvnc* open_common(const char* address, uint16_t port, enum addrtype type)
@@ -1546,8 +1546,7 @@ EXPORT
 void nvnc_add_display(struct nvnc* self, struct nvnc_display* display)
 {
 	if (self->display) {
-		nvnc_log(NVNC_LOG_ERROR, "Multiple displays are not implemented. Aborting!");
-		abort();
+		nvnc_log(NVNC_LOG_PANIC, "Multiple displays are not implemented. Aborting!");
 	}
 
 	display->server = self;

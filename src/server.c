@@ -1160,6 +1160,21 @@ accept_failure:
 	free(client);
 }
 
+static void sockaddr_to_string(char* dst, size_t sz, const struct sockaddr* addr)
+{
+	struct sockaddr_in *sa_in = (struct sockaddr_in*)addr;
+	struct sockaddr_in6 *sa_in6 = (struct sockaddr_in6*)addr;
+
+	switch (addr->sa_family) {
+	case AF_INET:
+		inet_ntop(addr->sa_family, &sa_in->sin_addr, dst, sz);
+		break;
+	case AF_INET6:
+		inet_ntop(addr->sa_family, &sa_in6->sin6_addr, dst, sz);
+		break;
+	}
+}
+
 static int bind_address_tcp(const char* name, int port)
 {
 	struct addrinfo hints = {
@@ -1173,23 +1188,37 @@ static int bind_address_tcp(const char* name, int port)
 	snprintf(service, sizeof(service), "%d", port);
 
 	int rc = getaddrinfo(name, service, &hints, &result);
-	if (rc != 0)
+	if (rc != 0) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to get address info: %s",
+				gai_strerror(rc));
 		return -1;
+	}
 
 	int fd = -1;
 
 	for (struct addrinfo* p = result; p != NULL; p = p->ai_next) {
+		char ai_str[256] = { 0 };
+		sockaddr_to_string(ai_str, sizeof(ai_str), p->ai_addr);
+		nvnc_log(NVNC_LOG_DEBUG, "Trying address: %s", ai_str);
+
 		fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		if (fd < 0)
+		if (fd < 0) {
+			nvnc_log(NVNC_LOG_DEBUG, "Failed to create socket: %m");
 			continue;
+		}
 
 		int one = 1;
-		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0)
+		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0) {
+			nvnc_log(NVNC_LOG_DEBUG, "Failed to set socket options: %m");
 			goto failure;
+		}
 
-		if (bind(fd, p->ai_addr, p->ai_addrlen) == 0)
+		if (bind(fd, p->ai_addr, p->ai_addrlen) == 0) {
+			nvnc_log(NVNC_LOG_DEBUG, "Successfully bound to address");
 			break;
+		}
 
+		nvnc_log(NVNC_LOG_DEBUG, "Failed to bind to address: %m");
 failure:
 		close(fd);
 		fd = -1;

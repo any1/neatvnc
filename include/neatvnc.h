@@ -112,6 +112,8 @@ typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
+typedef struct nvnc_fb* (*nvnc_fb_alloc_fn)(uint16_t width, uint16_t height,
+		uint32_t format, uint16_t stride);
 typedef void (*nvnc_cleanup_fn)(void* userdata);
 typedef void (*nvnc_log_fn)(const struct nvnc_log_data*, const char* message);
 
@@ -175,6 +177,8 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format, uint16_t stride);
 bool nvnc_fb_pool_resize(struct nvnc_fb_pool*, uint16_t width, uint16_t height,
 			 uint32_t fourcc_format, uint16_t stride);
+
+void nvnc_fb_pool_set_alloc_fn(struct nvnc_fb_pool*, nvnc_fb_alloc_fn);
 
 void nvnc_fb_pool_ref(struct nvnc_fb_pool*);
 void nvnc_fb_pool_unref(struct nvnc_fb_pool*);

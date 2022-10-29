@@ -40,6 +40,8 @@ struct nvnc_fb_pool {
 	uint16_t height;
 	int32_t stride;
 	uint32_t fourcc_format;
+
+	nvnc_fb_alloc_fn alloc_fn;
 };
 
 EXPORT
@@ -57,6 +59,7 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 	self->height = height;
 	self->stride = stride;
 	self->fourcc_format = fourcc_format;
+	self->alloc_fn = nvnc_fb_new;
 
 	return self;
 }
@@ -119,7 +122,7 @@ static void nvnc_fb_pool__on_fb_release(struct nvnc_fb* fb, void* userdata)
 
 static struct nvnc_fb* nvnc_fb_pool__acquire_new(struct nvnc_fb_pool* self)
 {
-	struct nvnc_fb* fb = nvnc_fb_new(self->width, self->height,
+	struct nvnc_fb* fb = self->alloc_fn(self->width, self->height,
 			self->fourcc_format, self->stride);
 	if (!fb)
 		return NULL;
@@ -167,4 +170,10 @@ void nvnc_fb_pool_release(struct nvnc_fb_pool* self, struct nvnc_fb* fb)
 	assert(item);
 	item->fb = fb;
 	TAILQ_INSERT_TAIL(&self->fbs, item, link);
+}
+
+EXPORT
+void nvnc_fb_pool_set_alloc_fn(struct nvnc_fb_pool* self, nvnc_fb_alloc_fn fn)
+{
+	self->alloc_fn = fn;
 }

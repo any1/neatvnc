@@ -16,6 +16,7 @@ c_args = [
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
 	'-Wmissing-prototypes',
+	'-DAML_UNSTABLE_API=1',
 ]
 
 if buildtype != 'debug' and buildtype != 'debugoptimized'

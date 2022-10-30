@@ -439,13 +439,19 @@ static void on_tight_zs_work_done(void* obj)
 		nvnc_fb_unref(self->fb);
 		schedule_tight_finish(self);
 	}
+
+	encoder_unref(&self->encoder);
 }
 
 static int tight_schedule_zs_work(struct tight_encoder* self, int index)
 {
+	encoder_ref(&self->encoder);
+
 	int rc = aml_start(aml_get_default(), self->zs_worker[index]);
 	if (rc >= 0)
 		++self->n_jobs;
+	else
+		encoder_unref(&self->encoder);
 
 	return rc;
 }
@@ -493,7 +499,6 @@ static void tight_finish(struct tight_encoder* self)
 
 static void do_tight_finish(void* obj)
 {
-	// TODO: Make sure there's no use-after-free here
 	struct tight_encoder* self = aml_get_userdata(obj);
 	tight_finish(self);
 }
@@ -511,14 +516,19 @@ static void on_tight_finished(void* obj)
 
 	self->pts = NVNC_NO_PTS;
 	rcbuf_unref(result);
+	encoder_unref(&self->encoder);
 }
 
 static int schedule_tight_finish(struct tight_encoder* self)
 {
+	encoder_ref(&self->encoder);
+
 	struct aml_work* work = aml_work_new(do_tight_finish, on_tight_finished,
 			self, NULL);
-	if (!work)
+	if (!work) {
+		encoder_unref(&self->encoder);
 		return -1;
+	}
 
 	int rc = aml_start(aml_get_default(), work);
 	aml_unref(work);

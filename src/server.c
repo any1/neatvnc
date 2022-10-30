@@ -533,16 +533,6 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	return sizeof(*msg) + 4 * n_encodings;
 }
 
-static void on_encoder_push_done(struct encoder* encoder, struct rcbuf* payload,
-		uint64_t pts)
-{
-	(void)payload;
-	(void)pts;
-
-	struct nvnc_client* client = encoder->userdata;
-	process_fb_update_requests(client);
-}
-
 static void send_cursor_update(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -673,12 +663,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			return;
 		}
 
-		if (encoder_get_kind(client->encoder) == ENCODER_KIND_PUSH_PULL)
-		{
-			client->encoder->on_done = on_encoder_push_done;
-			client->encoder->userdata = client;
-		}
-
 		server->n_damage_clients +=
 			!(client->encoder->impl->flags &
 					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
@@ -687,68 +671,39 @@ static void process_fb_update_requests(struct nvnc_client* client)
 				encoding_to_string(encoding), client);
 	}
 
-	enum encoder_kind kind = encoder_get_kind(client->encoder);
-	if (kind == ENCODER_KIND_PUSH_PULL) {
-		uint64_t pts = NVNC_NO_PTS;
-		struct rcbuf* buf = encoder_pull(client->encoder, &pts);
-		if (!buf)
-			return;
+	/* The client's damage is exchanged for an empty one */
+	struct pixman_region16 damage = client->damage;
+	pixman_region_init(&client->damage);
 
-		DTRACE_PROBE2(neatvnc, process_fb_update_requests__pull, client,
-				pts);
+	client->is_updating = true;
+	client->current_fb = fb;
+	nvnc_fb_hold(fb);
+	nvnc_fb_ref(fb);
 
-		int n_rects = client->encoder->n_rects;
-		n_rects += will_send_pts(client, pts) ? 1 : 0;
+	client_ref(client);
 
-		struct rfb_server_fb_update_msg update_msg = {
-			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-			.n_rects = htons(n_rects),
-		};
-		stream_write(client->net_stream, &update_msg,
-				sizeof(update_msg), NULL, NULL);
+	encoder_set_quality(client->encoder, client->quality);
+	encoder_set_output_format(client->encoder, &client->pixfmt);
 
-		send_pts_rect(client, pts);
+	client->encoder->on_done = on_encode_frame_done;
+	client->encoder->userdata = client;
 
-		stream_send(client->net_stream, buf, NULL, NULL);
-		pixman_region_clear(&client->damage);
+	DTRACE_PROBE2(neatvnc, process_fb_update_requests__encode,
+			client, fb->pts);
+
+	if (encoder_encode(client->encoder, fb, &damage) >= 0) {
 		--client->n_pending_requests;
-	} else if (kind == ENCODER_KIND_REGULAR) {
-		/* The client's damage is exchanged for an empty one */
-		struct pixman_region16 damage = client->damage;
-		pixman_region_init(&client->damage);
-
-		client->is_updating = true;
-		client->current_fb = fb;
-		nvnc_fb_hold(fb);
-		nvnc_fb_ref(fb);
-
-		client_ref(client);
-
-		encoder_set_quality(client->encoder, client->quality);
-		encoder_set_output_format(client->encoder, &client->pixfmt);
-
-		client->encoder->on_done = on_encode_frame_done;
-		client->encoder->userdata = client;
-
-		DTRACE_PROBE2(neatvnc, process_fb_update_requests__encode,
-				client, fb->pts);
-
-		if (encoder_encode(client->encoder, fb, &damage) >= 0) {
-			--client->n_pending_requests;
-		} else {
-			nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
-			client_unref(client);
-			client->is_updating = false;
-			assert(client->current_fb);
-			nvnc_fb_release(client->current_fb);
-			nvnc_fb_unref(client->current_fb);
-			client->current_fb = NULL;
-		}
-
-		pixman_region_fini(&damage);
 	} else {
-		nvnc_log(NVNC_LOG_PANIC, "Invalid encoder kind");
+		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
+		client_unref(client);
+		client->is_updating = false;
+		assert(client->current_fb);
+		nvnc_fb_release(client->current_fb);
+		nvnc_fb_unref(client->current_fb);
+		client->current_fb = NULL;
 	}
+
+	pixman_region_fini(&damage);
 }
 
 static int on_client_fb_update_request(struct nvnc_client* client)

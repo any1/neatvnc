@@ -72,17 +72,6 @@ enum rfb_encodings encoder_get_type(const struct encoder* self)
 	return 0;
 }
 
-enum encoder_kind encoder_get_kind(const struct encoder* self)
-{
-	if (self->impl->encode && !self->impl->push && !self->impl->pull)
-		return ENCODER_KIND_REGULAR;
-
-	if (!self->impl->encode && self->impl->push && self->impl->pull)
-		return ENCODER_KIND_PUSH_PULL;
-
-	return ENCODER_KIND_INVALID;
-}
-
 void encoder_ref(struct encoder* self)
 {
 	assert(self->ref > 0);
@@ -125,30 +114,8 @@ int encoder_resize(struct encoder* self, uint16_t width, uint16_t height)
 int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
-	if (self->impl->encode)
-		return self->impl->encode(self, fb, damage);
-
-	assert(self->impl->push && self->impl->pull);
-	return -1;
-}
-
-int encoder_push(struct encoder* self, struct nvnc_fb* fb,
-		struct pixman_region16* damage)
-{
-	if (self->impl->push)
-		return self->impl->push(self, fb, damage);
-
-	assert(self->impl->encode && !self->impl->pull);
-	return -1;
-}
-
-struct rcbuf* encoder_pull(struct encoder* self, uint64_t* pts)
-{
-	if (self->impl->pull)
-		return self->impl->pull(self, pts);
-
-	assert(self->impl->encode && !self->impl->push);
-	return NULL;
+	assert(self->impl->encode);
+	return self->impl->encode(self, fb, damage);
 }
 
 void encoder_request_key_frame(struct encoder* self)

@@ -1345,6 +1345,9 @@ void nvnc_close(struct nvnc* self)
 	if (self->display)
 		nvnc_display_unref(self->display);
 
+	if (self->cursor.buffer)
+		nvnc_fb_unref(self->cursor.buffer);
+
 	struct nvnc_client* tmp;
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
 		client_unref(client);

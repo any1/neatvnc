@@ -378,6 +378,7 @@ static void zrle_encoder_on_done(void* obj)
 	encoder_finish_frame(&self->encoder, result, pts);
 
 	rcbuf_unref(result);
+	encoder_unref(&self->encoder);
 }
 
 struct encoder* zrle_encoder_new(void)
@@ -439,8 +440,11 @@ static int zrle_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	nvnc_fb_ref(self->current_fb);
 	pixman_region_copy(&self->current_damage, damage);
 
+	encoder_ref(&self->encoder);
+
 	int rc = aml_start(aml_get_default(), self->work);
 	if (rc < 0) {
+		encoder_unref(&self->encoder);
 		aml_unref(self->work);
 		self->work = NULL;
 		pixman_region_clear(&self->current_damage);

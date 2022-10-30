@@ -25,6 +25,7 @@
 #include <aml.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/socket.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -123,7 +124,11 @@ static int stream__flush_plain(struct stream* self)
 	if (n_msgs == 0)
 		return 0;
 
-	bytes_sent = writev(self->fd, iov, n_msgs);
+	struct msghdr msghdr = {
+		.msg_iov = iov,
+		.msg_iovlen = n_msgs,
+	};
+	bytes_sent = sendmsg(self->fd, &msghdr, MSG_NOSIGNAL);
 	if (bytes_sent < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 			stream__poll_rw(self);

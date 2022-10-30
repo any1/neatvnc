@@ -198,6 +198,8 @@ static void raw_encoder_destroy(struct encoder* encoder)
 	pixman_region_fini(&self->current_damage);
 	if (self->work)
 		aml_unref(self->work);
+	if (self->current_result)
+		rcbuf_unref(self->current_result);
 	free(self);
 }
 

@@ -386,7 +386,7 @@ struct encoder* zrle_encoder_new(void)
 	if (!self)
 		return NULL;
 
-	self->encoder.impl = &encoder_impl_zrle;
+	encoder_init(&self->encoder, &encoder_impl_zrle);
 
 	int rc = deflateInit2(&self->zs,
 			/* compression level: */ 1,

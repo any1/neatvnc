@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Andri Yngvason
+ * Copyright (c) 2021 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -49,6 +49,12 @@ struct encoder* encoder_new(enum rfb_encodings type, uint16_t width,
 	return NULL;
 }
 
+void encoder_init(struct encoder* self, struct encoder_impl* impl)
+{
+	self->ref = 1;
+	self->impl = impl;
+}
+
 enum rfb_encodings encoder_get_type(const struct encoder* self)
 {
 	if (self->impl == &encoder_impl_raw)
@@ -77,9 +83,18 @@ enum encoder_kind encoder_get_kind(const struct encoder* self)
 	return ENCODER_KIND_INVALID;
 }
 
-void encoder_destroy(struct encoder* self)
+void encoder_ref(struct encoder* self)
+{
+	assert(self->ref > 0);
+	self->ref++;
+}
+
+void encoder_unref(struct encoder* self)
 {
 	if (!self)
+		return;
+
+	if (--self->ref != 0)
 		return;
 
 	if (self->impl->destroy)

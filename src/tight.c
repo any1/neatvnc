@@ -536,7 +536,7 @@ struct encoder* tight_encoder_new(uint16_t width, uint16_t height)
 		return NULL;
 	}
 
-	self->encoder.impl = &encoder_impl_tight;
+	encoder_init(&self->encoder, &encoder_impl_tight);
 
 	return (struct encoder*)self;
 }

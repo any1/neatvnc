@@ -108,7 +108,7 @@ struct encoder* open_h264_new(void)
 	if (!self)
 		return NULL;
 
-	self->parent.impl = &encoder_impl_open_h264;
+	encoder_init(&self->parent, &encoder_impl_open_h264);
 
 	if (open_h264_init_pending(self) < 0) {
 		free(self);

@@ -122,7 +122,7 @@ static void client_close(struct nvnc_client* client)
 			!(client->encoder->impl->flags &
 					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
 	}
-	encoder_destroy(client->encoder);
+	encoder_unref(client->encoder);
 	pixman_region_fini(&client->damage);
 	free(client->cut_text.buffer);
 	free(client);
@@ -661,7 +661,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 				!(client->encoder->impl->flags &
 						ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
 		}
-		encoder_destroy(client->encoder);
+		encoder_unref(client->encoder);
 		client->encoder = encoder_new(encoding, width, height);
 		if (!client->encoder) {
 			nvnc_log(NVNC_LOG_ERROR, "Failed to allocate new encoder");

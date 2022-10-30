@@ -184,7 +184,7 @@ struct encoder* raw_encoder_new(void)
 	if (!self)
 		return NULL;
 
-	self->encoder.impl = &encoder_impl_raw;
+	encoder_init(&self->encoder, &encoder_impl_raw);
 
 	pixman_region_init(&self->current_damage);
 

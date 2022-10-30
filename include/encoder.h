@@ -60,6 +60,8 @@ struct encoder_impl {
 struct encoder {
 	struct encoder_impl* impl;
 
+	int ref;
+
 	uint16_t x_pos;
 	uint16_t y_pos;
 
@@ -71,7 +73,10 @@ struct encoder {
 
 struct encoder* encoder_new(enum rfb_encodings type, uint16_t width,
 		uint16_t height);
-void encoder_destroy(struct encoder* self);
+void encoder_ref(struct encoder* self);
+void encoder_unref(struct encoder* self);
+
+void encoder_init(struct encoder* self, struct encoder_impl*);
 
 enum rfb_encodings encoder_get_type(const struct encoder* self);
 enum encoder_kind encoder_get_kind(const struct encoder* self);

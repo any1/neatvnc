@@ -414,6 +414,8 @@ static void zrle_encoder_destroy(struct encoder* encoder)
 	deflateEnd(&self->zs);
 	if (self->work)
 		aml_unref(self->work);
+	if (self->current_result)
+		rcbuf_unref(self->current_result);
 	free(self);
 }
 

@@ -121,6 +121,7 @@ static void client_close(struct nvnc_client* client)
 		client->server->n_damage_clients -=
 			!(client->encoder->impl->flags &
 					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+		client->encoder->on_done = NULL;
 	}
 	encoder_unref(client->encoder);
 	pixman_region_fini(&client->damage);
@@ -660,6 +661,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			server->n_damage_clients -=
 				!(client->encoder->impl->flags &
 						ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+			client->encoder->on_done = NULL;
 		}
 		encoder_unref(client->encoder);
 		client->encoder = encoder_new(encoding, width, height);

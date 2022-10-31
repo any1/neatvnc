@@ -1102,6 +1102,24 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
+static void record_peer_hostname(int fd, struct nvnc_client* client)
+{
+	struct sockaddr_storage storage;
+	struct sockaddr* peer = (struct sockaddr*)&storage;
+	socklen_t peerlen = sizeof(storage);
+	if (getpeername(fd, peer, &peerlen) == 0) {
+		if (peer->sa_family == AF_UNIX) {
+			snprintf(client->hostname, sizeof(client->hostname),
+					"unix domain socket");
+		} else {
+			getnameinfo(peer, peerlen,
+					client->hostname, sizeof(client->hostname),
+					NULL, 0, // no need for port
+					0);
+		}
+	}
+}
+
 static void on_connection(void* obj)
 {
 	struct nvnc* server = aml_get_userdata(obj);
@@ -1122,6 +1140,8 @@ static void on_connection(void* obj)
 
 	int one = 1;
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+
+	record_peer_hostname(fd, client);
 
 	client->net_stream = stream_new(fd, on_client_event, client);
 	if (!client->net_stream) {
@@ -1148,7 +1168,7 @@ static void on_connection(void* obj)
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
 
-	nvnc_log(NVNC_LOG_INFO, "New client connection: %p (ref %d)", client, client->ref);
+	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p (ref %d)", client->hostname, client, client->ref);
 
 	return;
 
@@ -1602,6 +1622,13 @@ EXPORT
 struct nvnc* nvnc_client_get_server(const struct nvnc_client* client)
 {
 	return client->server;
+}
+
+EXPORT
+const char* nvnc_client_get_hostname(const struct nvnc_client* client) {
+	if (client->hostname[0] == '\0')
+		return NULL;
+	return client->hostname;
 }
 
 EXPORT

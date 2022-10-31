@@ -131,6 +131,7 @@ void* nvnc_get_userdata(const void* self);
 
 struct nvnc* nvnc_client_get_server(const struct nvnc_client* client);
 bool nvnc_client_supports_cursor(const struct nvnc_client* client);
+const char* nvnc_client_get_hostname(const struct nvnc_client* client);
 
 void nvnc_set_name(struct nvnc* self, const char* name);
 

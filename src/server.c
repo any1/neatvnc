@@ -331,6 +331,9 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	username[MIN(ulen, sizeof(username) - 1)] = '\0';
 	password[MIN(plen, sizeof(password) - 1)] = '\0';
 
+	strncpy(client->username, username, sizeof(client->username));
+	client->username[sizeof(client->username) - 1] = '\0';
+
 	if (server->auth_fn(username, password, server->auth_ud)) {
 		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
 		security_handshake_ok(client);
@@ -1629,6 +1632,13 @@ const char* nvnc_client_get_hostname(const struct nvnc_client* client) {
 	if (client->hostname[0] == '\0')
 		return NULL;
 	return client->hostname;
+}
+
+EXPORT
+const char* nvnc_client_get_auth_username(const struct nvnc_client* client) {
+	if (client->username[0] == '\0')
+		return NULL;
+	return client->username;
 }
 
 EXPORT

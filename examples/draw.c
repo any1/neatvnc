@@ -234,6 +234,50 @@ static void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 	draw_dot(draw, coord, 16, 0);
 }
 
+static bool on_desktop_layout_event(struct nvnc_client* client,
+		const struct nvnc_desktop_layout* layout)
+{
+	uint16_t width = nvnc_desktop_layout_get_width(layout);
+	uint16_t height = nvnc_desktop_layout_get_height(layout);
+	struct nvnc* server = nvnc_client_get_server(client);
+	assert(server);
+
+	struct draw* draw = nvnc_get_userdata(server);
+	assert(draw);
+
+	nvnc_fb_pool_resize(draw->fb_pool, width, height, draw->format, width);
+
+	uint32_t* buffer = malloc(width * height * 4);
+	assert(buffer);
+
+	memset(buffer, 0xff, width * height * 4);
+
+	pixman_image_t* image = pixman_image_create_bits_no_clear(
+			PIXMAN_r8g8b8x8, width, height, buffer, width * 4);
+	assert(image);
+
+	pixman_image_composite(PIXMAN_OP_OVER, draw->whiteboard, NULL, image, 0,
+			0, 0, 0,
+			width > draw->width ? (width - draw->width) / 2 : 0,
+			height > draw->height ? (height - draw->height) / 2 : 0,
+			draw->width, draw->height);
+
+	pixman_image_unref(draw->whiteboard);
+	free(draw->whiteboard_buffer);
+
+	draw->whiteboard_buffer = buffer;
+	draw->whiteboard = image;
+	draw->width = width;
+	draw->height = height;
+
+	struct pixman_region16 damage;
+	pixman_region_init_rect(&damage, 0, 0, width, height);
+	update_vnc_buffer(draw, &damage);
+	pixman_region_fini(&damage);
+
+	return true;
+}
+
 static void on_sigint()
 {
 	aml_exit(aml_get_default());
@@ -276,6 +320,7 @@ int main(int argc, char* argv[])
 
 	nvnc_set_name(server, "Draw");
 	nvnc_set_pointer_fn(server, on_pointer_event);
+	nvnc_set_desktop_layout_fn(server, on_desktop_layout_event);
 	nvnc_set_userdata(server, &draw, NULL);
 
 	struct nvnc_fb* cursor = create_cursor();

@@ -45,6 +45,7 @@ enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_KEY_EVENT = 4,
 	RFB_CLIENT_TO_SERVER_POINTER_EVENT = 5,
 	RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT = 6,
+	RFB_CLIENT_TO_SERVER_SET_DESKTOP_SIZE = 251,
 	RFB_CLIENT_TO_SERVER_QEMU = 255,
 };
 
@@ -64,6 +65,7 @@ enum rfb_encodings {
 	RFB_ENCODING_CURSOR = -239,
 	RFB_ENCODING_DESKTOPSIZE = -223,
 	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
+	RFB_ENCODING_EXTENDEDDESKTOPSIZE = -308,
 	RFB_ENCODING_PTS = -1000,
 };
 
@@ -85,6 +87,20 @@ enum rfb_vencrypt_subtype {
 	RFB_VENCRYPT_X509_NONE,
 	RFB_VENCRYPT_X509_VNC,
 	RFB_VENCRYPT_X509_PLAIN,
+};
+
+enum rfb_resize_initiator {
+	RFB_RESIZE_INITIATOR_SERVER = 0,
+	RFB_RESIZE_INITIATOR_THIS_CLIENT = 1,
+	RFB_RESIZE_INITIATOR_OTHER_CLIENT = 2,
+};
+
+enum rfb_resize_status {
+	RFB_RESIZE_STATUS_SUCCESS = 0,
+	RFB_RESIZE_STATUS_PROHIBITED = 1,
+	RFB_RESIZE_STATUS_OUT_OF_RESOURCES = 2,
+	RFB_RESIZE_STATUS_INVALID_LAYOUT = 3,
+	RFB_RESIZE_STATUS_REQUEST_FORWARDED = 4,
 };
 
 struct rfb_security_types_msg {
@@ -170,6 +186,25 @@ struct rfb_server_fb_rect {
 	uint16_t width;
 	uint16_t height;
 	int32_t encoding;
+} RFB_PACKED;
+
+struct rfb_screen {
+	uint32_t id;
+	uint16_t x;
+	uint16_t y;
+	uint16_t width;
+	uint16_t height;
+	uint32_t flags;
+} RFB_PACKED;
+
+struct rfb_client_set_desktop_size_event_msg {
+	uint8_t type;
+	uint8_t padding;
+	uint16_t width;
+	uint16_t height;
+	uint8_t number_of_screens;
+	uint8_t padding2;
+	struct rfb_screen screens[0];
 } RFB_PACKED;
 
 struct rfb_server_fb_update_msg {

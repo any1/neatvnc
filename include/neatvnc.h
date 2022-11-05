@@ -50,6 +50,7 @@
 
 struct nvnc;
 struct nvnc_client;
+struct nvnc_desktop_layout;
 struct nvnc_display;
 struct nvnc_fb;
 struct nvnc_fb_pool;
@@ -117,6 +118,8 @@ typedef struct nvnc_fb* (*nvnc_fb_alloc_fn)(uint16_t width, uint16_t height,
 		uint32_t format, uint16_t stride);
 typedef void (*nvnc_cleanup_fn)(void* userdata);
 typedef void (*nvnc_log_fn)(const struct nvnc_log_data*, const char* message);
+typedef bool (*nvnc_desktop_layout_fn)(
+		struct nvnc_client*, const struct nvnc_desktop_layout*);
 
 extern const char nvnc_version[];
 
@@ -148,6 +151,7 @@ void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
+void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn);
 
 bool nvnc_has_auth(void);
 int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
@@ -201,6 +205,20 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
 
 void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_fb*,
 			      struct pixman_region16* damage);
+
+uint16_t nvnc_desktop_layout_get_width(const struct nvnc_desktop_layout*);
+uint16_t nvnc_desktop_layout_get_height(const struct nvnc_desktop_layout*);
+uint8_t nvnc_desktop_layout_get_display_count(const struct nvnc_desktop_layout*);
+uint16_t nvnc_desktop_layout_get_display_x_pos(
+		const struct nvnc_desktop_layout*, uint8_t display_index);
+uint16_t nvnc_desktop_layout_get_display_y_pos(
+		const struct nvnc_desktop_layout*, uint8_t display_index);
+uint16_t nvnc_desktop_layout_get_display_width(
+		const struct nvnc_desktop_layout*, uint8_t display_index);
+uint16_t nvnc_desktop_layout_get_display_height(
+		const struct nvnc_desktop_layout*, uint8_t display_index);
+struct nvnc_display* nvnc_desktop_layout_get_display(
+		const struct nvnc_desktop_layout*, uint8_t display_index);
 
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 

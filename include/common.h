@@ -110,6 +110,7 @@ struct nvnc {
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
 	nvnc_cut_text_fn cut_text_fn;
+	nvnc_desktop_layout_fn desktop_layout_fn;
 	struct nvnc_display* display;
 	struct {
 		struct nvnc_fb* buffer;

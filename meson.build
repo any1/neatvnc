@@ -77,6 +77,7 @@ sources = [
 	'src/fb_pool.c',
 	'src/rcbuf.c',
 	'src/stream.c',
+	'src/desktop-layout.c',
 	'src/display.c',
 	'src/tight.c',
 	'src/enc-util.c',

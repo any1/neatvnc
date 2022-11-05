@@ -567,10 +567,10 @@ static bool will_send_pts(const struct nvnc_client* client, uint64_t pts)
 	return pts != NVNC_NO_PTS && client_has_encoding(client, RFB_ENCODING_PTS);
 }
 
-static void send_pts_rect(struct nvnc_client* client, uint64_t pts)
+static int send_pts_rect(struct nvnc_client* client, uint64_t pts)
 {
 	if (!will_send_pts(client, pts))
-		return;
+		return 0;
 
 	uint8_t buf[sizeof(struct rfb_server_fb_rect) + 8] = { 0 };
 	struct rfb_server_fb_rect* head = (struct rfb_server_fb_rect*)buf;
@@ -578,7 +578,7 @@ static void send_pts_rect(struct nvnc_client* client, uint64_t pts)
 	uint64_t* msg_pts = (uint64_t*)&buf[sizeof(struct rfb_server_fb_rect)];
 	*msg_pts = nvnc__htonll(pts);
 
-	stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
+	return stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
 }
 
 static const char* encoding_to_string(enum rfb_encodings encoding)
@@ -1347,9 +1347,8 @@ void nvnc_close(struct nvnc* self)
 	free(self);
 }
 
-static void on_write_frame_done(void* userdata, enum stream_req_status status)
+static void complete_fb_update(struct nvnc_client* client)
 {
-	struct nvnc_client* client = userdata;
 	client->is_updating = false;
 	assert(client->current_fb);
 	nvnc_fb_release(client->current_fb);
@@ -1357,6 +1356,13 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 	client->current_fb = NULL;
 	process_fb_update_requests(client);
 	client_unref(client);
+	DTRACE_PROBE2(neatvnc, update_fb_done, client, pts);
+}
+
+static void on_write_frame_done(void* userdata, enum stream_req_status status)
+{
+	struct nvnc_client* client = userdata;
+	complete_fb_update(client);
 }
 
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
@@ -1397,31 +1403,32 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 {
 	client_ref(client);
 
-	if (client->net_stream->state != STREAM_STATE_CLOSED) {
-		DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
-		n_rects += will_send_pts(client, pts) ? 1 : 0;
-		struct rfb_server_fb_update_msg update_msg = {
-			.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-			.n_rects = htons(n_rects),
-		};
-		stream_write(client->net_stream, &update_msg,
-				sizeof(update_msg), NULL, NULL);
-		send_pts_rect(client, pts);
-		rcbuf_ref(payload);
-		stream_send(client->net_stream, payload, on_write_frame_done,
-		            client);
-		DTRACE_PROBE2(neatvnc, send_fb_done, client, pts);
-	} else {
-		client->is_updating = false;
-		assert(client->current_fb);
-		nvnc_fb_release(client->current_fb);
-		nvnc_fb_unref(client->current_fb);
-		client->current_fb = NULL;
-		process_fb_update_requests(client);
-		client_unref(client);
-	}
+	if (client->net_stream->state == STREAM_STATE_CLOSED)
+		goto complete;
 
-	DTRACE_PROBE2(neatvnc, update_fb_done, client, pts);
+	DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
+	n_rects += will_send_pts(client, pts) ? 1 : 0;
+	struct rfb_server_fb_update_msg update_msg = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(n_rects),
+	};
+	if (stream_write(client->net_stream, &update_msg,
+			sizeof(update_msg), NULL, NULL) < 0)
+		goto complete;
+
+	if (send_pts_rect(client, pts) < 0)
+		goto complete;
+
+	rcbuf_ref(payload);
+	if (stream_send(client->net_stream, payload,
+				on_write_frame_done, client) < 0)
+		goto complete;
+
+	DTRACE_PROBE2(neatvnc, send_fb_done, client, pts);
+	return;
+
+complete:
+	complete_fb_update(client);
 }
 
 static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,

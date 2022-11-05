@@ -107,10 +107,6 @@ static int raw_encode_frame(struct raw_encoder_work* ctx, struct vec* dst,
 	if (rc < 0)
 		return -1;
 
-	rc = vec_reserve(dst, src->width * src->height * 4);
-	if (rc < 0)
-		return -1;
-
 	for (int i = 0; i < n_rects; ++i) {
 		int x = box[i].x1;
 		int y = box[i].y1;
@@ -135,10 +131,12 @@ static void raw_encoder_do_work(void* obj)
 	struct nvnc_fb* fb = ctx->fb;
 	assert(fb);
 
-	// TODO: Calculate the ideal buffer size based on the size of the
-	// damaged area.
-	size_t buffer_size = nvnc_fb_get_stride(fb) * nvnc_fb_get_height(fb) *
-		nvnc_fb_get_pixel_size(fb);
+	size_t bpp = nvnc_fb_get_pixel_size(fb);
+	size_t n_rects = pixman_region_n_rects(&ctx->damage);
+	if (n_rects > UINT16_MAX)
+		n_rects = 1;
+	size_t buffer_size = calculate_region_area(&ctx->damage) * bpp
+		+ n_rects * sizeof(struct rfb_server_fb_rect);
 
 	struct vec dst;
 	rc = vec_init(&dst, buffer_size);

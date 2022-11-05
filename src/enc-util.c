@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -19,6 +19,8 @@
 #include "vec.h"
 
 #include <arpa/inet.h>
+#include <stdint.h>
+#include <pixman.h>
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -40,4 +42,21 @@ uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 {
 	return fmt->bits_per_pixel == 32 ? UDIV_UP(fmt->depth, 8)
 	                                 : UDIV_UP(fmt->bits_per_pixel, 8);
+}
+
+uint32_t calculate_region_area(struct pixman_region16* region)
+{
+	uint32_t area = 0;
+
+	int n_rects = 0;
+	struct pixman_box16* rects = pixman_region_rectangles(region,
+		&n_rects);
+
+	for (int i = 0; i < n_rects; ++i) {
+		int width = rects[i].x2 - rects[i].x1;
+		int height = rects[i].y2 - rects[i].y1;
+		area += width * height;
+	}
+
+	return area;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2022 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,9 @@
 #include <stdint.h>
 
 struct vec;
+struct pixman_region16;
 
 int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 		uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt);
+uint32_t calculate_region_area(struct pixman_region16* region);

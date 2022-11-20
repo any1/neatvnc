@@ -852,8 +852,6 @@ void nvnc_send_cut_text(struct nvnc* server, const char* text, uint32_t len)
 
 static int on_client_cut_text(struct nvnc_client* client)
 {
-	struct nvnc* server = client->server;
-	nvnc_cut_text_fn fn = server->cut_text_fn;
 	struct rfb_cut_text_msg* msg =
 	        (struct rfb_cut_text_msg*)(client->msg_buffer +
 	                                   client->buffer_index);
@@ -878,8 +876,9 @@ static int on_client_cut_text(struct nvnc_client* client)
 	size_t msg_size = sizeof(*msg) + length;
 
 	if (msg_size <= left_to_process) {
+		nvnc_cut_text_fn fn = client->server->cut_text_fn;
 		if (fn)
-			fn(server, msg->text, length);
+			fn(client, msg->text, length);
 
 		return msg_size;
 	}
@@ -906,9 +905,6 @@ static int on_client_cut_text(struct nvnc_client* client)
 
 static void process_big_cut_text(struct nvnc_client* client)
 {
-	struct nvnc* server = client->server;
-	nvnc_cut_text_fn fn = server->cut_text_fn;
-
 	assert(client->cut_text.length > client->cut_text.index);
 
 	void* start = client->cut_text.buffer + client->cut_text.index;
@@ -937,8 +933,9 @@ static void process_big_cut_text(struct nvnc_client* client)
 	if (client->cut_text.index != client->cut_text.length)
 		return;
 
+	nvnc_cut_text_fn fn = client->server->cut_text_fn;
 	if (fn)
-		fn(server, client->cut_text.buffer, client->cut_text.length);
+		fn(client, client->cut_text.buffer, client->cut_text.length);
 
 	free(client->cut_text.buffer);
 	client->cut_text.buffer = NULL;
@@ -1556,7 +1553,7 @@ void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
 }
 
 EXPORT
-void nvnc_set_cut_text_receive_fn(struct nvnc* self, nvnc_cut_text_fn fn)
+void nvnc_set_cut_text_fn(struct nvnc* self, nvnc_cut_text_fn fn)
 {
 	self->cut_text_fn = fn;
 }

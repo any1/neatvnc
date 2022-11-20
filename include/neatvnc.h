@@ -110,7 +110,8 @@ typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
-typedef void (*nvnc_cut_text_fn)(struct nvnc*, const char* text, uint32_t len);
+typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
+		uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
 typedef struct nvnc_fb* (*nvnc_fb_alloc_fn)(uint16_t width, uint16_t height,
 		uint32_t format, uint16_t stride);
@@ -137,6 +138,7 @@ const char* nvnc_client_get_auth_username(const struct nvnc_client* client);
 struct nvnc_client* nvnc_client_first(struct nvnc* self);
 struct nvnc_client* nvnc_client_next(struct nvnc_client* client);
 
+
 void nvnc_set_name(struct nvnc* self, const char* name);
 
 void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);
@@ -145,7 +147,7 @@ void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
-void nvnc_set_cut_text_receive_fn(struct nvnc* self, nvnc_cut_text_fn fn);
+void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
 
 bool nvnc_has_auth(void);
 int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,

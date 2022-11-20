@@ -134,6 +134,9 @@ bool nvnc_client_supports_cursor(const struct nvnc_client* client);
 const char* nvnc_client_get_hostname(const struct nvnc_client* client);
 const char* nvnc_client_get_auth_username(const struct nvnc_client* client);
 
+struct nvnc_client* nvnc_client_first(struct nvnc* self);
+struct nvnc_client* nvnc_client_next(struct nvnc_client* client);
+
 void nvnc_set_name(struct nvnc* self, const char* name);
 
 void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);

@@ -1604,6 +1604,19 @@ const char* nvnc_client_get_auth_username(const struct nvnc_client* client) {
 }
 
 EXPORT
+struct nvnc_client* nvnc_client_first(struct nvnc* self)
+{
+	return LIST_FIRST(&self->clients);
+}
+
+EXPORT
+struct nvnc_client* nvnc_client_next(struct nvnc_client* client)
+{
+	assert(client);
+	return LIST_NEXT(client, link);
+}
+
+EXPORT
 bool nvnc_client_supports_cursor(const struct nvnc_client* client)
 {
 	for (size_t i = 0; i < client->n_encodings; ++i) {

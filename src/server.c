@@ -147,8 +147,7 @@ static void close_after_write(void* userdata, enum stream_req_status status)
 	struct nvnc_client* client = userdata;
 	nvnc_log(NVNC_LOG_DEBUG, "close_after_write(%p): ref %d", client,
 			client->ref);
-	stream_close(client->net_stream);
-	client_unref(client);
+	nvnc_client_close(client);
 }
 
 static int handle_unsupported_version(struct nvnc_client* client)
@@ -296,8 +295,7 @@ static int on_vencrypt_subtype_message(struct nvnc_client* client)
 
 	if (stream_upgrade_to_tls(client->net_stream, client->server->tls_creds) < 0) {
 		client->state = VNC_CLIENT_STATE_ERROR;
-		stream_close(client->net_stream);
-		client_unref(client);
+		nvnc_client_close(client);
 		return sizeof(*msg);
 	}
 
@@ -383,8 +381,7 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 			nvnc_log(NVNC_LOG_DEBUG,
 					"disconnect other client %p (ref %d)",
 					node, node->ref);
-			stream_close(node->net_stream);
-			client_unref(node);
+			nvnc_client_close(node);
 		}
 
 }
@@ -438,8 +435,7 @@ static void send_server_init_message(struct nvnc_client* client)
 pixfmt_failure:
 	free(msg);
 close:
-	stream_close(client->net_stream);
-	client_unref(client);
+	nvnc_client_close(client);
 }
 
 static int on_init_message(struct nvnc_client* client)
@@ -473,8 +469,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 
 	if (!fmt->true_colour_flag) {
 		/* We don't really know what to do with color maps right now */
-		stream_close(client->net_stream);
-		client_unref(client);
+		nvnc_client_close(client);
 		return 0;
 	}
 
@@ -808,8 +803,7 @@ static int on_client_qemu_event(struct nvnc_client* client)
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p (ref %d)",
 	          client, client->ref);
-	stream_close(client->net_stream);
-	client_unref(client);
+	nvnc_client_close(client);
 	return 0;
 }
 
@@ -868,8 +862,7 @@ static int on_client_cut_text(struct nvnc_client* client)
 	if (length > max_length) {
 		nvnc_log(NVNC_LOG_ERROR, "Copied text length (%d) is greater than max supported length (%d)",
 			length, max_length);
-		stream_close(client->net_stream);
-		client_unref(client);
+		nvnc_client_close(client);
 		return 0;
 	}
 
@@ -888,8 +881,7 @@ static int on_client_cut_text(struct nvnc_client* client)
 	client->cut_text.buffer = malloc(length);
 	if (!client->cut_text.buffer) {
 		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
-		stream_close(client->net_stream);
-		client_unref(client);
+		nvnc_client_close(client);
 		return 0;
 	}
 
@@ -921,8 +913,7 @@ static void process_big_cut_text(struct nvnc_client* client)
 		if (errno != EAGAIN) {
 			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
 				  client, client->ref);
-			stream_close(client->net_stream);
-			client_unref(client);
+			nvnc_client_close(client);
 		}
 
 		return;
@@ -968,8 +959,7 @@ static int on_client_message(struct nvnc_client* client)
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p (ref %d)",
 	          client, client->ref);
-	stream_close(client->net_stream);
-	client_unref(client);
+	nvnc_client_close(client);
 	return 0;
 }
 
@@ -1008,8 +998,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	if (event == STREAM_EVENT_REMOTE_CLOSED) {
 		nvnc_log(NVNC_LOG_INFO, "Client %p (%d) hung up", client, client->ref);
-		stream_close(stream);
-		client_unref(client);
+		nvnc_client_close(client);
 		return;
 	}
 
@@ -1031,8 +1020,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 		if (errno != EAGAIN) {
 			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
 				  client, client->ref);
-			stream_close(stream);
-			client_unref(client);
+			nvnc_client_close(client);
 		}
 
 		return;
@@ -1442,8 +1430,7 @@ static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
 {
 	if (!client_has_encoding(client, RFB_ENCODING_DESKTOPSIZE)) {
 		nvnc_log(NVNC_LOG_ERROR, "Client does not support desktop resizing. Closing connection...");
-		stream_close(client->net_stream);
-		client_unref(client);
+		nvnc_client_close(client);
 		return -1;
 	}
 
@@ -1611,6 +1598,13 @@ struct nvnc_client* nvnc_client_next(struct nvnc_client* client)
 {
 	assert(client);
 	return LIST_NEXT(client, link);
+}
+
+EXPORT
+void nvnc_client_close(struct nvnc_client* client)
+{
+	stream_close(client->net_stream);
+	client_unref(client);
 }
 
 EXPORT

@@ -137,7 +137,7 @@ const char* nvnc_client_get_auth_username(const struct nvnc_client* client);
 
 struct nvnc_client* nvnc_client_first(struct nvnc* self);
 struct nvnc_client* nvnc_client_next(struct nvnc_client* client);
-
+void nvnc_client_close(struct nvnc_client* client);
 
 void nvnc_set_name(struct nvnc* self, const char* name);
 

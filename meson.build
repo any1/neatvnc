@@ -5,6 +5,7 @@ project(
 	license: 'ISC',
 	default_options: [
 		'c_std=gnu11',
+		'warning_level=2',
 	],
 )
 
@@ -15,8 +16,10 @@ c_args = [
 	'-DPROJECT_VERSION="@0@"'.format(meson.project_version()),
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
-	'-Wmissing-prototypes',
 	'-DAML_UNSTABLE_API=1',
+
+	'-Wmissing-prototypes',
+	'-Wno-unused-parameter',
 ]
 
 if buildtype != 'debug' and buildtype != 'debugoptimized'

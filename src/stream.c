@@ -354,7 +354,11 @@ static ssize_t stream__read_plain(struct stream* self, void* dst, size_t size)
 static ssize_t stream__read_tls(struct stream* self, void* dst, size_t size)
 {
 	ssize_t rc = gnutls_record_recv(self->tls_session, dst, size);
-	if (rc >= 0) {
+	if (rc == 0) {
+		stream__remote_closed(self);
+		return rc;
+	}
+	if (rc > 0) {
 		self->bytes_received += rc;
 		return rc;
 	}

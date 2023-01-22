@@ -57,11 +57,12 @@ libavcodec = dependency('libavcodec', required: get_option('h264'))
 libavfilter = dependency('libavfilter', required: get_option('h264'))
 libavutil = dependency('libavutil', required: get_option('h264'))
 
-aml_project = subproject('aml', required: false)
+aml_version = ['>=0.3.0', '<0.4.0']
+aml_project = subproject('aml', required: false, version: aml_version)
 if aml_project.found()
 	aml = aml_project.get_variable('aml_dep')
 else
-	aml = dependency('aml')
+	aml = dependency('aml', version: aml_version)
 endif
 
 inc = include_directories('include')

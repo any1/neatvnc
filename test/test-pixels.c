@@ -10,7 +10,7 @@
 #define swap32(x) (((x >> 24) & 0xff) | ((x << 8) & 0xff0000) | \
 		((x >> 8) & 0xff00) | ((x << 24) & 0xff000000))
 
-#if 0 //__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define u32_le(x) x
 #else
 #define u32_le(x) swap32(x)

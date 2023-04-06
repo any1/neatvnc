@@ -49,6 +49,7 @@ libm = cc.find_library('m', required: false)
 pixman = dependency('pixman-1')
 libturbojpeg = dependency('libturbojpeg', required: get_option('jpeg'))
 gnutls = dependency('gnutls', required: get_option('tls'))
+nettle = dependency('nettle', required: get_option('nettle'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
 libdrm = dependency('libdrm', required: get_option('h264'))
@@ -101,6 +102,8 @@ dependencies = [
 	libdrm_inc,
 ]
 
+enable_websocket = false
+
 config = configuration_data()
 
 if libturbojpeg.found()
@@ -112,6 +115,11 @@ if gnutls.found()
 	sources += 'src/stream-gnutls.c'
 	dependencies += gnutls
 	config.set('ENABLE_TLS', true)
+endif
+
+if nettle.found()
+	dependencies += nettle
+	enable_websocket = true
 endif
 
 if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')
@@ -128,6 +136,16 @@ if gbm.found() and libdrm.found() and libavcodec.found() and libavfilter.found()
 	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
 	config.set('ENABLE_OPEN_H264', true)
 	config.set('HAVE_LIBAVUTIL', true)
+endif
+
+if enable_websocket
+	sources += [
+		'src/ws-handshake.c',
+		'src/ws-framing.c',
+		'src/http.c',
+		'src/stream-ws.c',
+	]
+	config.set('ENABLE_WEBSOCKET', true)
 endif
 
 configure_file(

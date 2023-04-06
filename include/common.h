@@ -97,9 +97,16 @@ struct nvnc_client {
 
 LIST_HEAD(nvnc_client_list, nvnc_client);
 
+enum nvnc__socket_type {
+	NVNC__SOCKET_TCP,
+	NVNC__SOCKET_UNIX,
+	NVNC__SOCKET_WEBSOCKET,
+};
+
 struct nvnc {
 	struct nvnc_common common;
 	int fd;
+	enum nvnc__socket_type socket_type;
 	struct aml_handler* poll_handle;
 	struct nvnc_client_list clients;
 	char name[256];

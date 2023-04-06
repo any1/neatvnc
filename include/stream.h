@@ -91,6 +91,10 @@ struct stream {
 	bool cork;
 };
 
+#ifdef ENABLE_WEBSOCKET
+struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata);
+#endif
+
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);
 int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);

@@ -65,11 +65,6 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-enum addrtype {
-	ADDRTYPE_TCP,
-	ADDRTYPE_UNIX,
-};
-
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
 static int send_qemu_key_ext_frame(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
@@ -1195,7 +1190,16 @@ static void on_connection(void* obj)
 
 	record_peer_hostname(fd, client);
 
-	client->net_stream = stream_new(fd, on_client_event, client);
+#ifdef ENABLE_WEBSOCKET
+	if (server->socket_type == NVNC__SOCKET_WEBSOCKET)
+	{
+		client->net_stream = stream_ws_new(fd, on_client_event, client);
+	}
+	else
+#endif
+	{
+		client->net_stream = stream_new(fd, on_client_event, client);
+	}
 	if (!client->net_stream) {
 		nvnc_log(NVNC_LOG_WARNING, "OOM");
 		goto stream_failure;
@@ -1326,12 +1330,14 @@ static int bind_address_unix(const char* name)
 	return fd;
 }
 
-static int bind_address(const char* name, uint16_t port, enum addrtype type)
+static int bind_address(const char* name, uint16_t port,
+		enum nvnc__socket_type type)
 {
 	switch (type) {
-	case ADDRTYPE_TCP:
+	case NVNC__SOCKET_TCP:
+	case NVNC__SOCKET_WEBSOCKET:
 		return bind_address_tcp(name, port);
-	case ADDRTYPE_UNIX:
+	case NVNC__SOCKET_UNIX:
 		return bind_address_unix(name);
 	}
 
@@ -1339,7 +1345,8 @@ static int bind_address(const char* name, uint16_t port, enum addrtype type)
 	return -1;
 }
 
-static struct nvnc* open_common(const char* address, uint16_t port, enum addrtype type)
+static struct nvnc* open_common(const char* address, uint16_t port,
+		enum nvnc__socket_type type)
 {
 	nvnc__log_init();
 
@@ -1348,6 +1355,8 @@ static struct nvnc* open_common(const char* address, uint16_t port, enum addrtyp
 	struct nvnc* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
+
+	self->socket_type = type;
 
 	strcpy(self->name, DEFAULT_NAME);
 
@@ -1374,7 +1383,7 @@ poll_start_failure:
 handle_failure:
 listen_failure:
 	close(self->fd);
-	if (type == ADDRTYPE_UNIX) {
+	if (type == NVNC__SOCKET_UNIX) {
 		unlink(address);
 	}
 bind_failure:
@@ -1386,13 +1395,23 @@ bind_failure:
 EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
-	return open_common(address, port, ADDRTYPE_TCP);
+	return open_common(address, port, NVNC__SOCKET_TCP);
+}
+
+EXPORT
+struct nvnc* nvnc_open_websocket(const char *address, uint16_t port)
+{
+#ifdef ENABLE_WEBSOCKET
+	return open_common(address, port, NVNC__SOCKET_WEBSOCKET);
+#else
+	return NULL;
+#endif
 }
 
 EXPORT
 struct nvnc* nvnc_open_unix(const char* address)
 {
-	return open_common(address, 0, ADDRTYPE_UNIX);
+	return open_common(address, 0, NVNC__SOCKET_UNIX);
 }
 
 static void unlink_fd_path(int fd)

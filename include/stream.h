@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Andri Yngvason
+ * Copyright (c) 2020 - 2023 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,8 @@
  * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+#pragma once
 
 #include "config.h"
 #include "sys/queue.h"
@@ -31,11 +33,6 @@ enum stream_state {
 	STREAM_STATE_TLS_HANDSHAKE,
 	STREAM_STATE_TLS_READY,
 #endif
-};
-
-enum stream_status {
-	STREAM_READY = 0,
-	STREAM_CLOSED,
 };
 
 enum stream_req_status {
@@ -62,7 +59,17 @@ struct stream_req {
 
 TAILQ_HEAD(stream_send_queue, stream_req);
 
+struct stream_impl {
+	int (*close)(struct stream*);
+	void (*destroy)(struct stream*);
+	ssize_t (*read)(struct stream*, void* dst, size_t size);
+	int (*send)(struct stream*, struct rcbuf* payload,
+			stream_req_fn on_done, void* userdata);
+};
+
 struct stream {
+	struct stream_impl *impl;
+
 	enum stream_state state;
 
 	int fd;

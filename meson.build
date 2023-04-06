@@ -77,6 +77,8 @@ sources = [
 	'src/fb_pool.c',
 	'src/rcbuf.c',
 	'src/stream.c',
+	'src/stream-common.c',
+	'src/stream-tcp.c',
 	'src/desktop-layout.c',
 	'src/display.c',
 	'src/tight.c',
@@ -107,6 +109,7 @@ if libturbojpeg.found()
 endif
 
 if gnutls.found()
+	sources += 'src/stream-gnutls.c'
 	dependencies += gnutls
 	config.set('ENABLE_TLS', true)
 endif

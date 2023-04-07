@@ -37,6 +37,12 @@ int stream_send(struct stream* self, struct rcbuf* payload,
 	return self->impl->send(self, payload, on_done, userdata);
 }
 
+int stream_send_first(struct stream* self, struct rcbuf* payload)
+{
+	assert(self->impl && self->impl->send);
+	return self->impl->send_first(self, payload);
+}
+
 int stream_write(struct stream* self, const void* payload, size_t len,
                  stream_req_fn on_done, void* userdata)
 {

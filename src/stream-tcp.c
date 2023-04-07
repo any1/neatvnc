@@ -60,6 +60,9 @@ static void stream_tcp_destroy(struct stream* self)
 
 static int stream_tcp__flush(struct stream* self)
 {
+	if (self->cork)
+		return 0;
+
 	static struct iovec iov[IOV_MAX];
 	size_t n_msgs = 0;
 	ssize_t bytes_sent;
@@ -195,11 +198,27 @@ static int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 	return stream_tcp__flush(self);
 }
 
+static int stream_tcp_send_first(struct stream* self, struct rcbuf* payload)
+{
+	if (self->state == STREAM_STATE_CLOSED)
+		return -1;
+
+	struct stream_req* req = calloc(1, sizeof(*req));
+	if (!req)
+		return -1;
+
+	req->payload = payload;
+	TAILQ_INSERT_HEAD(&self->send_queue, req, link);
+
+	return stream_tcp__flush(self);
+}
+
 static struct stream_impl impl = {
 	.close = stream_tcp_close,
 	.destroy = stream_tcp_destroy,
 	.read = stream_tcp_read,
 	.send = stream_tcp_send,
+	.send_first = stream_tcp_send_first,
 };
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)

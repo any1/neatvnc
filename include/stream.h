@@ -21,6 +21,7 @@
 #include "rcbuf.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -65,6 +66,7 @@ struct stream_impl {
 	ssize_t (*read)(struct stream*, void* dst, size_t size);
 	int (*send)(struct stream*, struct rcbuf* payload,
 			stream_req_fn on_done, void* userdata);
+	int (*send_first)(struct stream*, struct rcbuf* payload);
 };
 
 struct stream {
@@ -85,6 +87,8 @@ struct stream {
 
 	uint32_t bytes_sent;
 	uint32_t bytes_received;
+
+	bool cork;
 };
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);
@@ -95,6 +99,7 @@ int stream_write(struct stream* self, const void* payload, size_t len,
                  stream_req_fn on_done, void* userdata);
 int stream_send(struct stream* self, struct rcbuf* payload,
                 stream_req_fn on_done, void* userdata);
+int stream_send_first(struct stream* self, struct rcbuf* payload);
 
 #ifdef ENABLE_TLS
 int stream_upgrade_to_tls(struct stream* self, void* context);

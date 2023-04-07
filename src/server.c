@@ -33,6 +33,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <sys/queue.h>
 #include <sys/param.h>
@@ -91,6 +92,13 @@ static uint64_t nvnc__htonll(uint64_t x)
 #else
 	return x;
 #endif
+}
+
+static uint64_t gettime_us(clockid_t clock)
+{
+	struct timespec ts = { 0 };
+	clock_gettime(clock, &ts);
+	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
 }
 
 static void client_close(struct nvnc_client* client)
@@ -512,6 +520,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_EXTENDEDDESKTOPSIZE:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
 		case RFB_ENCODING_PTS:
+		case RFB_ENCODING_NTP:
 			client->encodings[n++] = encoding;
 		}
 
@@ -1034,6 +1043,43 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 	return sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen);
 }
 
+static void print_ntp_stats(const struct rfb_ntp_msg *msg)
+{
+#if 0
+	int32_t t0 = ntohl(msg->t0);
+	int32_t t1 = ntohl(msg->t1);
+	int32_t t2 = ntohl(msg->t2);
+	int32_t t3 = ntohl(msg->t3);
+
+	int32_t round_trip_time = (t3 - t0) - (t2 - t1);
+	int32_t time_difference = ((t1 - t0) + (t2 - t3)) / 2;
+
+	nvnc_log(NVNC_LOG_DEBUG, "NTP: rtt: %.2f ms, time-difference: %.2f ms",
+			round_trip_time / 1e3, time_difference / 1e3);
+#endif
+}
+
+static int on_client_ntp(struct nvnc_client* client)
+{
+	struct rfb_ntp_msg msg;
+
+	if (client->buffer_len - client->buffer_index < sizeof(msg))
+		return 0;
+
+	memcpy(&msg, client->msg_buffer + client->buffer_index, sizeof(msg));
+
+	if (msg.t3 != 0) {
+		print_ntp_stats(&msg);
+		return sizeof(msg);
+	}
+
+	msg.t1 = htonl(gettime_us(CLOCK_MONOTONIC));
+	msg.t2 = msg.t1; // TODO: Update this when the message is dequeued.
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	return sizeof(msg);
+}
+
 static int on_client_message(struct nvnc_client* client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
@@ -1059,6 +1105,8 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_qemu_event(client);
 	case RFB_CLIENT_TO_SERVER_SET_DESKTOP_SIZE:
 		return on_client_set_desktop_size_event(client);
+	case RFB_CLIENT_TO_SERVER_NTP:
+		return on_client_ntp(client);
 	}
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p (ref %d)",

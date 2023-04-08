@@ -1043,20 +1043,27 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 	return sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen);
 }
 
-static void print_ntp_stats(const struct rfb_ntp_msg *msg)
+static void update_ntp_stats(struct nvnc_client* client,
+		const struct rfb_ntp_msg *msg)
 {
-#if 0
-	int32_t t0 = ntohl(msg->t0);
-	int32_t t1 = ntohl(msg->t1);
-	int32_t t2 = ntohl(msg->t2);
-	int32_t t3 = ntohl(msg->t3);
+	uint32_t t0 = ntohl(msg->t0);
+	uint32_t t1 = ntohl(msg->t1);
+	uint32_t t2 = ntohl(msg->t2);
+	uint32_t t3 = ntohl(msg->t3);
 
-	int32_t round_trip_time = (t3 - t0) - (t2 - t1);
-	int32_t time_difference = ((t1 - t0) + (t2 - t3)) / 2;
+	double delta = (int32_t)(t3 - t0) - (int32_t)(t2 - t1);
+	double theta = ((int32_t)(t1 - t0) + (int32_t)(t2 - t3)) / 2;
 
-	nvnc_log(NVNC_LOG_DEBUG, "NTP: rtt: %.2f ms, time-difference: %.2f ms",
-			round_trip_time / 1e3, time_difference / 1e3);
-#endif
+	nvnc_log(NVNC_LOG_DEBUG, "NTP: delta: %.2f ms, theta: %.2f ms",
+			delta / 1e3, theta / 1e3);
+}
+
+static struct rcbuf* on_ntp_msg_send(struct stream* tcp_stream,
+		void* userdata)
+{
+	struct rfb_ntp_msg* msg = userdata;
+	msg->t2 = htonl(gettime_us(CLOCK_MONOTONIC));
+	return rcbuf_from_mem(msg, sizeof(*msg));
 }
 
 static int on_client_ntp(struct nvnc_client* client)
@@ -1069,14 +1076,20 @@ static int on_client_ntp(struct nvnc_client* client)
 	memcpy(&msg, client->msg_buffer + client->buffer_index, sizeof(msg));
 
 	if (msg.t3 != 0) {
-		print_ntp_stats(&msg);
+		update_ntp_stats(client, &msg);
 		return sizeof(msg);
 	}
 
 	msg.t1 = htonl(gettime_us(CLOCK_MONOTONIC));
-	msg.t2 = msg.t1; // TODO: Update this when the message is dequeued.
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	struct rfb_ntp_msg* out_msg = malloc(sizeof(*out_msg));
+	assert(out_msg);
+	memcpy(out_msg, &msg, sizeof(*out_msg));
+
+	// The callback gets executed as the message is leaving the send queue
+	// so that we can set t2 as late as possible.
+	stream_exec_and_send(client->net_stream, on_ntp_msg_send, out_msg);
+
 	return sizeof(msg);
 }
 

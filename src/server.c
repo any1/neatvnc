@@ -1348,8 +1348,13 @@ static int bind_address_tcp(const char* name, int port)
 
 		int one = 1;
 		if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) < 0) {
-			nvnc_log(NVNC_LOG_DEBUG, "Failed to set socket options: %m");
+			nvnc_log(NVNC_LOG_DEBUG, "Failed to set SO_REUSEADDR: %m");
 			goto failure;
+		}
+
+		int sndbuf = 4096;
+		if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(int)) < 0) {
+			nvnc_log(NVNC_LOG_DEBUG, "Failed to set SO_SNDBUF: %m");
 		}
 
 		if (bind(fd, p->ai_addr, p->ai_addrlen) == 0) {

@@ -24,6 +24,10 @@ void stream_req__finish(struct stream_req* req, enum stream_req_status status)
 	if (req->on_done)
 		req->on_done(req->userdata, status);
 
+	// exec userdata is heap allocated
+	if (req->exec && req->userdata)
+		free(req->userdata);
+
 	rcbuf_unref(req->payload);
 	free(req);
 }

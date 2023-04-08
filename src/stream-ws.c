@@ -17,6 +17,7 @@
 #include "stream.h"
 #include "stream-common.h"
 #include "websocket.h"
+#include "vec.h"
 #include "neatvnc.h"
 
 #include <assert.h>
@@ -28,6 +29,11 @@
 enum stream_ws_state {
 	STREAM_WS_STATE_HANDSHAKE = 0,
 	STREAM_WS_STATE_READY,
+};
+
+struct stream_ws_exec_ctx {
+	stream_exec_fn exec;
+	void* userdata;
 };
 
 struct stream_ws {
@@ -155,11 +161,6 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 		return 0;
 	}
 
-	nvnc_trace("Got frame header: opcode=%s, header-len: %zu, payload-len: %zu, read-buffer-len: %zu",
-			ws_opcode_name(ws->header.opcode),
-			ws->header.header_length, ws->header.payload_length,
-			ws->read_index);
-
 	if (ws->header.opcode != WS_OPCODE_CONT) {
 		ws->current_opcode = ws->header.opcode;
 	}
@@ -250,6 +251,43 @@ static int stream_ws_send(struct stream* self, struct rcbuf* payload,
 	return stream_send(ws->tcp_stream, payload, on_done, userdata);
 }
 
+static struct rcbuf* stream_ws_chained_exec(struct stream* tcp_stream,
+		void* userdata)
+{
+	struct stream_ws_exec_ctx* ctx = userdata;
+	struct stream_ws* ws = tcp_stream->userdata;
+
+	struct rcbuf* buf = ctx->exec(&ws->base, ctx->userdata);
+
+	struct vec out;
+	vec_init(&out, WS_HEADER_MIN_SIZE + buf->size + 1);
+
+	struct ws_frame_header head = {
+		.fin = true,
+		.opcode = WS_OPCODE_BIN,
+		.payload_length = buf->size,
+	};
+	int head_len = ws_write_frame_header(out.data, &head);
+	out.len += head_len;
+
+	vec_append(&out, buf->payload, buf->size);
+	return rcbuf_new(out.data, out.len);
+}
+
+static void stream_ws_exec_and_send(struct stream* self, stream_exec_fn exec,
+		void* userdata)
+{
+	struct stream_ws* ws = (struct stream_ws*)self;
+
+	struct stream_ws_exec_ctx* ctx = calloc(1, sizeof(*ctx));
+	assert(ctx);
+
+	ctx->exec = exec;
+	ctx->userdata = userdata;
+
+	stream_exec_and_send(ws->tcp_stream, stream_ws_chained_exec, ctx);
+}
+
 static void stream_ws_event(struct stream* self, enum stream_event event)
 {
 	struct stream_ws* ws = self->userdata;
@@ -266,6 +304,7 @@ static struct stream_impl impl = {
 	.destroy = stream_ws_destroy,
 	.read = stream_ws_read,
 	.send = stream_ws_send,
+	.exec_and_send = stream_ws_exec_and_send,
 };
 
 struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata)

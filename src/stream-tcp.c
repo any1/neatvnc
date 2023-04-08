@@ -69,6 +69,12 @@ static int stream_tcp__flush(struct stream* self)
 
 	struct stream_req* req;
 	TAILQ_FOREACH(req, &self->send_queue, link) {
+		if (req->exec) {
+			if (req->payload)
+				rcbuf_unref(req->payload);
+			req->payload = req->exec(self, req->userdata);
+		}
+
 		iov[n_msgs].iov_base = req->payload->payload;
 		iov[n_msgs].iov_len = req->payload->size;
 
@@ -108,6 +114,11 @@ static int stream_tcp__flush(struct stream* self)
 			TAILQ_REMOVE(&self->send_queue, req, link);
 			stream_req__finish(req, STREAM_REQ_DONE);
 		} else {
+			if (req->exec) {
+				free(req->userdata);
+				req->userdata = NULL;
+				req->exec = NULL;
+			}
 			char* p = req->payload->payload;
 			size_t s = req->payload->size;
 			memmove(p, p + s + bytes_left, -bytes_left);
@@ -213,12 +224,31 @@ static int stream_tcp_send_first(struct stream* self, struct rcbuf* payload)
 	return stream_tcp__flush(self);
 }
 
+static void stream_tcp_exec_and_send(struct stream* self,
+		stream_exec_fn exec_fn, void* userdata)
+{
+	if (self->state == STREAM_STATE_CLOSED)
+		return;
+
+	struct stream_req* req = calloc(1, sizeof(*req));
+	if (!req)
+		return;
+
+	req->exec = exec_fn;
+	req->userdata = userdata;
+
+	TAILQ_INSERT_TAIL(&self->send_queue, req, link);
+
+	stream_tcp__flush(self);
+}
+
 static struct stream_impl impl = {
 	.close = stream_tcp_close,
 	.destroy = stream_tcp_destroy,
 	.read = stream_tcp_read,
 	.send = stream_tcp_send,
 	.send_first = stream_tcp_send_first,
+	.exec_and_send = stream_tcp_exec_and_send,
 };
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)

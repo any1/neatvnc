@@ -55,3 +55,13 @@ ssize_t stream_read(struct stream* self, void* dst, size_t size)
 	assert(self->impl && self->impl->read);
 	return self->impl->read(self, dst, size);
 }
+
+void stream_exec_and_send(struct stream* self, stream_exec_fn exec_fn,
+		void* userdata)
+{
+	assert(self->impl);
+	if (self->impl->exec_and_send)
+		self->impl->exec_and_send(self, exec_fn, userdata);
+	else
+		stream_send(self, exec_fn(self, userdata), NULL, NULL);
+}

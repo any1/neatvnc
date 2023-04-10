@@ -94,6 +94,7 @@ static int stream_tcp__flush(struct stream* self)
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 			stream__poll_rw(self);
 			errno = EAGAIN;
+			bytes_sent = 0;
 		} else if (errno == EPIPE) {
 			stream__remote_closed(self);
 			errno = EPIPE;

@@ -64,6 +64,7 @@ static void stream_gnutls_destroy(struct stream* self)
 {
 	stream_close(self);
 	aml_unref(self->handler);
+	free(self);
 }
 
 static int stream_gnutls__flush(struct stream* self)
@@ -253,7 +254,7 @@ int stream_upgrade_to_tls(struct stream* self, void* context)
 	aml_unref(self->handler);
 
 	self->handler = aml_handler_new(self->fd, stream_gnutls__on_event, self,
-			free);
+			NULL);
 	assert(self->handler);
 
 	rc = aml_start(aml_get_default(), self->handler);

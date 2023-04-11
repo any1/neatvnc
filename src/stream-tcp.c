@@ -56,6 +56,7 @@ static void stream_tcp_destroy(struct stream* self)
 {
 	stream_close(self);
 	aml_unref(self->handler);
+	free(self);
 }
 
 static int stream_tcp__flush(struct stream* self)
@@ -267,7 +268,7 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 
-	self->handler = aml_handler_new(fd, stream_tcp__on_event, self, free);
+	self->handler = aml_handler_new(fd, stream_tcp__on_event, self, NULL);
 	if (!self->handler)
 		goto failure;
 

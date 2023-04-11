@@ -72,6 +72,8 @@ struct stream_impl {
 	void (*exec_and_send)(struct stream*, stream_exec_fn, void* userdata);
 };
 
+// TODO: Move some of these struct members into their respective implementation
+// classes.
 struct stream {
 	struct stream_impl *impl;
 

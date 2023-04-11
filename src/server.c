@@ -1352,7 +1352,7 @@ static int bind_address_tcp(const char* name, int port)
 			goto failure;
 		}
 
-		int sndbuf = 4096;
+		int sndbuf = 65536;
 		if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(int)) < 0) {
 			nvnc_log(NVNC_LOG_DEBUG, "Failed to set SO_SNDBUF: %m");
 		}

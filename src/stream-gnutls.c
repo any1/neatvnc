@@ -76,10 +76,13 @@ static int stream_gnutls__flush(struct stream* self)
 			self->tls_session, req->payload->payload,
 			req->payload->size);
 		if (rc < 0) {
-			gnutls_record_discard_queued(self->tls_session);
-			if (gnutls_error_is_fatal(rc))
+			if (gnutls_error_is_fatal(rc)) {
 				stream_close(self);
-			return -1;
+				return -1;
+			}
+
+			stream__poll_rw(self);
+			return 0;
 		}
 
 		self->bytes_sent += rc;

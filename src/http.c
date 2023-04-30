@@ -473,7 +473,6 @@ static int http__header(struct http_req* req, struct httplex* lex)
 
 int http_req_parse(struct http_req* req, const char* input)
 {
-	int rc = -1;
 	memset(req, 0, sizeof(*req));
 
 	struct httplex lex;
@@ -488,17 +487,20 @@ int http_req_parse(struct http_req* req, const char* input)
 
 	req->header_length = lex.next_pos - input;
 
-	rc = 0;
+	httplex_destroy(&lex);
+	return 0;
+
 failure:
 	httplex_destroy(&lex);
-	return rc;
+	http_req_free(req);
+	return -1;
 }
 
 void http_req_free(struct http_req* req)
 {
 	free(req->content_type);
 
-	for (size_t i = 0; i < req->field_index; ++i) {
+	for (size_t i = 0; i < HTTP_FIELD_INDEX_MAX && req->field[i].key; ++i) {
 		free(req->field[i].key);
 		free(req->field[i].value);
 	}

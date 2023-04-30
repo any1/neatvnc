@@ -14,11 +14,12 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "vec.h"
+#include "http.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "vec.h"
-#include "http.h"
 
 enum httplex_token_type {
 	HTTPLEX_SOLIDUS,

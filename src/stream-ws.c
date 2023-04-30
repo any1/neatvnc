@@ -307,12 +307,19 @@ static void stream_ws_event(struct stream* self, enum stream_event event)
 	ws->base.on_event(&ws->base, event);
 }
 
+static int stream_ws_upgrade_to_tls(struct stream* self, void* context)
+{
+	struct stream_ws* ws = (struct stream_ws*)self;
+	return stream_upgrade_to_tls(ws->tcp_stream, context);
+}
+
 static struct stream_impl impl = {
 	.close = stream_ws_close,
 	.destroy = stream_ws_destroy,
 	.read = stream_ws_read,
 	.send = stream_ws_send,
 	.exec_and_send = stream_ws_exec_and_send,
+	.upgrade_to_tls = stream_ws_upgrade_to_tls,
 };
 
 struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata)

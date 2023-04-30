@@ -251,6 +251,7 @@ static struct stream_impl impl = {
 	.send = stream_tcp_send,
 	.send_first = stream_tcp_send_first,
 	.exec_and_send = stream_tcp_exec_and_send,
+	.upgrade_to_tls = stream_upgrade_tcp_to_tls,
 };
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)

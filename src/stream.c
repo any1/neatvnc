@@ -65,3 +65,9 @@ void stream_exec_and_send(struct stream* self, stream_exec_fn exec_fn,
 	else
 		stream_send(self, exec_fn(self, userdata), NULL, NULL);
 }
+
+int stream_upgrade_to_tls(struct stream* self, void* context)
+{
+	assert(self->impl && self->impl->upgrade_to_tls);
+	return self->impl->upgrade_to_tls(self, context);
+}

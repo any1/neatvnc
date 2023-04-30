@@ -70,6 +70,7 @@ struct stream_impl {
 			stream_req_fn on_done, void* userdata);
 	int (*send_first)(struct stream*, struct rcbuf* payload);
 	void (*exec_and_send)(struct stream*, stream_exec_fn, void* userdata);
+	int (*upgrade_to_tls)(struct stream*, void* context);
 };
 
 // TODO: Move some of these struct members into their respective implementation
@@ -114,5 +115,6 @@ int stream_send_first(struct stream* self, struct rcbuf* payload);
 void stream_exec_and_send(struct stream* self, stream_exec_fn, void* userdata);
 
 #ifdef ENABLE_TLS
+int stream_upgrade_tcp_to_tls(struct stream* self, void* context);
 int stream_upgrade_to_tls(struct stream* self, void* context);
 #endif

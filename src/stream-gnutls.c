@@ -33,6 +33,7 @@
 #include "stream.h"
 #include "stream-common.h"
 #include "sys/queue.h"
+#include "neatvnc.h"
 
 static int stream__try_tls_accept(struct stream* self);
 
@@ -241,9 +242,11 @@ static struct stream_impl impl = {
 	.send = stream_gnutls_send,
 };
 
-int stream_upgrade_to_tls(struct stream* self, void* context)
+int stream_upgrade_tcp_to_tls(struct stream* self, void* context)
 {
 	int rc;
+
+	nvnc_log(NVNC_LOG_DEBUG, "Uprading stream %p to TLS", self);
 
 	rc = gnutls_init(&self->tls_session, GNUTLS_SERVER | GNUTLS_NONBLOCK);
 	if (rc != GNUTLS_E_SUCCESS)

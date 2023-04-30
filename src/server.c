@@ -1255,6 +1255,14 @@ static void on_connection(void* obj)
 	if (server->socket_type == NVNC__SOCKET_WEBSOCKET)
 	{
 		client->net_stream = stream_ws_new(fd, on_client_event, client);
+
+		if (server->tls_creds && stream_upgrade_to_tls(
+					client->net_stream,
+					client->server->tls_creds) < 0) {
+			nvnc_log(NVNC_LOG_DEBUG, "Failed to upgrade new stream to TLS");
+			stream_destroy(client->net_stream);
+			goto tls_failure;
+		}
 	}
 	else
 #endif
@@ -1295,6 +1303,7 @@ buffer_failure:
 	stream_destroy(client->net_stream);
 stream_failure:
 	close(fd);
+tls_failure:
 accept_failure:
 	free(client);
 }

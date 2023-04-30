@@ -69,6 +69,10 @@ static void stream_gnutls_destroy(struct stream* self)
 
 static int stream_gnutls__flush(struct stream* self)
 {
+	if (self->state != STREAM_STATE_TLS_READY) {
+		return 0;
+	}
+
 	while (!TAILQ_EMPTY(&self->send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
 
@@ -211,6 +215,7 @@ static int stream__try_tls_accept(struct stream* self)
 	if (rc == GNUTLS_E_SUCCESS) {
 		self->state = STREAM_STATE_TLS_READY;
 		stream__poll_r(self);
+		stream_gnutls__flush(self);
 		return 0;
 	}
 

@@ -1833,7 +1833,7 @@ void nvnc_set_name(struct nvnc* self, const char* name)
 }
 
 EXPORT
-bool nvnc_has_auth(void)
+bool nvnc_has_tls(void)
 {
 #ifdef ENABLE_TLS
 	return true;
@@ -1843,9 +1843,14 @@ bool nvnc_has_auth(void)
 }
 
 EXPORT
-int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
-                     const char* cert_path, nvnc_auth_fn auth_fn,
-                     void* userdata)
+bool nvnc_has_auth(void)
+{
+	return nvnc_has_tls();
+}
+
+EXPORT
+int nvnc_load_tls_credentials(struct nvnc* self, const char* privkey_path,
+                     const char* cert_path)
 {
 #ifdef ENABLE_TLS
 	if (self->tls_creds)
@@ -1876,8 +1881,7 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 		goto cert_set_failure;
 	}
 
-	self->auth_fn = auth_fn;
-	self->auth_ud = userdata;
+	nvnc_log(NVNC_LOG_DEBUG, "Successfully loaded TLS credentials");
 
 	return 0;
 
@@ -1888,6 +1892,19 @@ cert_alloc_failure:
 	gnutls_global_deinit();
 #endif
 	return -1;
+}
+
+EXPORT
+int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
+                     const char* cert_path, nvnc_auth_fn auth_fn,
+                     void* userdata)
+{
+	if (nvnc_load_tls_credentials(self, privkey_path, cert_path) < 0)
+		return -1;
+
+	self->auth_fn = auth_fn;
+	self->auth_ud = userdata;
+	return 0;
 }
 
 EXPORT

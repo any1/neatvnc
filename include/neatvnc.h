@@ -158,6 +158,10 @@ bool nvnc_has_auth(void);
 int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
                      const char* cert_path, nvnc_auth_fn, void* userdata);
 
+bool nvnc_has_tls(void);
+int nvnc_load_tls_credentials(struct nvnc* self, const char* privkey_path,
+		const char* cert_path);
+
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);
 struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,

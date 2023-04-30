@@ -20,6 +20,7 @@ c_args = [
 
 	'-Wmissing-prototypes',
 	'-Wno-unused-parameter',
+	'-Wno-format-truncation',
 ]
 
 if buildtype != 'debug' and buildtype != 'debugoptimized'

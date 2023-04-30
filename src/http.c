@@ -329,68 +329,17 @@ static int http__url_path(struct http_req* req, struct httplex* lex)
 	if (tok->type != HTTPLEX_LITERAL)
 		return tok->type == HTTPLEX_WS;
 
-	if (req->url_index >= URL_INDEX_MAX)
-		return 0;
-
-	char* elem = strdup(tok->value);
-	if (!elem)
-		return 0;
-
-	req->url[req->url_index++] = elem;
-
 	httplex_accept_token(lex);
 
 	return http__peek(lex, HTTPLEX_SOLIDUS)
 	     ? http__url_path(req, lex) : 1;
 }
 
-static int http__url_query_key(struct http_req* req, struct httplex* lex)
-{
-	struct httplex_token* tok = httplex_next_token(lex);
-	if (!tok)
-		return 0;
-
-	if (tok->type != HTTPLEX_LITERAL)
-		return 0;
-
-	if (req->url_index >= URL_INDEX_MAX)
-		return 0;
-
-	char* elem = strdup(tok->value);
-	if (!elem)
-		return 0;
-
-	req->url_query[req->url_query_index].key = elem;
-
-	return httplex_accept_token(lex);
-}
-
-static int http__url_query_value(struct http_req* req, struct httplex* lex)
-{
-	struct httplex_token* tok = httplex_next_token(lex);
-	if (!tok)
-		return 0;
-
-	if (tok->type != HTTPLEX_LITERAL)
-		return 0;
-
-	if (req->url_index >= URL_INDEX_MAX)
-		return 0;
-
-	char* elem = strdup(tok->value);
-	if (!elem)
-		return 0;
-
-	req->url_query[req->url_query_index++].value = elem;
-
-	return httplex_accept_token(lex);
-}
-
 static int http__url_query(struct http_req* req, struct httplex* lex)
 {
-	return http__url_query_key(req, lex)
+	return http__expect(lex, HTTPLEX_LITERAL)
 	    && http__expect(lex, HTTPLEX_EQ)
-	    && http__url_query_value(req, lex)
+	    && http__expect(lex, HTTPLEX_LITERAL)
 	    && http__expect(lex, HTTPLEX_AMPERSAND)
 	       ? http__url_query(req, lex) : 1;
 }
@@ -548,25 +497,8 @@ void http_req_free(struct http_req* req)
 {
 	free(req->content_type);
 
-	for (size_t i = 0; i < req->url_index; ++i)
-		free(req->url[i]);
-
-	for (size_t i = 0; i < req->url_query_index; ++i) {
-		free(req->url_query[i].key);
-		free(req->url_query[i].value);
-	}
-
 	for (size_t i = 0; i < req->field_index; ++i) {
 		free(req->field[i].key);
 		free(req->field[i].value);
 	}
-}
-
-const char* http_req_query(struct http_req* req, const char* key)
-{
-	for (size_t i = 0; i < req->url_query_index; ++i)
-		if (strcmp(key, req->url_query[i].key) == 0)
-			return req->url_query[i].value;
-
-	return NULL;
 }

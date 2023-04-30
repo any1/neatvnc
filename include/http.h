@@ -20,19 +20,12 @@
 
 #include <stddef.h>
 
-enum http_method {
-	HTTP_GET = 1,
-	HTTP_PUT = 2,
-	HTTP_OPTIONS = 4,
-};
-
 struct http_kv {
 	char* key;
 	char* value;
 };
 
 struct http_req {
-	enum http_method method;
 	size_t header_length;
 	size_t content_length;
 	char* content_type;

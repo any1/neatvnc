@@ -262,36 +262,12 @@ static int http__literal(struct httplex* lex, const char* str)
 
 static int http__get(struct http_req* req, struct httplex* lex)
 {
-	if (!http__literal(lex, "GET"))
-		return 0;
-
-	req->method = HTTP_GET;
-	return 1;
-}
-
-static int http__put(struct http_req* req, struct httplex* lex)
-{
-	if (!http__literal(lex, "PUT"))
-		return 0;
-
-	req->method = HTTP_PUT;
-	return 1;
-}
-
-static int http__options(struct http_req* req, struct httplex* lex)
-{
-	if (!http__literal(lex, "OPTIONS"))
-		return 0;
-
-	req->method = HTTP_OPTIONS;
-	return 1;
+	return http__literal(lex, "GET");
 }
 
 static int http__method(struct http_req* req, struct httplex* lex)
 {
-	return http__get(req, lex)
-	    || http__put(req, lex)
-	    || http__options(req, lex);
+	return http__get(req, lex);
 }
 
 static int http__peek(struct httplex* lex, enum httplex_token_type type)

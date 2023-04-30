@@ -199,6 +199,14 @@ static ssize_t stream_ws_read_ready(struct stream_ws* ws, void* dst,
 static ssize_t stream_ws_read_handshake(struct stream_ws* ws, void* dst,
 		size_t size)
 {
+	if (ws->read_index >= sizeof(ws->read_buffer)) {
+		// This header is suspiciously long
+		stream__remote_closed(&ws->base);
+		return -1;
+	}
+
+	ws->read_buffer[ws->read_index] = '\0';
+
 	char reply[512];
 	ssize_t header_len = ws_handshake(reply, sizeof(reply),
 			(const char*)ws->read_buffer);

@@ -527,6 +527,15 @@ static void encodings_to_string_list(char* dst, size_t len,
 				encoding_to_string(encodings[i]));
 }
 
+static void nvnc_send_end_of_continuous_updates(struct nvnc_client* client)
+{
+	struct rfb_end_of_continuous_updates_msg msg;
+
+	msg.type = RFB_SERVER_TO_CLIENT_END_OF_CONTINUOUS_UPDATES;
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+}
+
 static int on_client_set_encodings(struct nvnc_client* client)
 {
 	struct rfb_client_set_encodings_msg* msg =
@@ -571,6 +580,13 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_NTP:
 			;
 #endif
+			break;
+		case RFB_ENCODING_CONTINUOUSUPDATES:
+			client->encodings[n++] = encoding;
+			if (!client->is_continuous_updates_notified) {
+				nvnc_send_end_of_continuous_updates(client);
+				client->is_continuous_updates_notified = true;
+			}
 		}
 
 		if (RFB_ENCODING_JPEG_LOWQ <= encoding &&
@@ -661,6 +677,7 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_EXTENDED_CLIPBOARD: return "extended-clipboard";
 	case RFB_ENCODING_PTS: return "pts";
 	case RFB_ENCODING_NTP: return "ntp";
+	case RFB_ENCODING_CONTINUOUSUPDATES: return "continuous-updates";
 	}
 	return "UNKNOWN";
 }
@@ -731,7 +748,11 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		return;
 
-	if (client->is_updating || client->n_pending_requests == 0)
+	if (client->is_updating)
+		return;
+
+	if (!client->continuous_updates_enabled &&
+	    client->n_pending_requests == 0)
 		return;
 
 	struct nvnc_fb* fb = client->server->display->buffer;
@@ -746,7 +767,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	    || fb->height != client->known_height) {
 		send_desktop_resize(client, fb);
 
-		if (--client->n_pending_requests <= 0)
+		if (!client->continuous_updates_enabled &&
+		    --client->n_pending_requests <= 0)
 			return;
 	}
 
@@ -754,7 +776,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		client->is_ext_notified = true;
 
 		if (send_ext_support_frame(client)) {
-			if (--client->n_pending_requests <= 0)
+			if (!client->continuous_updates_enabled &&
+			    --client->n_pending_requests <= 0)
 				return;
 		}
 	}
@@ -763,7 +786,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			&& client_has_encoding(client, RFB_ENCODING_CURSOR)) {
 		send_cursor_update(client);
 
-		if (--client->n_pending_requests <= 0)
+		if (!client->continuous_updates_enabled &&
+		    --client->n_pending_requests <= 0)
 			return;
 	}
 
@@ -774,6 +798,23 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	if (!pixman_region_not_empty(&client->damage))
 		return;
+
+	/* Skip continuous updates without damage inside specified rectangle */
+	if (client->continuous_updates_enabled) {
+		struct pixman_region16 damage;
+
+		pixman_region_init(&damage);
+		pixman_region_union_rect(&damage, &client->damage,
+				client->continuous_updates.x,
+				client->continuous_updates.y,
+				client->continuous_updates.width,
+				client->continuous_updates.height);
+		if (!pixman_region_not_empty(&damage)) {
+			pixman_region_fini(&damage);
+			return;
+		}
+		pixman_region_fini(&damage);
+	}
 
 	if (!ensure_encoder(client, fb))
 		return;
@@ -802,7 +843,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			client, fb->pts);
 
 	if (encoder_encode(client->encoder, fb, &damage) >= 0) {
-		--client->n_pending_requests;
+		if (client->n_pending_requests > 0)
+			--client->n_pending_requests;
 	} else {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
 		client_unref(client);
@@ -833,6 +875,9 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	int y = ntohs(msg->y);
 	int width = ntohs(msg->width);
 	int height = ntohs(msg->height);
+
+	if (incremental && client->continuous_updates_enabled)
+		return 0;
 
 	client->n_pending_requests++;
 
@@ -1274,6 +1319,34 @@ static int on_client_cut_text(struct nvnc_client* client)
 	return process_client_cut_text(client);
 }
 
+static int on_client_enable_continuous_updates(struct nvnc_client* client)
+{
+	struct rfb_enable_continuous_updates_msg* msg =
+	        (struct rfb_enable_continuous_updates_msg*)
+	        (client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	client->continuous_updates_enabled = msg->enable_flag;
+
+	if (msg->enable_flag) {
+		client->continuous_updates.x = ntohs(msg->x);
+		client->continuous_updates.y = ntohs(msg->y);
+		client->continuous_updates.width = ntohs(msg->width);
+		client->continuous_updates.height = ntohs(msg->height);
+	} else {
+		client->continuous_updates.x = 0;
+		client->continuous_updates.y = 0;
+		client->continuous_updates.width = 0;
+		client->continuous_updates.height = 0;
+
+		nvnc_send_end_of_continuous_updates(client);
+	}
+
+	return sizeof(*msg);
+}
+
 static void process_big_cut_text(struct nvnc_client* client)
 {
 	assert(client->cut_text.length > client->cut_text.index);
@@ -1583,6 +1656,8 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_pointer_event(client);
 	case RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT:
 		return on_client_cut_text(client);
+	case RFB_CLIENT_TO_SERVER_ENABLE_CONTINUOUS_UPDATES:
+		return on_client_enable_continuous_updates(client);
 	case RFB_CLIENT_TO_SERVER_QEMU:
 		return on_client_qemu_event(client);
 	case RFB_CLIENT_TO_SERVER_SET_DESKTOP_SIZE:

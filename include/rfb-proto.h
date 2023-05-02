@@ -48,6 +48,7 @@ enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_KEY_EVENT = 4,
 	RFB_CLIENT_TO_SERVER_POINTER_EVENT = 5,
 	RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT = 6,
+	RFB_CLIENT_TO_SERVER_ENABLE_CONTINUOUS_UPDATES = 150,
 	RFB_CLIENT_TO_SERVER_NTP = 160,
 	RFB_CLIENT_TO_SERVER_SET_DESKTOP_SIZE = 251,
 	RFB_CLIENT_TO_SERVER_QEMU = 255,
@@ -71,6 +72,7 @@ enum rfb_encodings {
 	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
 	RFB_ENCODING_QEMU_LED_STATE = -261,
 	RFB_ENCODING_EXTENDEDDESKTOPSIZE = -308,
+	RFB_ENCODING_CONTINUOUSUPDATES = -313,
 	RFB_ENCODING_PTS = -1000,
 	RFB_ENCODING_NTP = -1001,
 	RFB_ENCODING_VMWARE_LED_STATE = 0x574d5668,
@@ -86,6 +88,7 @@ enum rfb_server_to_client_msg_type {
 	RFB_SERVER_TO_CLIENT_SET_COLOUR_MAP_ENTRIES = 1,
 	RFB_SERVER_TO_CLIENT_BELL = 2,
 	RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT = 3,
+	RFB_SERVER_TO_CLIENT_END_OF_CONTINUOUS_UPDATES = 150,
 	RFB_SERVER_TO_CLIENT_NTP = 160,
 };
 
@@ -229,6 +232,19 @@ struct rfb_cut_text_msg {
 	uint8_t padding[3];
 	uint32_t length;
 	char text[0];
+} RFB_PACKED;
+
+struct rfb_enable_continuous_updates_msg {
+	uint8_t type;
+	uint8_t enable_flag;
+	uint16_t x;
+	uint16_t y;
+	uint16_t width;
+	uint16_t height;
+} RFB_PACKED;
+
+struct rfb_end_of_continuous_updates_msg {
+	uint8_t type;
 } RFB_PACKED;
 
 struct rfb_server_fb_rect {

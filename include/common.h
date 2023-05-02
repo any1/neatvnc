@@ -90,6 +90,12 @@ struct nvnc_client {
 	uint32_t known_height;
 	struct cut_text cut_text;
 	bool is_qemu_key_ext_notified;
+	bool is_continuous_updates_notified;
+	bool continuous_updates_enabled;
+	struct {
+		int x, y;
+		unsigned int width, height;
+	} continuous_updates;
 	struct encoder* encoder;
 	uint32_t cursor_seq;
 	int quality;

@@ -110,6 +110,12 @@ struct nvnc_client {
 	uint32_t ext_clipboard_caps;
 	uint32_t ext_clipboard_max_unsolicited_text_size;
 	bool is_ext_notified;
+	bool is_continuous_updates_notified;
+	bool continuous_updates_enabled;
+	struct {
+		int x, y;
+		unsigned int width, height;
+	} continuous_updates;
 	struct encoder* encoder;
 	struct encoder* zrle_encoder;
 	struct encoder* tight_encoder;

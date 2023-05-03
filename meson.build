@@ -29,8 +29,8 @@ endif
 
 git = find_program('git', native: true, required: false)
 if git.found()
-	git_describe = run_command([git, 'describe', '--tags', '--long'])
-	git_branch = run_command([git, 'rev-parse', '--abbrev-ref', 'HEAD'])
+	git_describe = run_command([git, 'describe', '--tags', '--long'], check: false)
+	git_branch = run_command([git, 'rev-parse', '--abbrev-ref', 'HEAD'], check: false)
 	if git_describe.returncode() == 0 and git_branch.returncode() == 0
 		c_args += '-DGIT_VERSION="@0@ (@1@)"'.format(
 			git_describe.stdout().strip(),

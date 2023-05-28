@@ -23,10 +23,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef ENABLE_TLS
-#include <gnutls/gnutls.h>
-#endif
-
 enum stream_state {
 	STREAM_STATE_NORMAL = 0,
 	STREAM_STATE_CLOSED,
@@ -85,10 +81,6 @@ struct stream {
 	void* userdata;
 
 	struct stream_send_queue send_queue;
-
-#ifdef ENABLE_TLS
-	gnutls_session_t tls_session;
-#endif
 
 	uint32_t bytes_sent;
 	uint32_t bytes_received;

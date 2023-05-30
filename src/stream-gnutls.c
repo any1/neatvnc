@@ -40,6 +40,9 @@ struct stream_gnutls {
 	gnutls_session_t session;
 };
 
+static_assert(sizeof(struct stream_gnutls) <= STREAM_ALLOC_SIZE,
+		"struct stream_gnutls has grown too large, increase STREAM_ALLOC_SIZE");
+
 static int stream__try_tls_accept(struct stream* self);
 
 static int stream_gnutls_close(struct stream* base)

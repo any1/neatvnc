@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define STREAM_ALLOC_SIZE 4096
+
 enum stream_state {
 	STREAM_STATE_NORMAL = 0,
 	STREAM_STATE_CLOSED,
@@ -68,8 +70,6 @@ struct stream_impl {
 	void (*exec_and_send)(struct stream*, stream_exec_fn, void* userdata);
 };
 
-// TODO: Move some of these struct members into their respective implementation
-// classes.
 struct stream {
 	struct stream_impl *impl;
 

@@ -32,6 +32,9 @@
 #include "stream-common.h"
 #include "sys/queue.h"
 
+static_assert(sizeof(struct stream) <= STREAM_ALLOC_SIZE,
+		"struct stream has grown too large, increase STREAM_ALLOC_SIZE");
+
 static int stream_tcp_close(struct stream* self)
 {
 	if (self->state == STREAM_STATE_CLOSED)
@@ -255,7 +258,7 @@ static struct stream_impl impl = {
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 {
-	struct stream* self = calloc(1, sizeof(*self));
+	struct stream* self = calloc(1, STREAM_ALLOC_SIZE);
 	if (!self)
 		return NULL;
 

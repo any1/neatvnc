@@ -217,7 +217,7 @@ static int security_handshake_failed(struct nvnc_client* client,
 
 	*result = htonl(RFB_SECURITY_HANDSHAKE_FAILED);
 	reason->length = htonl(strlen(reason_string));
-	(void)strcmp(reason->message, reason_string);
+	strcpy(reason->message, reason_string);
 
 	size_t len = sizeof(*result) + sizeof(*reason) + strlen(reason_string);
 	stream_write(client->net_stream, buffer, len, close_after_write,

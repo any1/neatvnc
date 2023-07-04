@@ -146,12 +146,31 @@ static inline void client_ref(struct nvnc_client* client)
 	++client->ref;
 }
 
+static void deferred_client_close(void *obj)
+{
+	client_unref(obj);
+}
+
+static void stop_self(void* obj)
+{
+	aml_stop(aml_get_default(), obj);
+}
+
 static void close_after_write(void* userdata, enum stream_req_status status)
 {
 	struct nvnc_client* client = userdata;
 	nvnc_log(NVNC_LOG_DEBUG, "close_after_write(%p): ref %d", client,
 			client->ref);
-	nvnc_client_close(client);
+	stream_close(client->net_stream);
+
+	/* This is a rather hacky way of making sure that the client object
+	 * stays alive while the stream is processing its queue.
+	 * TODO: Figure out some better resource management for clients
+	 */
+	struct aml_idle* idle = aml_idle_new(stop_self, client,
+			deferred_client_close);
+	aml_start(aml_get_default(), idle);
+	aml_unref(idle);
 }
 
 static int handle_unsupported_version(struct nvnc_client* client)

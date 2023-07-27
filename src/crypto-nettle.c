@@ -658,7 +658,7 @@ bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
 void crypto_rsa_pub_key_modulus(const struct crypto_rsa_pub_key* key,
 		uint8_t* dst, size_t dst_size)
 {
-	 crypto_export(dst, dst_size, key->key.n);
+	crypto_export(dst, dst_size, key->key.n);
 }
 
 void crypto_rsa_pub_key_exponent(const struct crypto_rsa_pub_key* key,

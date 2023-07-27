@@ -328,7 +328,7 @@ static int h264_encoder__init_hw_frames_context(struct h264_encoder* self)
 	c->sw_format = drm_to_av_pixel_format(self->format);
 	c->width = self->width;
 	c->height = self->height;
-	
+
 	if (av_hwframe_ctx_init(self->hw_frames_ctx) < 0)
 		av_buffer_unref(&self->hw_frames_ctx);
 

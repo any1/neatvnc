@@ -31,7 +31,7 @@ void stream_destroy(struct stream* self)
 }
 
 int stream_send(struct stream* self, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata)
+		stream_req_fn on_done, void* userdata)
 {
 	assert(self->impl && self->impl->send);
 	return self->impl->send(self, payload, on_done, userdata);
@@ -44,7 +44,7 @@ int stream_send_first(struct stream* self, struct rcbuf* payload)
 }
 
 int stream_write(struct stream* self, const void* payload, size_t len,
-                 stream_req_fn on_done, void* userdata)
+		stream_req_fn on_done, void* userdata)
 {
 	struct rcbuf* buf = rcbuf_from_mem(payload, len);
 	return buf ? stream_send(self, buf, on_done, userdata) : -1;

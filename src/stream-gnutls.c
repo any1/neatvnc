@@ -169,7 +169,7 @@ static void stream_gnutls__on_event(void* obj)
 }
 
 static int stream_gnutls_send(struct stream* self, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata)
+		stream_req_fn on_done, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		return -1;
@@ -266,7 +266,7 @@ int stream_upgrade_to_tls(struct stream* base, void* context)
 		goto failure;
 
 	rc = gnutls_credentials_set(self->session, GNUTLS_CRD_CERTIFICATE,
-	                            context);
+			context);
 	if (rc != GNUTLS_E_SUCCESS)
 		goto failure;
 

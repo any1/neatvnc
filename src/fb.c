@@ -35,7 +35,7 @@
 
 EXPORT
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
-                            uint32_t fourcc_format, uint16_t stride)
+		uint32_t fourcc_format, uint16_t stride)
 {
 	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
 	if (!fb)
@@ -66,7 +66,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 
 EXPORT
 struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t height,
-                            uint32_t fourcc_format, int32_t stride)
+		uint32_t fourcc_format, int32_t stride)
 {
 	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
 	if (!fb)

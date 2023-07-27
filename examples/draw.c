@@ -219,7 +219,7 @@ static void draw_dot(struct draw *draw, struct coord coord, int radius,
 }
 
 static void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
-                             enum nvnc_button_mask buttons)
+		enum nvnc_button_mask buttons)
 {
 	if (!(buttons & NVNC_BUTTON_LEFT))
 		return;

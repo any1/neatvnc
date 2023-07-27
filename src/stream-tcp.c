@@ -208,7 +208,7 @@ ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
 }
 
 int stream_tcp_send(struct stream* self, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata)
+		stream_req_fn on_done, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		return -1;

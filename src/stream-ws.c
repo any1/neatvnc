@@ -230,7 +230,7 @@ static ssize_t stream_ws_read(struct stream* self, void* dst, size_t size)
 }
 
 static int stream_ws_send(struct stream* self, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata)
+		stream_req_fn on_done, void* userdata)
 {
 	struct stream_ws* ws = (struct stream_ws*)self;
 

@@ -198,7 +198,7 @@ static void composite_dot(struct draw *draw, uint32_t* image,
 		}
 
 	pixman_region_init_rect(damage, start.x, start.y,
-	                        stop.x - start.x, stop.y - start.y);
+			stop.x - start.x, stop.y - start.y);
 }
 
 static void draw_dot(struct draw *draw, struct coord coord, int radius,

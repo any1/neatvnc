@@ -112,8 +112,8 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	for (uint32_t y = 0; y < height; ++y) {
 		if (!extract_alpha_mask(dstdata + y * UDIV_UP(width, 8),
-					(uint32_t*)image->addr + y * image->stride,
-					image->fourcc_format, width))
+				(uint32_t*)image->addr + y * image->stride,
+				image->fourcc_format, width))
 			goto failure;
 
 		dst->len += UDIV_UP(width, 8);

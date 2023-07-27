@@ -165,7 +165,7 @@ void nvnc_fb_pool_release(struct nvnc_fb_pool* self, struct nvnc_fb* fb)
 	}
 
 	nvnc_fb_ref(fb);
-	
+
 	struct fbq_item* item = calloc(1, sizeof(*item));
 	assert(item);
 	item->fb = fb;

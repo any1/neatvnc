@@ -145,7 +145,7 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 	}
 
 	if (!ws_parse_frame_header(&ws->header, ws->read_buffer,
-				ws->read_index)) {
+			ws->read_index)) {
 		return 0;
 	}
 

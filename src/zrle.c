@@ -103,7 +103,7 @@ static void zrle_encode_unichrome_tile(struct vec* dst,
 	vec_fast_append_8(dst, 1);
 
 	pixel_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, colour, src_fmt,
-	                  bytes_per_cpixel, 1);
+			bytes_per_cpixel, 1);
 
 	dst->len += bytes_per_cpixel;
 }
@@ -137,7 +137,7 @@ static void zrle_encode_packed_tile(struct vec* dst,
 
 	uint8_t cpalette[16 * 3];
 	pixel_to_cpixel(cpalette, dst_fmt, palette, src_fmt,
-	                  bytes_per_cpixel, palette_size);
+			bytes_per_cpixel, palette_size);
 
 	vec_fast_append_8(dst, 128 | palette_size);
 
@@ -159,7 +159,7 @@ static void zrle_encode_packed_tile(struct vec* dst,
 
 	if (run_length > 0) {
 		index = find_colour_in_palette(palette, palette_size,
-		                               src + (length - 1) * src_bpp, src_bpp);
+				src + (length - 1) * src_bpp, src_bpp);
 		encode_run_length(dst, index, run_length);
 	}
 }
@@ -192,14 +192,14 @@ static void zrle_encode_tile(struct vec* dst,
 
 	if (palette_size > 1) {
 		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt, length,
-		                        palette, palette_size);
+				palette, palette_size);
 		return;
 	}
 
 	vec_fast_append_8(dst, 0);
 
 	pixel_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, (uint8_t*)src, src_fmt,
-	                  bytes_per_cpixel, length);
+			bytes_per_cpixel, length);
 
 	dst->len += bytes_per_cpixel * length;
 }
@@ -275,11 +275,11 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		int x_off = (x + tile_x) * src_bpp;
 
 		zrle_copy_tile(tile,
-		               ((uint8_t*)fb->addr) + x_off + y_off, src_bpp,
-		               stride, tile_width, tile_height);
+				((uint8_t*)fb->addr) + x_off + y_off, src_bpp,
+				stride, tile_width, tile_height);
 
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
-		                 tile_width * tile_height);
+				tile_width * tile_height);
 
 		r = zrle_deflate(out, &in, zs, i == n_tiles - 1);
 		if (r < 0)
@@ -323,7 +323,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 		int box_height = box[i].y2 - y;
 
 		rc = zrle_encode_box(self, dst, dst_fmt, src, src_fmt, x, y,
-		                     src->stride, box_width, box_height, zs);
+				src->stride, box_width, box_height, zs);
 		if (rc < 0)
 			return -1;
 	}

@@ -71,10 +71,10 @@ static int run_benchmark(const char *image)
 	z_stream zs = { 0 };
 
 	deflateInit2(&zs, /* compression level: */ 1,
-			  /*            method: */ Z_DEFLATED,
-			  /*       window bits: */ 15,
-			  /*         mem level: */ 9,
-			  /*          strategy: */ Z_DEFAULT_STRATEGY);
+			/*            method: */ Z_DEFLATED,
+			/*       window bits: */ 15,
+			/*         mem level: */ 9,
+			/*          strategy: */ Z_DEFAULT_STRATEGY);
 
 	void *dummy = malloc(stride * height * 4);
 	if (!dummy)
@@ -86,7 +86,7 @@ static int run_benchmark(const char *image)
 
 	uint64_t end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("memcpy baseline for %s took %"PRIu64" micro seconds\n", image,
-	       end_time - start_time);
+			end_time - start_time);
 
 	free(dummy);
 
@@ -95,7 +95,7 @@ static int run_benchmark(const char *image)
 
 	end_time = gettime_us(CLOCK_PROCESS_CPUTIME_ID);
 	printf("Encoding %s took %"PRIu64" micro seconds\n", image,
-	       end_time - start_time);
+			end_time - start_time);
 
 	double orig_size = stride * height * 4;
 	double compressed_size = frame.len;

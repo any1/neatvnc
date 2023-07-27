@@ -88,15 +88,15 @@ ssize_t ws_handshake(char* output, size_t output_maxlen, const char* input)
 	base64_encode(response, hash, sizeof(hash));
 
 	size_t len = snprintf(output, output_maxlen,
-		"HTTP/1.1 101 Switching Protocols\r\n"
-		"Upgrade: websocket\r\n"
-		"Connection: Upgrade\r\n"
-		"Sec-WebSocket-Accept: %s\r\n"
-		"%s%s"
-		"\r\n",
-		response,
-		have_protocols ? "Sec-WebSocket-Protocol: char\r\n" : "",
-		have_versions ? "Sec-WebSocket-Version: 13\r\n" : "");
+			"HTTP/1.1 101 Switching Protocols\r\n"
+			"Upgrade: websocket\r\n"
+			"Connection: Upgrade\r\n"
+			"Sec-WebSocket-Accept: %s\r\n"
+			"%s%s"
+			"\r\n",
+			response,
+			have_protocols ? "Sec-WebSocket-Protocol: char\r\n" : "",
+			have_versions ? "Sec-WebSocket-Version: 13\r\n" : "");
 
 	ssize_t header_len = req.header_length;
 	ok = len < output_maxlen;

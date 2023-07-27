@@ -50,7 +50,7 @@ uint32_t calculate_region_area(struct pixman_region16* region)
 
 	int n_rects = 0;
 	struct pixman_box16* rects = pixman_region_rectangles(region,
-		&n_rects);
+			&n_rects);
 
 	for (int i = 0; i < n_rects; ++i) {
 		int width = rects[i].x2 - rects[i].x1;

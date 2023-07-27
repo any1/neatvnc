@@ -207,7 +207,7 @@ static int handle_unsupported_version(struct nvnc_client* client)
 
 	size_t len = 1 + sizeof(*reason) + strlen(reason_string);
 	stream_write(client->net_stream, buffer, len, close_after_write,
-	             client);
+			client);
 
 	return 0;
 }
@@ -283,7 +283,7 @@ static int security_handshake_failed(struct nvnc_client* client,
 
 	size_t len = sizeof(*result) + sizeof(*reason) + strlen(reason_string);
 	stream_write(client->net_stream, buffer, len, close_after_write,
-	             client);
+			client);
 
 	return 0;
 }
@@ -292,7 +292,7 @@ static int security_handshake_ok(struct nvnc_client* client)
 {
 	uint32_t result = htonl(RFB_SECURITY_HANDSHAKE_OK);
 	return stream_write(client->net_stream, &result, sizeof(result), NULL,
-	                    NULL);
+			NULL);
 }
 
 #ifdef ENABLE_TLS
@@ -304,7 +304,7 @@ static int send_byte(struct nvnc_client* client, uint8_t value)
 static int send_byte_and_close(struct nvnc_client* client, uint8_t value)
 {
 	return stream_write(client->net_stream, &value, 1, close_after_write,
-	                    client);
+			client);
 }
 
 static int vencrypt_send_version(struct nvnc_client* client)
@@ -1182,7 +1182,7 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	 */
 	if (!incremental) {
 		pixman_region_union_rect(&client->damage, &client->damage, x, y,
-		                         width, height);
+				width, height);
 
 		if (client->encoder)
 			encoder_request_key_frame(client->encoder);
@@ -1265,7 +1265,7 @@ static int on_client_qemu_event(struct nvnc_client* client)
 	}
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p (ref %d)",
-	          client, client->ref);
+			client, client->ref);
 	nvnc_client_close(client);
 	return 0;
 }
@@ -1324,7 +1324,7 @@ static int on_client_cut_text(struct nvnc_client* client)
 	/* Messages greater than this size are unsupported */
 	if (length > max_length) {
 		nvnc_log(NVNC_LOG_ERROR, "Copied text length (%d) is greater than max supported length (%d)",
-			length, max_length);
+				length, max_length);
 		nvnc_client_close(client);
 		return 0;
 	}
@@ -1375,7 +1375,7 @@ static void process_big_cut_text(struct nvnc_client* client)
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
 			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
-				  client, client->ref);
+					client, client->ref);
 			nvnc_client_close(client);
 		}
 
@@ -1489,7 +1489,7 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 			msg->number_of_screens, msg->screens);
 
 	send_extended_desktop_size(client, RFB_RESIZE_INITIATOR_THIS_CLIENT,
-				   status);
+			status);
 
 	return sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen);
 }
@@ -1574,7 +1574,7 @@ static int on_client_message(struct nvnc_client* client)
 	}
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p (ref %d)",
-	          client, client->ref);
+			client, client->ref);
 	nvnc_client_close(client);
 	return 0;
 }
@@ -1647,7 +1647,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
 			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
-				  client, client->ref);
+					client, client->ref);
 			nvnc_client_close(client);
 		}
 
@@ -1669,7 +1669,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	client->buffer_len -= client->buffer_index;
 	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,
-	        client->buffer_len);
+			client->buffer_len);
 	client->buffer_index = 0;
 }
 
@@ -2068,7 +2068,7 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 
 	rcbuf_ref(payload);
 	if (stream_send(client->net_stream, payload,
-				on_write_frame_done, client) < 0)
+			on_write_frame_done, client) < 0)
 		goto complete;
 
 	DTRACE_PROBE2(neatvnc, send_fb_done, client, pts);
@@ -2168,7 +2168,7 @@ void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage
 	LIST_FOREACH(client, &self->clients, link)
 		if (client->net_stream->state != STREAM_STATE_CLOSED)
 			pixman_region_union(&client->damage, &client->damage,
-					    (struct pixman_region16*)damage);
+					(struct pixman_region16*)damage);
 
 	LIST_FOREACH(client, &self->clients, link)
 		process_fb_update_requests(client);
@@ -2340,22 +2340,22 @@ int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
 	int rc = gnutls_global_init();
 	if (rc != GNUTLS_E_SUCCESS) {
 		nvnc_log(NVNC_LOG_ERROR, "GnuTLS: Failed to initialise: %s",
-		          gnutls_strerror(rc));
+				gnutls_strerror(rc));
 		return -1;
 	}
 
 	rc = gnutls_certificate_allocate_credentials(&self->tls_creds);
 	if (rc != GNUTLS_E_SUCCESS) {
 		nvnc_log(NVNC_LOG_ERROR, "GnuTLS: Failed to allocate credentials: %s",
-		          gnutls_strerror(rc));
+				gnutls_strerror(rc));
 		goto cert_alloc_failure;
 	}
 
 	rc = gnutls_certificate_set_x509_key_file(
-		self->tls_creds, cert_path, privkey_path, GNUTLS_X509_FMT_PEM);
+			self->tls_creds, cert_path, privkey_path, GNUTLS_X509_FMT_PEM);
 	if (rc != GNUTLS_E_SUCCESS) {
 		nvnc_log(NVNC_LOG_ERROR, "GnuTLS: Failed to load credentials: %s",
-		          gnutls_strerror(rc));
+				gnutls_strerror(rc));
 		goto cert_set_failure;
 	}
 

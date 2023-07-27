@@ -26,10 +26,10 @@
 #define STR(s) #s
 
 static void pixel32_to_cpixel(uint8_t* restrict dst,
-             const struct rfb_pixel_format* dst_fmt,
-             const uint32_t* restrict src,
-             const struct rfb_pixel_format* src_fmt,
-             size_t bytes_per_cpixel, size_t len)
+		const struct rfb_pixel_format* dst_fmt,
+		const uint32_t* restrict src,
+		const struct rfb_pixel_format* src_fmt,
+		size_t bytes_per_cpixel, size_t len)
 {
 	assert(src_fmt->true_colour_flag);
 	assert(src_fmt->depth <= 32);
@@ -152,10 +152,10 @@ static void pixel32_to_cpixel(uint8_t* restrict dst,
 }
 
 void pixel_to_cpixel(uint8_t* restrict dst,
-                       const struct rfb_pixel_format* dst_fmt,
-                       const uint8_t* restrict src,
-                       const struct rfb_pixel_format* src_fmt,
-                       size_t bytes_per_cpixel, size_t len)
+		const struct rfb_pixel_format* dst_fmt,
+		const uint8_t* restrict src,
+		const struct rfb_pixel_format* src_fmt,
+		size_t bytes_per_cpixel, size_t len)
 {
 	if (src_fmt->bits_per_pixel == 32) {
 		pixel32_to_cpixel(dst, dst_fmt, (uint32_t*)src, src_fmt, bytes_per_cpixel, len);

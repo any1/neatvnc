@@ -261,7 +261,7 @@ static void tight_encode_size(struct vec* dst, size_t size)
 }
 
 static int tight_deflate(struct tight_tile* tile, void* src,
-			 size_t len, z_stream* zs, bool flush)
+		size_t len, z_stream* zs, bool flush)
 {
 	zs->next_in = src;
 	zs->avail_in = len;

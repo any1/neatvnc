@@ -54,10 +54,10 @@ static inline struct raw_encoder* raw_encoder(struct encoder* encoder)
 }
 
 static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
-                          const struct rfb_pixel_format* dst_fmt,
-                          const struct nvnc_fb* fb,
-                          const struct rfb_pixel_format* src_fmt, int x_start,
-                          int y_start, int stride, int width, int height)
+		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_fb* fb,
+		const struct rfb_pixel_format* src_fmt, int x_start,
+		int y_start, int stride, int width, int height)
 {
 	uint16_t x_pos = ctx->x_pos;
 	uint16_t y_pos = ctx->y_pos;

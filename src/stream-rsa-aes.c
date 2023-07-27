@@ -148,7 +148,7 @@ static ssize_t stream_rsa_aes_read(struct stream* base, void* dst, size_t size)
 }
 
 static int stream_rsa_aes_send(struct stream* base, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata)
+		stream_req_fn on_done, void* userdata)
 {
 	struct stream_rsa_aes* self = (struct stream_rsa_aes*)base;
 	size_t n_msg = UDIV_UP(payload->size, RSA_AES_BUFFER_SIZE);

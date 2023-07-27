@@ -266,7 +266,7 @@ static int on_version_message(struct nvnc_client* client)
 }
 
 static int security_handshake_failed(struct nvnc_client* client,
-                                     const char* reason_string)
+		const char* reason_string)
 {
 	char buffer[256];
 
@@ -2328,7 +2328,7 @@ bool nvnc_has_auth(void)
 
 EXPORT
 int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
-                     const char* cert_path)
+		const char* cert_path)
 {
 #ifdef ENABLE_TLS
 	if (self->tls_creds)

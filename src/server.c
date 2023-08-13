@@ -54,6 +54,10 @@
 #include <gnutls/gnutls.h>
 #endif
 
+#ifdef HAVE_CRYPTO
+#include "crypto.h"
+#endif
+
 #ifndef DRM_FORMAT_INVALID
 #define DRM_FORMAT_INVALID 0
 #endif
@@ -63,6 +67,7 @@
 #endif
 
 #define DEFAULT_NAME "Neat VNC"
+#define SECURITY_TYPES_MAX 3
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -196,6 +201,8 @@ static int handle_unsupported_version(struct nvnc_client* client)
 
 static int on_version_message(struct nvnc_client* client)
 {
+	struct nvnc* server = client->server;
+
 	if (client->buffer_len - client->buffer_index < 12)
 		return 0;
 
@@ -206,17 +213,31 @@ static int on_version_message(struct nvnc_client* client)
 	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
 		return handle_unsupported_version(client);
 
-	struct rfb_security_types_msg security = { 0 };
-	security.n = 1;
-	security.types[0] = RFB_SECURITY_TYPE_NONE;
+	uint8_t buf[sizeof(struct rfb_security_types_msg) +
+		SECURITY_TYPES_MAX] = {};
+	struct rfb_security_types_msg* security =
+		(struct rfb_security_types_msg*)buf;
 
+	security->n = 0;
+	if (client->server->auth_fn) {
 #ifdef ENABLE_TLS
-	if (client->server->auth_fn)
-		security.types[0] = RFB_SECURITY_TYPE_VENCRYPT;
+		if (server->tls_creds) {
+			security->types[security->n++] = RFB_SECURITY_TYPE_VENCRYPT;
+		}
 #endif
 
-	stream_write(client->net_stream, &security, sizeof(security), NULL,
-	             NULL);
+#ifdef HAVE_CRYPTO
+		security->types[security->n++] = RFB_SECURITY_TYPE_APPLE_DH;
+#endif
+	}
+
+	if (security->n == 0) {
+		security->n = 1;
+		security->types[0] = RFB_SECURITY_TYPE_NONE;
+	}
+
+	stream_write(client->net_stream, security, sizeof(*security) +
+			security->n, NULL, NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_SECURITY;
 	return 12;
@@ -368,6 +389,98 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 }
 #endif
 
+#ifdef HAVE_CRYPTO
+static int apple_dh_send_public_key(struct nvnc_client* client)
+{
+	client->apple_dh_secret = crypto_keygen();
+	assert(client->apple_dh_secret);
+
+	struct crypto_key* pub =
+		crypto_derive_public_key(client->apple_dh_secret);
+	assert(pub);
+
+	uint8_t mod[256] = {};
+	int mod_len = crypto_key_p(pub, mod, sizeof(mod));
+	assert(mod_len == sizeof(mod));
+
+	uint8_t q[256] = {};
+	int q_len = crypto_key_q(pub, q, sizeof(q));
+	assert(q_len == sizeof(q));
+
+	struct rfb_apple_dh_server_msg msg = {
+		.generator = htons(crypto_key_g(client->apple_dh_secret)),
+		.key_size = htons(q_len),
+	};
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, mod, mod_len, NULL, NULL);
+	stream_write(client->net_stream, q, q_len, NULL, NULL);
+
+	crypto_key_del(pub);
+	return 0;
+}
+
+static int on_apple_dh_response(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	struct rfb_apple_dh_client_msg* msg =
+	        (void*)(client->msg_buffer + client->buffer_index);
+
+	uint8_t p[256];
+	int key_len = crypto_key_p(client->apple_dh_secret, p, sizeof(p));
+	assert(key_len == sizeof(p));
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg) + key_len)
+		return 0;
+
+	int g = crypto_key_g(client->apple_dh_secret);
+
+	struct crypto_key* remote_key = crypto_key_new(g, p, key_len,
+			msg->public_key, key_len);
+	assert(remote_key);
+
+	struct crypto_key* shared_secret =
+		crypto_derive_shared_secret(client->apple_dh_secret, remote_key);
+	assert(shared_secret);
+
+	uint8_t shared_buf[256];
+	crypto_key_q(shared_secret, shared_buf, sizeof(shared_buf));
+	crypto_key_del(shared_secret);
+
+	struct crypto_hash* hash_ctx = crypto_hash_new(CRYPTO_HASH_MD5);
+	crypto_hash_append(hash_ctx, shared_buf, sizeof(shared_buf));
+
+	uint8_t hash[16] = {};
+	crypto_hash_digest(hash_ctx, hash, sizeof(hash));
+	crypto_hash_del(hash_ctx);
+
+	struct crypto_cipher* cipher;
+	cipher = crypto_cipher_new(hash, CRYPTO_CIPHER_AES128_ECB);
+	assert(cipher);
+
+	char username[128] = {};
+	char* password = username + 64;
+
+	crypto_cipher_decrypt(cipher, (uint8_t*)username,
+			msg->encrypted_credentials, sizeof(username));
+	username[63] = '\0';
+	username[127] = '\0';
+
+	if (server->auth_fn(username, password, server->auth_ud)) {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
+		security_handshake_ok(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	} else {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
+		security_handshake_failed(client, "Invalid username or password");
+		crypto_cipher_del(cipher);
+	}
+
+	return sizeof(*msg) + key_len;
+}
+#endif // HAVE_CRYPTO
+
 static int on_security_message(struct nvnc_client* client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
@@ -384,6 +497,12 @@ static int on_security_message(struct nvnc_client* client)
 	case RFB_SECURITY_TYPE_VENCRYPT:
 		vencrypt_send_version(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_VERSION;
+		break;
+#endif
+#ifdef HAVE_CRYPTO
+	case RFB_SECURITY_TYPE_APPLE_DH:
+		apple_dh_send_public_key(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE;
 		break;
 #endif
 	default:
@@ -1165,6 +1284,10 @@ static int try_read_client_message(struct nvnc_client* client)
 		return on_vencrypt_subtype_message(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_PLAIN_AUTH:
 		return on_vencrypt_plain_auth_message(client);
+#endif
+#ifdef HAVE_CRYPTO
+	case VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE:
+		return on_apple_dh_response(client);
 #endif
 	case VNC_CLIENT_STATE_READY:
 		return on_client_message(client);

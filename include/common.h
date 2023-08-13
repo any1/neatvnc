@@ -44,6 +44,9 @@ enum nvnc_client_state {
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_SUBTYPE,
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_PLAIN_AUTH,
 #endif
+#ifdef HAVE_CRYPTO
+	VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE,
+#endif
 	VNC_CLIENT_STATE_WAITING_FOR_INIT,
 	VNC_CLIENT_STATE_READY,
 };
@@ -53,6 +56,7 @@ struct stream;
 struct aml_handler;
 struct aml_idle;
 struct nvnc_display;
+struct crypto_key;
 
 struct nvnc_common {
 	void* userdata;
@@ -93,6 +97,10 @@ struct nvnc_client {
 	struct encoder* encoder;
 	uint32_t cursor_seq;
 	int quality;
+
+#ifdef HAVE_CRYPTO
+	struct crypto_key* apple_dh_secret;
+#endif
 };
 
 LIST_HEAD(nvnc_client_list, nvnc_client);

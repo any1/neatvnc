@@ -19,6 +19,7 @@
 #include "config.h"
 #include "sys/queue.h"
 #include "rcbuf.h"
+#include "vec.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -45,6 +46,7 @@ enum stream_event {
 };
 
 struct stream;
+struct crypto_cipher;
 
 typedef void (*stream_event_fn)(struct stream*, enum stream_event);
 typedef void (*stream_req_fn)(void*, enum stream_req_status);
@@ -68,6 +70,7 @@ struct stream_impl {
 			stream_req_fn on_done, void* userdata);
 	int (*send_first)(struct stream*, struct rcbuf* payload);
 	void (*exec_and_send)(struct stream*, stream_exec_fn, void* userdata);
+	int (*install_cipher)(struct stream*, struct crypto_cipher*);
 };
 
 struct stream {
@@ -86,6 +89,9 @@ struct stream {
 	uint32_t bytes_received;
 
 	bool cork;
+
+	struct crypto_cipher* cipher;
+	struct vec tmp_buf;
 };
 
 #ifdef ENABLE_WEBSOCKET
@@ -108,3 +114,5 @@ void stream_exec_and_send(struct stream* self, stream_exec_fn, void* userdata);
 #ifdef ENABLE_TLS
 int stream_upgrade_to_tls(struct stream* self, void* context);
 #endif
+
+int stream_install_cipher(struct stream* self, struct crypto_cipher* cipher);

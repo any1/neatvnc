@@ -65,3 +65,11 @@ void stream_exec_and_send(struct stream* self, stream_exec_fn exec_fn,
 	else
 		stream_send(self, exec_fn(self, userdata), NULL, NULL);
 }
+
+int stream_install_cipher(struct stream* self, struct crypto_cipher* cipher)
+{
+	if (!self->impl->install_cipher) {
+		return -1;
+	}
+	return self->impl->install_cipher(self, cipher);
+}

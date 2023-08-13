@@ -31,6 +31,7 @@ enum rfb_security_type {
 	RFB_SECURITY_TYPE_VNC_AUTH = 2,
 	RFB_SECURITY_TYPE_TIGHT = 16,
 	RFB_SECURITY_TYPE_VENCRYPT = 19,
+	RFB_SECURITY_TYPE_APPLE_DH = 30,
 };
 
 enum rfb_security_handshake_result {
@@ -108,7 +109,7 @@ enum rfb_resize_status {
 
 struct rfb_security_types_msg {
 	uint8_t n;
-	uint8_t types[1];
+	uint8_t types[0];
 } RFB_PACKED;
 
 struct rfb_error_reason {
@@ -236,4 +237,15 @@ struct rfb_ntp_msg {
 	uint8_t type;
 	uint8_t padding[3];
 	uint32_t t0, t1, t2, t3;
+} RFB_PACKED;
+
+struct rfb_apple_dh_server_msg {
+	uint16_t generator;
+	uint16_t key_size;
+	uint8_t modulus_and_key[0];
+} RFB_PACKED;
+
+struct rfb_apple_dh_client_msg {
+	uint8_t encrypted_credentials[128];
+	uint8_t public_key[0];
 } RFB_PACKED;

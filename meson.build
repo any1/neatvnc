@@ -51,6 +51,7 @@ pixman = dependency('pixman-1')
 libturbojpeg = dependency('libturbojpeg', required: get_option('jpeg'))
 gnutls = dependency('gnutls', required: get_option('tls'))
 nettle = dependency('nettle', required: get_option('nettle'))
+gmp = dependency('gmp', required: get_option('nettle'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
 libdrm = dependency('libdrm', required: get_option('h264'))
@@ -118,9 +119,11 @@ if gnutls.found()
 	config.set('ENABLE_TLS', true)
 endif
 
-if nettle.found()
-	dependencies += nettle
+if nettle.found() and gmp.found()
+	dependencies += [ nettle, gmp ]
 	enable_websocket = true
+	config.set('HAVE_CRYPTO', true)
+	sources += 'src/crypto-nettle.c'
 endif
 
 if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')

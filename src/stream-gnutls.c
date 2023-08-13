@@ -82,6 +82,8 @@ static int stream_gnutls__flush(struct stream* base)
 {
 	struct stream_gnutls* self = (struct stream_gnutls*)base;
 	while (!TAILQ_EMPTY(&self->base.send_queue)) {
+		assert(self->base.state != STREAM_STATE_CLOSED);
+
 		struct stream_req* req = TAILQ_FIRST(&self->base.send_queue);
 
 		ssize_t rc = gnutls_record_send(self->session,

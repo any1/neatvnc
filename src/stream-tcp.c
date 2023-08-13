@@ -31,9 +31,22 @@
 #include "stream.h"
 #include "stream-common.h"
 #include "sys/queue.h"
+#include "crypto.h"
+#include "neatvnc.h"
 
 static_assert(sizeof(struct stream) <= STREAM_ALLOC_SIZE,
 		"struct stream has grown too large, increase STREAM_ALLOC_SIZE");
+
+static struct rcbuf* encrypt_rcbuf(struct stream* self, struct rcbuf* payload)
+{
+	uint8_t* ciphertext = malloc(payload->size);
+	assert(ciphertext);
+	crypto_cipher_encrypt(self->cipher, ciphertext, payload->payload,
+			payload->size);
+	struct rcbuf* result = rcbuf_new(ciphertext, payload->size);
+	rcbuf_unref(payload);
+	return result;
+}
 
 static int stream_tcp_close(struct stream* self)
 {
@@ -57,6 +70,8 @@ static int stream_tcp_close(struct stream* self)
 
 static void stream_tcp_destroy(struct stream* self)
 {
+	vec_destroy(&self->tmp_buf);
+	crypto_cipher_del(self->cipher);
 	stream_close(self);
 	aml_unref(self->handler);
 	free(self);
@@ -76,7 +91,9 @@ static int stream_tcp__flush(struct stream* self)
 		if (req->exec) {
 			if (req->payload)
 				rcbuf_unref(req->payload);
-			req->payload = req->exec(self, req->userdata);
+			struct rcbuf* payload  = req->exec(self, req->userdata);
+			req->payload = self->cipher ?
+				encrypt_rcbuf(self, payload) : payload;
 		}
 
 		iov[n_msgs].iov_base = req->payload->payload;
@@ -187,11 +204,27 @@ static ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
 	if (self->state != STREAM_STATE_NORMAL)
 		return -1;
 
-	ssize_t rc = read(self->fd, dst, size);
+	uint8_t* read_buffer = dst;
+
+	if (self->cipher) {
+		vec_reserve(&self->tmp_buf, size);
+		read_buffer = self->tmp_buf.data;
+	}
+
+	ssize_t rc = read(self->fd, read_buffer, size);
 	if (rc == 0)
 		stream__remote_closed(self);
 	if (rc > 0)
 		self->bytes_received += rc;
+
+	if (rc > 0 && self->cipher && !crypto_cipher_decrypt(self->cipher, dst,
+				read_buffer, rc)) {
+		nvnc_log(NVNC_LOG_ERROR, "Message authentication failed!");
+		stream__remote_closed(self);
+		errno = EPROTO;
+		return -1;
+	}
+
 	return rc;
 }
 
@@ -205,7 +238,7 @@ static int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 	if (!req)
 		return -1;
 
-	req->payload = payload;
+	req->payload = self->cipher ? encrypt_rcbuf(self, payload) : payload;
 	req->on_done = on_done;
 	req->userdata = userdata;
 
@@ -247,6 +280,14 @@ static void stream_tcp_exec_and_send(struct stream* self,
 	stream_tcp__flush(self);
 }
 
+static int stream_tcp_install_cipher(struct stream* self,
+		struct crypto_cipher* cipher)
+{
+	assert(!self->cipher);
+	self->cipher = cipher;
+	return 0;
+}
+
 static struct stream_impl impl = {
 	.close = stream_tcp_close,
 	.destroy = stream_tcp_destroy,
@@ -254,6 +295,7 @@ static struct stream_impl impl = {
 	.send = stream_tcp_send,
 	.send_first = stream_tcp_send_first,
 	.exec_and_send = stream_tcp_exec_and_send,
+	.install_cipher = stream_tcp_install_cipher,
 };
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)

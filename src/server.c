@@ -456,7 +456,7 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	crypto_hash_del(hash_ctx);
 
 	struct crypto_cipher* cipher;
-	cipher = crypto_cipher_new(hash, CRYPTO_CIPHER_AES128_ECB);
+	cipher = crypto_cipher_new(NULL, hash, CRYPTO_CIPHER_AES128_ECB);
 	assert(cipher);
 
 	char username[128] = {};

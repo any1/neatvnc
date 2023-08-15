@@ -51,6 +51,7 @@ pixman = dependency('pixman-1')
 libturbojpeg = dependency('libturbojpeg', required: get_option('jpeg'))
 gnutls = dependency('gnutls', required: get_option('tls'))
 nettle = dependency('nettle', required: get_option('nettle'))
+hogweed = dependency('hogweed', required: get_option('nettle'))
 gmp = dependency('gmp', required: get_option('nettle'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
@@ -119,8 +120,8 @@ if gnutls.found()
 	config.set('ENABLE_TLS', true)
 endif
 
-if nettle.found() and gmp.found()
-	dependencies += [ nettle, gmp ]
+if nettle.found() and hogweed.found() and gmp.found()
+	dependencies += [ nettle, hogweed, gmp ]
 	enable_websocket = true
 	config.set('HAVE_CRYPTO', true)
 	sources += 'src/crypto-nettle.c'

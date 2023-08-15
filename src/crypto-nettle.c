@@ -5,11 +5,16 @@
 #include <nettle/base64.h>
 #include <nettle/base16.h>
 #include <nettle/aes.h>
+#include <nettle/eax.h>
 #include <nettle/md5.h>
+#include <nettle/sha1.h>
+#include <nettle/rsa.h>
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
+#include <sys/param.h>
 
 // TODO: This is linux specific
 #include <sys/random.h>
@@ -20,14 +25,26 @@ struct crypto_key {
 	mpz_t q;
 };
 
+struct crypto_aes_eax {
+	struct eax_aes128_ctx ctx;
+	uint64_t count[2];
+};
+
 struct crypto_cipher {
 	union {
 		struct aes128_ctx aes128_ecb;
+		struct crypto_aes_eax aes_eax;
 	} enc_ctx;
 
 	union {
 		struct aes128_ctx aes128_ecb;
+		struct crypto_aes_eax aes_eax;
 	} dec_ctx;
+
+	const uint8_t* ad;
+	size_t ad_len;
+
+	uint8_t mac[16];
 
 	bool (*encrypt)(struct crypto_cipher*, uint8_t* dst, const uint8_t* src,
 			size_t len);
@@ -38,24 +55,60 @@ struct crypto_cipher {
 struct crypto_hash {
 	union {
 		struct md5_ctx md5;
+		struct sha1_ctx sha1;
 	} ctx;
 
 	void (*update)(void* ctx, size_t len, const uint8_t* src);
 	void (*digest)(void* ctx, size_t len, uint8_t* dst);
 };
 
+struct crypto_rsa_pub_key {
+	struct rsa_public_key key;
+};
+
+struct crypto_rsa_priv_key {
+	struct rsa_private_key key;
+};
+
 void crypto_dump_base64(const char* msg, const uint8_t* bytes, size_t len)
 {
 	struct base64_encode_ctx ctx = {};
 	size_t buflen = BASE64_ENCODE_LENGTH(len);
-	char* buffer = malloc(buflen + BASE64_ENCODE_FINAL_LENGTH);
+	char* buffer = malloc(buflen + BASE64_ENCODE_FINAL_LENGTH + 1);
 	assert(buffer);
 	nettle_base64_encode_init(&ctx);
-	nettle_base64_encode_update(&ctx, buffer, len, bytes);
-	nettle_base64_encode_final(&ctx, buffer + buflen);
+	size_t count = nettle_base64_encode_update(&ctx, buffer, len, bytes);
+	count += nettle_base64_encode_final(&ctx, buffer + count);
+	buffer[count] = '\0';
 
 	nvnc_log(NVNC_LOG_DEBUG, "%s: %s", msg, buffer);
 	free(buffer);
+}
+
+void crypto_dump_base16(const char* msg, const uint8_t* bytes, size_t len)
+{
+	size_t buflen = BASE16_ENCODE_LENGTH(len);
+	char* buffer = calloc(1, buflen + 1);
+	assert(buffer);
+	nettle_base16_encode_update(buffer, len, bytes);
+
+	nvnc_log(NVNC_LOG_DEBUG, "%s: %s", msg, buffer);
+	free(buffer);
+}
+
+void crypto_random(uint8_t* dst, size_t len)
+{
+	getrandom(dst, len, 0);
+}
+
+static void crypto_import(mpz_t n, const uint8_t* src, size_t len)
+{
+	int order = 1;
+	int unit_size = 1;
+	int endian = 1;
+	int skip_bits = 0;
+
+	mpz_import(n, len, order, unit_size, endian, skip_bits, src);
 }
 
 struct crypto_key *crypto_key_new(int g, const uint8_t* p, uint32_t p_len,
@@ -67,16 +120,11 @@ struct crypto_key *crypto_key_new(int g, const uint8_t* p, uint32_t p_len,
 
 	self->g = g;
 
-	int order = 1;
-	int unit_size = 1;
-	int endian = 1;
-	int skip_bits = 0;
-
 	mpz_init(self->p);
-	mpz_import(self->p, p_len, order, unit_size, endian, skip_bits, p);
+	crypto_import(self->p, p, p_len);
 
 	mpz_init(self->q);
-	mpz_import(self->q, q_len, order, unit_size, endian, skip_bits, q);
+	crypto_import(self->q, q, q_len);
 
 	return self;
 }
@@ -93,32 +141,34 @@ int crypto_key_g(const struct crypto_key* key)
 	return key->g;
 }
 
-uint32_t crypto_key_p(const struct crypto_key* key, uint8_t* dst,
-		uint32_t dst_size)
+static size_t crypto_export(uint8_t* dst, size_t dst_size, const mpz_t n)
 {
 	int order = 1; // msb first
 	int unit_size = 1; // byte
 	int endian = 1; // msb first
 	int skip_bits = 0;
 
-	size_t len = 0;
-	mpz_export(dst, &len, order, unit_size, endian, skip_bits, key->p);
+	size_t bitsize = mpz_sizeinbase(n, 2);
+	size_t bytesize = (bitsize + 7) / 8;
 
-	return len;
+	assert(bytesize <= dst_size);
+
+	mpz_export(dst + dst_size - bytesize, &bytesize, order, unit_size,
+			endian, skip_bits, n);
+
+	return bytesize;
+}
+
+uint32_t crypto_key_p(const struct crypto_key* key, uint8_t* dst,
+		uint32_t dst_size)
+{
+	return crypto_export(dst, dst_size, key->p);
 }
 
 uint32_t crypto_key_q(const struct crypto_key* key, uint8_t* dst,
 		uint32_t dst_size)
 {
-	int order = 1; // msb first
-	int unit_size = 1; // byte
-	int endian = 1; // msb first
-	int skip_bits = 0;
-
-	size_t len = 0;
-	mpz_export(dst, &len, order, unit_size, endian, skip_bits, key->q);
-
-	return len;
+	return crypto_export(dst, dst_size, key->q);
 }
 
 static void initialise_p(mpz_t p)
@@ -145,25 +195,14 @@ static void initialise_p(mpz_t p)
 	nettle_base16_decode_final(&ctx);
 	assert(len == sizeof(buf));
 
-	int order = 1;
-	int unit_size = 1;
-	int endian = 1;
-	int skip_bits = 0;
-
-	mpz_import(p, sizeof(buf), order, unit_size, endian, skip_bits, buf);
+	crypto_import(p, (const uint8_t*)buf, sizeof(buf));
 }
 
 static void generate_random(mpz_t n)
 {
 	uint8_t buf[256];
 	getrandom(buf, sizeof(buf), 0);
-
-	int order = 1;
-	int unit_size = 1;
-	int endian = 1;
-	int skip_bits = 0;
-
-	mpz_import(n, sizeof(buf), order, unit_size, endian, skip_bits, buf);
+	crypto_import(n, buf, sizeof(buf));
 }
 
 struct crypto_key* crypto_keygen(void)
@@ -247,14 +286,18 @@ static bool crypto_cipher_aes128_ecb_decrypt(struct crypto_cipher* self,
 	return true;
 }
 
-static struct crypto_cipher* crypto_cipher_new_aes128_ecb(const uint8_t* key)
+static struct crypto_cipher* crypto_cipher_new_aes128_ecb(
+		const uint8_t* enc_key, const uint8_t* dec_key)
 {
 	struct crypto_cipher* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
 
-	aes128_set_encrypt_key(&self->enc_ctx.aes128_ecb, key);
-	aes128_invert_key(&self->dec_ctx.aes128_ecb, &self->enc_ctx.aes128_ecb);
+	if (enc_key)
+		aes128_set_encrypt_key(&self->enc_ctx.aes128_ecb, enc_key);
+
+	if (dec_key)
+		aes128_set_decrypt_key(&self->enc_ctx.aes128_ecb, dec_key);
 
 	self->encrypt = crypto_cipher_aes128_ecb_encrypt;
 	self->decrypt = crypto_cipher_aes128_ecb_decrypt;
@@ -262,12 +305,78 @@ static struct crypto_cipher* crypto_cipher_new_aes128_ecb(const uint8_t* key)
 	return self;
 }
 
-struct crypto_cipher* crypto_cipher_new(const uint8_t* key,
-		enum crypto_cipher_type type)
+static void crypto_aes_eax_update_nonce(struct crypto_aes_eax* self)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	nettle_eax_aes128_set_nonce(&self->ctx, 16, (const uint8_t*)self->count);
+#else
+	uint64_t c[2];
+	c[0] = __builtin_bswap64(self->count[0]);
+	c[1] = __builtin_bswap64(self->count[1]);
+	nettle_eax_aes128_set_nonce(&self->ctx, 16, (const uint8_t*)c);
+#endif
+
+	if (++self->count[0] == 0)
+		++self->count[1];
+}
+
+static bool crypto_cipher_aes_eax_encrypt(struct crypto_cipher* self,
+		uint8_t* dst, const uint8_t* src, size_t len)
+{
+	crypto_aes_eax_update_nonce(&self->enc_ctx.aes_eax);
+
+	if (self->ad) {
+		nettle_eax_aes128_update(&self->enc_ctx.aes_eax.ctx,
+				self->ad_len, self->ad);
+	} else {
+		nettle_eax_aes128_update(&self->enc_ctx.aes_eax.ctx, 0, NULL);
+	}
+
+	nettle_eax_aes128_encrypt(&self->enc_ctx.aes_eax.ctx, len, dst, src);
+	nettle_eax_aes128_digest(&self->enc_ctx.aes_eax.ctx, 16, self->mac);
+	return true;
+}
+
+static bool crypto_cipher_aes_eax_decrypt(struct crypto_cipher* self,
+		uint8_t* dst, const uint8_t* src, size_t len)
+{
+	crypto_aes_eax_update_nonce(&self->dec_ctx.aes_eax);
+	if (self->ad) {
+		nettle_eax_aes128_update(&self->dec_ctx.aes_eax.ctx,
+				self->ad_len, self->ad);
+	} else {
+		nettle_eax_aes128_update(&self->dec_ctx.aes_eax.ctx, 0, NULL);
+	}
+
+	nettle_eax_aes128_decrypt(&self->dec_ctx.aes_eax.ctx, len, dst, src);
+	nettle_eax_aes128_digest(&self->dec_ctx.aes_eax.ctx, 16, self->mac);
+	return true;
+}
+
+static struct crypto_cipher* crypto_cipher_new_aes_eax(const uint8_t* enc_key,
+		const uint8_t* dec_key)
+{
+	struct crypto_cipher* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	eax_aes128_set_key(&self->enc_ctx.aes_eax.ctx, enc_key);
+	eax_aes128_set_key(&self->dec_ctx.aes_eax.ctx, dec_key);
+
+	self->encrypt = crypto_cipher_aes_eax_encrypt;
+	self->decrypt = crypto_cipher_aes_eax_decrypt;
+
+	return self;
+}
+
+struct crypto_cipher* crypto_cipher_new(const uint8_t* enc_key,
+		const uint8_t* dec_key, enum crypto_cipher_type type)
 {
 	switch (type) {
 	case CRYPTO_CIPHER_AES128_ECB:
-		return crypto_cipher_new_aes128_ecb(key);
+		return crypto_cipher_new_aes128_ecb(enc_key, dec_key);
+	case CRYPTO_CIPHER_AES_EAX:
+		return crypto_cipher_new_aes_eax(enc_key, dec_key);
 	case CRYPTO_CIPHER_INVALID:
 		break;
 	}
@@ -293,15 +402,41 @@ bool crypto_cipher_decrypt(struct crypto_cipher* self, uint8_t* dst,
 	return self->decrypt(self, dst, src, len);
 }
 
+void crypto_cipher_set_ad(struct crypto_cipher* self, const uint8_t* ad,
+		size_t len)
+{
+	self->ad = ad;
+	self->ad_len = len;
+}
+
+void crypto_cipher_get_mac(struct crypto_cipher* self, uint8_t* dst,
+		size_t size)
+{
+	size_t common_size = MIN(sizeof(self->mac), size);
+	memcpy(dst, self->mac, common_size);
+}
+
 struct crypto_hash* crypto_hash_new(enum crypto_hash_type type)
 {
 	struct crypto_hash* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
 
-	md5_init(&self->ctx.md5);
-	self->update = (void*)nettle_md5_update;
-	self->digest = (void*)nettle_md5_digest;
+	switch (type) {
+	case CRYPTO_HASH_INVALID:
+		nvnc_log(NVNC_LOG_PANIC, "Invalid hash type");
+		break;
+	case CRYPTO_HASH_MD5:
+		md5_init(&self->ctx.md5);
+		self->update = (void*)nettle_md5_update;
+		self->digest = (void*)nettle_md5_digest;
+		break;
+	case CRYPTO_HASH_SHA1:
+		sha1_init(&self->ctx.sha1);
+		self->update = (void*)nettle_sha1_update;
+		self->digest = (void*)nettle_sha1_digest;
+		break;
+	}
 
 	return self;
 }
@@ -320,4 +455,111 @@ void crypto_hash_append(struct crypto_hash* self, const uint8_t* src,
 void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst, size_t len)
 {
 	self->digest(&self->ctx, len, dst);
+}
+
+struct crypto_rsa_pub_key *crypto_rsa_pub_key_new(void)
+{
+	struct crypto_rsa_pub_key* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	rsa_public_key_init(&self->key);
+	return self;
+}
+
+void crypto_rsa_pub_key_del(struct crypto_rsa_pub_key* self)
+{
+	rsa_public_key_clear(&self->key);
+	free(self);
+}
+
+struct crypto_rsa_pub_key* crypto_rsa_pub_key_import(const uint8_t* modulus,
+		const uint8_t* exponent, size_t size)
+{
+	struct crypto_rsa_pub_key* self = crypto_rsa_pub_key_new();
+	if (!self)
+		return NULL;
+
+	crypto_import(self->key.n, modulus, size);
+	crypto_import(self->key.e, exponent, size);
+	self->key.size = rsa_public_key_prepare(&self->key);
+
+	return self;
+}
+
+void crypto_rsa_pub_key_modulus(const struct crypto_rsa_pub_key* key,
+		uint8_t* dst, size_t dst_size)
+{
+	 crypto_export(dst, dst_size, key->key.n);
+}
+
+void crypto_rsa_pub_key_exponent(const struct crypto_rsa_pub_key* key,
+		uint8_t* dst, size_t dst_size)
+{
+	char* str = mpz_get_str(NULL, 16, key->key.e);
+	nvnc_trace("e: %s", str);
+	free(str);
+
+	crypto_export(dst, dst_size, key->key.e);
+}
+
+struct crypto_rsa_priv_key *crypto_rsa_priv_key_new(void)
+{
+	struct crypto_rsa_priv_key* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	rsa_private_key_init(&self->key);
+	return self;
+}
+
+void crypto_rsa_priv_key_del(struct crypto_rsa_priv_key* self)
+{
+	rsa_private_key_clear(&self->key);
+	free(self);
+}
+
+static void generate_random_for_rsa(void* random_ctx, size_t len, uint8_t* dst)
+{
+	getrandom(dst, len, 0);
+}
+
+bool crypto_rsa_keygen(struct crypto_rsa_pub_key* pub,
+		struct crypto_rsa_priv_key* priv)
+{
+	void* random_ctx = NULL;
+	nettle_random_func* random_func = generate_random_for_rsa;
+	void* progress_ctx = NULL;
+	nettle_progress_func* progress = NULL;
+
+	int rc = rsa_generate_keypair(&pub->key, &priv->key, random_ctx,
+			random_func, progress_ctx, progress, 2048, 30);
+	return rc != 0;
+}
+
+ssize_t crypto_rsa_encrypt(struct crypto_rsa_pub_key* pub, uint8_t* dst,
+		size_t dst_size, const uint8_t* src, size_t src_size)
+{
+	mpz_t ciphertext;
+	mpz_init(ciphertext);
+	int r = rsa_encrypt(&pub->key, NULL, generate_random_for_rsa,
+			src_size, src, ciphertext);
+	if (r == 0) {
+		mpz_clear(ciphertext);
+		return -1;
+	}
+	size_t len = crypto_export(dst, dst_size, ciphertext);
+	mpz_clear(ciphertext);
+	return len;
+}
+
+ssize_t crypto_rsa_decrypt(struct crypto_rsa_priv_key* priv, uint8_t* dst,
+		size_t dst_size, const uint8_t* src, size_t src_size)
+{
+	mpz_t ciphertext;
+	mpz_init(ciphertext);
+	crypto_import(ciphertext, src, src_size);
+	int r = rsa_decrypt(&priv->key, &dst_size, dst, ciphertext);
+	mpz_clear(ciphertext);
+	return r != 0 ? (ssize_t)dst_size : -1;
 }

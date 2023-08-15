@@ -9,6 +9,7 @@ struct crypto_cipher;
 struct crypto_hash;
 struct crypto_rsa_pub_key;
 struct crypto_rsa_priv_key;
+struct vec;
 
 enum crypto_cipher_type {
 	CRYPTO_CIPHER_INVALID = 0,
@@ -51,10 +52,10 @@ struct crypto_cipher* crypto_cipher_new(const uint8_t* enc_key,
 		const uint8_t* dec_key, enum crypto_cipher_type type);
 void crypto_cipher_del(struct crypto_cipher* self);
 
-bool crypto_cipher_encrypt(struct crypto_cipher* self, uint8_t* dst,
+bool crypto_cipher_encrypt(struct crypto_cipher* self, struct vec* dst,
 		const uint8_t* src, size_t len);
-bool crypto_cipher_decrypt(struct crypto_cipher* self, uint8_t* dst,
-		const uint8_t* src, size_t len);
+ssize_t crypto_cipher_decrypt(struct crypto_cipher* self, uint8_t* dst,
+		size_t dst_size, const uint8_t* src, size_t len);
 
 void crypto_cipher_set_ad(struct crypto_cipher* self, const uint8_t* ad,
 		size_t len);
@@ -73,6 +74,9 @@ void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst,
 // RSA
 struct crypto_rsa_pub_key* crypto_rsa_pub_key_new(void);
 void crypto_rsa_pub_key_del(struct crypto_rsa_pub_key*);
+
+// Returns length in bytes
+size_t crypto_rsa_pub_key_length(const struct crypto_rsa_pub_key* key);
 
 struct crypto_rsa_pub_key* crypto_rsa_pub_key_import(const uint8_t* modulus,
 		const uint8_t* exponent, size_t size);

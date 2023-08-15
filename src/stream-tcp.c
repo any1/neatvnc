@@ -39,11 +39,10 @@ static_assert(sizeof(struct stream) <= STREAM_ALLOC_SIZE,
 
 static struct rcbuf* encrypt_rcbuf(struct stream* self, struct rcbuf* payload)
 {
-	uint8_t* ciphertext = malloc(payload->size);
-	assert(ciphertext);
-	crypto_cipher_encrypt(self->cipher, ciphertext, payload->payload,
+	struct vec ciphertext = {};
+	crypto_cipher_encrypt(self->cipher, &ciphertext, payload->payload,
 			payload->size);
-	struct rcbuf* result = rcbuf_new(ciphertext, payload->size);
+	struct rcbuf* result = rcbuf_new(ciphertext.data, ciphertext.len);
 	rcbuf_unref(payload);
 	return result;
 }
@@ -217,12 +216,17 @@ static ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
 	if (rc > 0)
 		self->bytes_received += rc;
 
-	if (rc > 0 && self->cipher && !crypto_cipher_decrypt(self->cipher, dst,
-				read_buffer, rc)) {
-		nvnc_log(NVNC_LOG_ERROR, "Message authentication failed!");
-		stream__remote_closed(self);
-		errno = EPROTO;
-		return -1;
+	if (rc > 0 && self->cipher) {
+		nvnc_trace("Got cipher text of length %zd", rc);
+		ssize_t len = crypto_cipher_decrypt(self->cipher, dst, size,
+				read_buffer, rc);
+		if (len < 0) {
+			nvnc_log(NVNC_LOG_ERROR, "Message authentication failed!");
+			stream__remote_closed(self);
+			errno = EPROTO;
+			return -1;
+		}
+		rc = len;
 	}
 
 	return rc;

@@ -462,7 +462,7 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	char username[128] = {};
 	char* password = username + 64;
 
-	crypto_cipher_decrypt(cipher, (uint8_t*)username,
+	crypto_cipher_decrypt(cipher, (uint8_t*)username, sizeof(username),
 			msg->encrypted_credentials, sizeof(username));
 	username[63] = '\0';
 	username[127] = '\0';

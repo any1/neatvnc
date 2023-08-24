@@ -2327,6 +2327,16 @@ cert_alloc_failure:
 }
 
 EXPORT
+int nvnc_enable_auth2(struct nvnc* self, nvnc_auth_fn auth_fn, void* userdata)
+{
+#ifdef HAVE_CRYPTO
+	self->auth_fn = auth_fn;
+	return 0;
+#endif
+	return -1;
+}
+
+EXPORT
 void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
 		bool is_damaged)

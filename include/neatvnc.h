@@ -154,9 +154,16 @@ void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
 void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn);
 
+/* TODO: Changes this interface so that we have enable_auth(auth_fn),
+ * set_tls_creds(key, cert), and has_tls() -> bool
+ */
+
 bool nvnc_has_auth(void);
+
 int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
                      const char* cert_path, nvnc_auth_fn, void* userdata);
+
+int nvnc_enable_auth2(struct nvnc* self, nvnc_auth_fn, void* userdata);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);

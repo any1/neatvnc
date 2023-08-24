@@ -29,6 +29,8 @@ enum rfb_security_type {
 	RFB_SECURITY_TYPE_INVALID = 0,
 	RFB_SECURITY_TYPE_NONE = 1,
 	RFB_SECURITY_TYPE_VNC_AUTH = 2,
+	RFB_SECURITY_TYPE_RSA_AES = 5,
+	RFB_SECURITY_TYPE_RSA_AES_UNENCRYPTED = 6,
 	RFB_SECURITY_TYPE_TIGHT = 16,
 	RFB_SECURITY_TYPE_VENCRYPT = 19,
 	RFB_SECURITY_TYPE_APPLE_DH = 30,
@@ -105,6 +107,11 @@ enum rfb_resize_status {
 	RFB_RESIZE_STATUS_OUT_OF_RESOURCES = 2,
 	RFB_RESIZE_STATUS_INVALID_LAYOUT = 3,
 	RFB_RESIZE_STATUS_REQUEST_FORWARDED = 4,
+};
+
+enum rfb_rsa_aes_cred_subtype {
+	RFB_RSA_AES_CRED_SUBTYPE_USER_AND_PASS = 1,
+	RFB_RSA_AES_CRED_SUBTYPE_ONLY_PASS = 2,
 };
 
 struct rfb_security_types_msg {
@@ -248,4 +255,14 @@ struct rfb_apple_dh_server_msg {
 struct rfb_apple_dh_client_msg {
 	uint8_t encrypted_credentials[128];
 	uint8_t public_key[0];
+} RFB_PACKED;
+
+struct rfb_rsa_aes_pub_key_msg {
+	uint32_t length;
+	uint8_t modulus_and_exponent[0];
+} RFB_PACKED;
+
+struct rfb_rsa_aes_challenge_msg {
+	uint16_t length;
+	uint8_t challenge[0];
 } RFB_PACKED;

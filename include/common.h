@@ -46,6 +46,10 @@ enum nvnc_client_state {
 #endif
 #ifdef HAVE_CRYPTO
 	VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE,
+	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY,
+	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CHALLENGE,
+	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CLIENT_HASH,
+	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CREDENTIALS,
 #endif
 	VNC_CLIENT_STATE_WAITING_FOR_INIT,
 	VNC_CLIENT_STATE_READY,
@@ -57,6 +61,8 @@ struct aml_handler;
 struct aml_idle;
 struct nvnc_display;
 struct crypto_key;
+struct crypto_rsa_pub_key;
+struct crypto_rsa_priv_key;
 
 struct nvnc_common {
 	void* userdata;
@@ -100,6 +106,11 @@ struct nvnc_client {
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;
+
+	struct {
+		struct crypto_rsa_pub_key *pub;
+		uint8_t challenge[16];
+	} rsa;
 #endif
 };
 
@@ -138,6 +149,11 @@ struct nvnc {
 	gnutls_certificate_credentials_t tls_creds;
 	nvnc_auth_fn auth_fn;
 	void* auth_ud;
+#endif
+
+#ifdef HAVE_CRYPTO
+	struct crypto_rsa_pub_key* rsa_pub;
+	struct crypto_rsa_priv_key* rsa_priv;
 #endif
 
 	uint32_t n_damage_clients;

@@ -69,6 +69,8 @@
 #define DEFAULT_NAME "Neat VNC"
 #define SECURITY_TYPES_MAX 3
 
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+
 #define EXPORT __attribute__((visibility("default")))
 
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
@@ -227,6 +229,7 @@ static int on_version_message(struct nvnc_client* client)
 #endif
 
 #ifdef HAVE_CRYPTO
+		security->types[security->n++] = RFB_SECURITY_TYPE_RSA_AES;
 		security->types[security->n++] = RFB_SECURITY_TYPE_APPLE_DH;
 #endif
 	}
@@ -480,6 +483,283 @@ static int on_apple_dh_response(struct nvnc_client* client)
 
 	return sizeof(*msg) + key_len;
 }
+
+static int rsa_aes_send_public_key(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	// TODO: The key should be loaded if it exists; otherwise generated and
+	// saved.
+	if (!server->rsa_priv) {
+		assert(!server->rsa_pub);
+
+		server->rsa_priv = crypto_rsa_priv_key_new();
+		server->rsa_pub = crypto_rsa_pub_key_new();
+
+		crypto_rsa_keygen(server->rsa_pub, server->rsa_priv);
+	}
+	assert(server->rsa_pub && server->rsa_priv);
+
+	char buffer[sizeof(struct rfb_rsa_aes_pub_key_msg) + 512] = {};
+	struct rfb_rsa_aes_pub_key_msg* msg =
+		(struct rfb_rsa_aes_pub_key_msg*)buffer;
+
+	uint8_t* modulus = msg->modulus_and_exponent;
+	uint8_t* exponent = msg->modulus_and_exponent + 256;
+
+	msg->length = htonl(2048);
+	crypto_rsa_pub_key_modulus(server->rsa_pub, modulus, 256);
+	crypto_rsa_pub_key_exponent(server->rsa_pub, exponent, 256);
+
+	crypto_dump_base16("Sending public key modulus", modulus, 256);
+	crypto_dump_base16("Sending public key exponent", exponent, 256);
+
+	stream_write(client->net_stream, buffer, sizeof(buffer), NULL, NULL);
+	return 0;
+}
+
+static int rsa_aes_send_challenge(struct nvnc_client* client,
+		struct crypto_rsa_pub_key* pub)
+{
+	crypto_random(client->rsa.challenge, sizeof(client->rsa.challenge));
+
+	uint8_t buffer[1024];
+	struct rfb_rsa_aes_challenge_msg *msg =
+		(struct rfb_rsa_aes_challenge_msg*)buffer;
+
+	ssize_t len = crypto_rsa_encrypt(pub, msg->challenge, 256,
+			client->rsa.challenge, sizeof(client->rsa.challenge));
+	msg->length = htons(len);
+
+	nvnc_trace("Challenge length is %zd", len);
+
+	stream_write(client->net_stream, buffer, sizeof(*msg) + len, NULL, NULL);
+	return 0;
+}
+
+static int on_rsa_aes_public_key(struct nvnc_client* client)
+{
+	struct rfb_rsa_aes_pub_key_msg* msg =
+	        (void*)(client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	uint32_t bit_length = ntohl(msg->length);
+	size_t byte_length = UDIV_UP(bit_length, 8);
+
+	if (client->buffer_len - client->buffer_index <
+			sizeof(*msg) + byte_length * 2)
+		return 0;
+
+	nvnc_trace("Got public key with bit size %d", bit_length);
+
+	const uint8_t* modulus = msg->modulus_and_exponent;
+	const uint8_t* exponent = msg->modulus_and_exponent + byte_length;
+
+	crypto_dump_base16("Got public key modulus", modulus, byte_length);
+	crypto_dump_base16("Got public key exponent", exponent, byte_length);
+
+	client->rsa.pub =
+		crypto_rsa_pub_key_import(modulus, exponent, byte_length);
+	assert(client->rsa.pub);
+
+	uint8_t foo[256];
+	crypto_rsa_pub_key_exponent(client->rsa.pub, foo, 256);
+	crypto_dump_base16("Got public key exponent check", foo, 256);
+
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CHALLENGE;
+	rsa_aes_send_challenge(client, client->rsa.pub);
+
+	return sizeof(*msg) + byte_length * 2;
+}
+
+static int on_rsa_aes_challenge(struct nvnc_client* client)
+{
+	struct rfb_rsa_aes_challenge_msg* msg =
+	        (void*)(client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	uint16_t length = ntohs(msg->length);
+	if (client->buffer_len - client->buffer_index < sizeof(*msg) + length)
+		return 0;
+
+	crypto_dump_base16("client buffer", client->msg_buffer +
+			client->buffer_index, client->buffer_len -
+			client->buffer_index);
+
+	struct nvnc* server = client->server;
+
+	nvnc_trace("Encrypted challenge has length: %d", length);
+
+	uint8_t client_random[16] = {};
+	ssize_t len = crypto_rsa_decrypt(server->rsa_priv, client_random,
+			sizeof(client_random), msg->challenge, length);
+	if (len < 0) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to decrypt client's challenge");
+		client->state = VNC_CLIENT_STATE_ERROR;
+		nvnc_client_close(client);
+		goto done;
+	}
+
+	nvnc_trace("Decrypted challenge has length: %zd", len);
+	crypto_dump_base16("Got challenge", client_random, 16);
+
+	uint8_t client_session_key[16];
+	uint8_t server_session_key[16];
+
+	struct crypto_hash* hasher = crypto_hash_new(CRYPTO_HASH_SHA1);
+	// ClientSessionKey = the first 16 bytes of SHA1(ServerRandom || ClientRandom)
+	crypto_hash_append(hasher, client->rsa.challenge, 16);
+	crypto_hash_append(hasher, client_random, 16);
+	crypto_hash_digest(hasher, client_session_key, 16);
+
+	// ServerSessionKey = the first 16 bytes of SHA1(ClientRandom || ServerRandom)
+	crypto_hash_append(hasher, client_random, 16);
+	crypto_hash_append(hasher, client->rsa.challenge, 16);
+	crypto_hash_digest(hasher, server_session_key, 16);
+
+	crypto_dump_base64("Client session key", client_session_key,
+			sizeof(client_session_key));
+	crypto_dump_base64("Server session key", server_session_key,
+			sizeof(server_session_key));
+
+	struct crypto_cipher* cipher = crypto_cipher_new(server_session_key,
+			client_session_key, CRYPTO_CIPHER_AES_EAX);
+	assert(cipher);
+	stream_install_cipher(client->net_stream, cipher);
+
+	uint8_t server_modulus[256];
+	uint8_t server_exponent[256];
+	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus, 256);
+	crypto_rsa_pub_key_exponent(server->rsa_pub, server_exponent, 256);
+
+	size_t client_key_len = crypto_rsa_pub_key_length(client->rsa.pub);
+	uint8_t* client_modulus = malloc(client_key_len * 2);
+	uint8_t* client_exponent = client_modulus + client_key_len;
+
+	crypto_rsa_pub_key_modulus(client->rsa.pub, client_modulus,
+			client_key_len);
+	crypto_rsa_pub_key_exponent(client->rsa.pub, client_exponent,
+			client_key_len);
+
+	uint32_t server_key_len_be = htonl(256 * 8);
+	uint32_t client_key_len_be = htonl(client_key_len * 8);
+
+	uint8_t server_hash[20] = {};
+	crypto_hash_append(hasher, (uint8_t*)&server_key_len_be, 4);
+	crypto_hash_append(hasher, server_modulus, 256);
+	crypto_hash_append(hasher, server_exponent, 256);
+	crypto_hash_append(hasher, (uint8_t*)&client_key_len_be, 4);
+	crypto_hash_append(hasher, client_modulus, client_key_len);
+	crypto_hash_append(hasher, client_exponent, client_key_len);
+	crypto_hash_digest(hasher, server_hash, 20);
+
+	free(client_modulus);
+	crypto_hash_del(hasher);
+
+	crypto_dump_base16("Server hash", server_hash, 20);
+
+	stream_write(client->net_stream, server_hash, 20, NULL, NULL);
+
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CLIENT_HASH;
+done:
+	return sizeof(*msg) + length;
+}
+
+static int on_rsa_aes_client_hash(struct nvnc_client* client)
+{
+	const char* msg = (void*)(client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < 20)
+		return 0;
+
+	struct nvnc* server = client->server;
+
+	struct crypto_hash* hasher = crypto_hash_new(CRYPTO_HASH_SHA1);
+	uint8_t server_modulus[256];
+	uint8_t server_exponent[256];
+	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus, 256);
+	crypto_rsa_pub_key_exponent(server->rsa_pub, server_exponent, 256);
+
+	size_t client_key_len = crypto_rsa_pub_key_length(client->rsa.pub);
+	uint8_t* client_modulus = malloc(client_key_len * 2);
+	uint8_t* client_exponent = client_modulus + client_key_len;
+
+	crypto_rsa_pub_key_modulus(client->rsa.pub, client_modulus,
+			client_key_len);
+	crypto_rsa_pub_key_exponent(client->rsa.pub, client_exponent,
+			client_key_len);
+
+	uint32_t server_key_len_be = htonl(256 * 8);
+	uint32_t client_key_len_be = htonl(client_key_len * 8);
+
+	uint8_t client_hash[20] = {};
+	crypto_hash_append(hasher, (uint8_t*)&client_key_len_be, 4);
+	crypto_hash_append(hasher, client_modulus, client_key_len);
+	crypto_hash_append(hasher, client_exponent, client_key_len);
+	crypto_hash_append(hasher, (uint8_t*)&server_key_len_be, 4);
+	crypto_hash_append(hasher, server_modulus, 256);
+	crypto_hash_append(hasher, server_exponent, 256);
+	crypto_hash_digest(hasher, client_hash, 20);
+
+	free(client_modulus);
+	crypto_hash_del(hasher);
+
+	crypto_dump_base16("Client hash", client_hash, 20);
+
+	if (memcmp(msg, client_hash, 20) != 0) {
+		nvnc_log(NVNC_LOG_INFO, "Client hash mismatch");
+		// TODO: Close the connection or something
+	}
+
+	// TODO: Read this from config
+	uint8_t subtype = RFB_RSA_AES_CRED_SUBTYPE_USER_AND_PASS;
+	stream_write(client->net_stream, &subtype, 1, NULL, NULL);
+
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CREDENTIALS;
+	return 20;
+}
+
+static int on_rsa_aes_credentials(struct nvnc_client* client)
+{
+	const uint8_t* msg = (void*)(client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < 2)
+		return 0;
+
+	size_t username_len = msg[0];
+	if (client->buffer_len - client->buffer_index < 2 + username_len)
+		return 0;
+
+	size_t password_len = msg[1 + username_len];
+	if (client->buffer_len - client->buffer_index < 2 + username_len +
+			password_len)
+		return 0;
+
+	struct nvnc* server = client->server;
+
+	char username[256];
+	char password[256];
+
+	strlcpy(username, (const char*)(msg + 1), username_len + 1);
+	strlcpy(password, (const char*)(msg + 2 + username_len),
+			password_len + 1);
+
+	if (server->auth_fn(username, password, server->auth_ud)) {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
+		security_handshake_ok(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	} else {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
+		security_handshake_failed(client, "Invalid username or password");
+	}
+
+	return 2 + username_len + password_len;
+}
+
 #endif // HAVE_CRYPTO
 
 static int on_security_message(struct nvnc_client* client)
@@ -488,6 +768,7 @@ static int on_security_message(struct nvnc_client* client)
 		return 0;
 
 	uint8_t type = client->msg_buffer[client->buffer_index];
+	nvnc_log(NVNC_LOG_DEBUG, "Client chose security type: %d", type);
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
@@ -504,6 +785,10 @@ static int on_security_message(struct nvnc_client* client)
 	case RFB_SECURITY_TYPE_APPLE_DH:
 		apple_dh_send_public_key(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE;
+		break;
+	case RFB_SECURITY_TYPE_RSA_AES:
+		rsa_aes_send_public_key(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY;
 		break;
 #endif
 	default:
@@ -1289,6 +1574,14 @@ static int try_read_client_message(struct nvnc_client* client)
 #ifdef HAVE_CRYPTO
 	case VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE:
 		return on_apple_dh_response(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY:
+		return on_rsa_aes_public_key(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CHALLENGE:
+		return on_rsa_aes_challenge(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CLIENT_HASH:
+		return on_rsa_aes_client_hash(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CREDENTIALS:
+		return on_rsa_aes_credentials(client);
 #endif
 	case VNC_CLIENT_STATE_READY:
 		return on_client_message(client);

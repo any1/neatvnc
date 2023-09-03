@@ -300,7 +300,7 @@ static struct stream_impl impl = {
 
 struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata)
 {
-	struct stream_ws *self = calloc(1, STREAM_ALLOC_SIZE);
+	struct stream_ws *self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
 

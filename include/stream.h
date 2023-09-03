@@ -70,7 +70,6 @@ struct stream_impl {
 			stream_req_fn on_done, void* userdata);
 	int (*send_first)(struct stream*, struct rcbuf* payload);
 	void (*exec_and_send)(struct stream*, stream_exec_fn, void* userdata);
-	int (*install_cipher)(struct stream*, struct crypto_cipher*);
 };
 
 struct stream {
@@ -115,4 +114,5 @@ void stream_exec_and_send(struct stream* self, stream_exec_fn, void* userdata);
 int stream_upgrade_to_tls(struct stream* self, void* context);
 #endif
 
-int stream_install_cipher(struct stream* self, struct crypto_cipher* cipher);
+int stream_upgrade_to_rsa_eas(struct stream* base, const uint8_t* enc_key,
+		const uint8_t* dec_key);

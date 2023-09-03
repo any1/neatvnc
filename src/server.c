@@ -465,8 +465,8 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	char username[128] = {};
 	char* password = username + 64;
 
-	crypto_cipher_decrypt(cipher, (uint8_t*)username, sizeof(username),
-			msg->encrypted_credentials, sizeof(username));
+	crypto_cipher_decrypt(cipher, (uint8_t*)username, NULL,
+			msg->encrypted_credentials, sizeof(username), NULL, 0);
 	username[63] = '\0';
 	username[127] = '\0';
 	crypto_cipher_del(cipher);
@@ -626,10 +626,8 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	crypto_dump_base64("Server session key", server_session_key,
 			sizeof(server_session_key));
 
-	struct crypto_cipher* cipher = crypto_cipher_new(server_session_key,
-			client_session_key, CRYPTO_CIPHER_AES_EAX);
-	assert(cipher);
-	stream_install_cipher(client->net_stream, cipher);
+	stream_upgrade_to_rsa_eas(client->net_stream, server_session_key,
+			client_session_key);
 
 	uint8_t server_modulus[256];
 	uint8_t server_exponent[256];

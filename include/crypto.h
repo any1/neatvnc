@@ -53,9 +53,11 @@ struct crypto_cipher* crypto_cipher_new(const uint8_t* enc_key,
 void crypto_cipher_del(struct crypto_cipher* self);
 
 bool crypto_cipher_encrypt(struct crypto_cipher* self, struct vec* dst,
-		const uint8_t* src, size_t len);
+		uint8_t* mac, const uint8_t* src, size_t len,
+		const uint8_t* ad, size_t ad_len);
 ssize_t crypto_cipher_decrypt(struct crypto_cipher* self, uint8_t* dst,
-		size_t dst_size, const uint8_t* src, size_t len);
+		uint8_t* mac, const uint8_t* src, size_t len,
+		const uint8_t* ad, size_t ad_len);
 
 void crypto_cipher_set_ad(struct crypto_cipher* self, const uint8_t* ad,
 		size_t len);

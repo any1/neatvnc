@@ -30,6 +30,7 @@
 #include "rcbuf.h"
 #include "stream.h"
 #include "stream-common.h"
+#include "stream-tcp.h"
 #include "sys/queue.h"
 #include "crypto.h"
 #include "neatvnc.h"
@@ -47,7 +48,7 @@ static struct rcbuf* encrypt_rcbuf(struct stream* self, struct rcbuf* payload)
 	return result;
 }
 
-static int stream_tcp_close(struct stream* self)
+int stream_tcp_close(struct stream* self)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		return -1;
@@ -67,7 +68,7 @@ static int stream_tcp_close(struct stream* self)
 	return 0;
 }
 
-static void stream_tcp_destroy(struct stream* self)
+void stream_tcp_destroy(struct stream* self)
 {
 	vec_destroy(&self->tmp_buf);
 	crypto_cipher_del(self->cipher);
@@ -198,7 +199,7 @@ static void stream_tcp__on_event(void* obj)
 		stream_tcp__on_writable(self);
 }
 
-static ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
+ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
 {
 	if (self->state != STREAM_STATE_NORMAL)
 		return -1;
@@ -232,7 +233,7 @@ static ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
 	return rc;
 }
 
-static int stream_tcp_send(struct stream* self, struct rcbuf* payload,
+int stream_tcp_send(struct stream* self, struct rcbuf* payload,
                 stream_req_fn on_done, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
@@ -251,7 +252,7 @@ static int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 	return stream_tcp__flush(self);
 }
 
-static int stream_tcp_send_first(struct stream* self, struct rcbuf* payload)
+int stream_tcp_send_first(struct stream* self, struct rcbuf* payload)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		return -1;
@@ -266,7 +267,7 @@ static int stream_tcp_send_first(struct stream* self, struct rcbuf* payload)
 	return stream_tcp__flush(self);
 }
 
-static void stream_tcp_exec_and_send(struct stream* self,
+void stream_tcp_exec_and_send(struct stream* self,
 		stream_exec_fn exec_fn, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
@@ -284,7 +285,7 @@ static void stream_tcp_exec_and_send(struct stream* self,
 	stream_tcp__flush(self);
 }
 
-static int stream_tcp_install_cipher(struct stream* self,
+int stream_tcp_install_cipher(struct stream* self,
 		struct crypto_cipher* cipher)
 {
 	assert(!self->cipher);
@@ -302,12 +303,9 @@ static struct stream_impl impl = {
 	.install_cipher = stream_tcp_install_cipher,
 };
 
-struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
+int stream_tcp_init(struct stream* self, int fd, stream_event_fn on_event,
+		void* userdata)
 {
-	struct stream* self = calloc(1, STREAM_ALLOC_SIZE);
-	if (!self)
-		return NULL;
-
 	self->impl = &impl,
 	self->fd = fd;
 	self->on_event = on_event;
@@ -319,19 +317,31 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 
 	self->handler = aml_handler_new(fd, stream_tcp__on_event, self, NULL);
 	if (!self->handler)
-		goto failure;
+		return -1;
 
 	if (aml_start(aml_get_default(), self->handler) < 0)
 		goto start_failure;
 
 	stream__poll_r(self);
 
-	return self;
+	return 0;
 
 start_failure:
 	aml_unref(self->handler);
-	self = NULL; /* Handled in unref */
-failure:
-	free(self);
-	return NULL;
+	return -1;
+}
+
+struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
+{
+	struct stream* self = calloc(1, STREAM_ALLOC_SIZE);
+	if (!self)
+		return NULL;
+
+	if (stream_tcp_init(self, fd, on_event, userdata) < 0) {
+		free(self);
+		return NULL;
+	}
+
+	return self;
+
 }

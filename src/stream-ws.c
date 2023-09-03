@@ -256,6 +256,10 @@ static struct rcbuf* stream_ws_chained_exec(struct stream* tcp_stream,
 
 	struct rcbuf* buf = ctx->exec(&ws->base, ctx->userdata);
 
+	// TODO: This also needs to be cleaned it it's left on the send queue
+	// when the stream is destroyed.
+	free(ctx->userdata);
+
 	struct vec out;
 	vec_init(&out, WS_HEADER_MIN_SIZE + buf->size + 1);
 
@@ -268,6 +272,7 @@ static struct rcbuf* stream_ws_chained_exec(struct stream* tcp_stream,
 	out.len += head_len;
 
 	vec_append(&out, buf->payload, buf->size);
+	rcbuf_unref(buf);
 	return rcbuf_new(out.data, out.len);
 }
 

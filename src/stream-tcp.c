@@ -337,7 +337,7 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 	if (!self)
 		return NULL;
 
-	if (!stream_tcp_init(self, fd, on_event, userdata)) {
+	if (stream_tcp_init(self, fd, on_event, userdata) < 0) {
 		free(self);
 		return NULL;
 	}

@@ -22,6 +22,7 @@ enum crypto_hash_type {
 	CRYPTO_HASH_INVALID = 0,
 	CRYPTO_HASH_MD5,
 	CRYPTO_HASH_SHA1,
+	CRYPTO_HASH_SHA256,
 };
 
 struct crypto_data_entry {

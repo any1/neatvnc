@@ -9,6 +9,7 @@
 #include <nettle/eax.h>
 #include <nettle/md5.h>
 #include <nettle/sha1.h>
+#include <nettle/sha.h>
 #include <nettle/rsa.h>
 
 #include <stdint.h>
@@ -66,6 +67,7 @@ struct crypto_hash {
 	union {
 		struct md5_ctx md5;
 		struct sha1_ctx sha1;
+		struct sha256_ctx sha256;
 	} ctx;
 
 	void (*update)(void* ctx, size_t len, const uint8_t* src);
@@ -498,6 +500,11 @@ struct crypto_hash* crypto_hash_new(enum crypto_hash_type type)
 		sha1_init(&self->ctx.sha1);
 		self->update = (void*)nettle_sha1_update;
 		self->digest = (void*)nettle_sha1_digest;
+		break;
+	case CRYPTO_HASH_SHA256:
+		sha256_init(&self->ctx.sha256);
+		self->update = (void*)nettle_sha256_update;
+		self->digest = (void*)nettle_sha256_digest;
 		break;
 	}
 

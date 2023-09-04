@@ -54,14 +54,6 @@ struct crypto_cipher {
 		struct crypto_aes256_eax aes256_eax;
 	} dec_ctx;
 
-	const uint8_t* ad;
-	size_t ad_len;
-
-	uint8_t mac[16];
-
-	uint8_t read_buffer[65536];
-	uint8_t read_buffer_len;
-
 	bool (*encrypt)(struct crypto_cipher*, struct vec* dst, uint8_t* mac,
 			const uint8_t* src, size_t src_len, const uint8_t* ad,
 			size_t ad_len);
@@ -485,20 +477,6 @@ ssize_t crypto_cipher_decrypt(struct crypto_cipher* self, uint8_t* dst,
 		const uint8_t* ad, size_t ad_len)
 {
 	return self->decrypt(self, dst, mac, src, src_len, ad, ad_len);
-}
-
-void crypto_cipher_set_ad(struct crypto_cipher* self, const uint8_t* ad,
-		size_t len)
-{
-	self->ad = ad;
-	self->ad_len = len;
-}
-
-void crypto_cipher_get_mac(struct crypto_cipher* self, uint8_t* dst,
-		size_t size)
-{
-	size_t common_size = MIN(sizeof(self->mac), size);
-	memcpy(dst, self->mac, common_size);
 }
 
 struct crypto_hash* crypto_hash_new(enum crypto_hash_type type)

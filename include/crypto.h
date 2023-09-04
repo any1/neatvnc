@@ -65,11 +65,6 @@ ssize_t crypto_cipher_decrypt(struct crypto_cipher* self, uint8_t* dst,
 		uint8_t* mac, const uint8_t* src, size_t len,
 		const uint8_t* ad, size_t ad_len);
 
-void crypto_cipher_set_ad(struct crypto_cipher* self, const uint8_t* ad,
-		size_t len);
-void crypto_cipher_get_mac(struct crypto_cipher* self, uint8_t* dst,
-		size_t size);
-
 // Hashing
 struct crypto_hash* crypto_hash_new(enum crypto_hash_type type);
 void crypto_hash_del(struct crypto_hash* self);

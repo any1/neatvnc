@@ -451,12 +451,9 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	crypto_key_q(shared_secret, shared_buf, sizeof(shared_buf));
 	crypto_key_del(shared_secret);
 
-	struct crypto_hash* hash_ctx = crypto_hash_new(CRYPTO_HASH_MD5);
-	crypto_hash_append(hash_ctx, shared_buf, sizeof(shared_buf));
-
 	uint8_t hash[16] = {};
-	crypto_hash_digest(hash_ctx, hash, sizeof(hash));
-	crypto_hash_del(hash_ctx);
+	crypto_hash_one(hash, sizeof(hash), CRYPTO_HASH_MD5, shared_buf,
+			sizeof(shared_buf));
 
 	struct crypto_cipher* cipher;
 	cipher = crypto_cipher_new(NULL, hash, CRYPTO_CIPHER_AES128_ECB);
@@ -607,19 +604,23 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	nvnc_trace("Decrypted challenge has length: %zd", len);
 	crypto_dump_base16("Got challenge", client_random, 16);
 
-	uint8_t client_session_key[16];
-	uint8_t server_session_key[16];
-
-	struct crypto_hash* hasher = crypto_hash_new(CRYPTO_HASH_SHA1);
 	// ClientSessionKey = the first 16 bytes of SHA1(ServerRandom || ClientRandom)
-	crypto_hash_append(hasher, client->rsa.challenge, 16);
-	crypto_hash_append(hasher, client_random, 16);
-	crypto_hash_digest(hasher, client_session_key, 16);
+	uint8_t client_session_key[16];
+	crypto_hash_many(client_session_key, sizeof(client_session_key),
+			CRYPTO_HASH_SHA1, (const struct crypto_data_entry[]) {
+		{ client->rsa.challenge, sizeof(client->rsa.challenge) },
+		{ client_random, sizeof(client_random) },
+		{}
+	});
 
 	// ServerSessionKey = the first 16 bytes of SHA1(ClientRandom || ServerRandom)
-	crypto_hash_append(hasher, client_random, 16);
-	crypto_hash_append(hasher, client->rsa.challenge, 16);
-	crypto_hash_digest(hasher, server_session_key, 16);
+	uint8_t server_session_key[16];
+	crypto_hash_many(server_session_key, sizeof(server_session_key),
+			CRYPTO_HASH_SHA1, (const struct crypto_data_entry[]) {
+		{ client_random, sizeof(client_random) },
+		{ client->rsa.challenge, sizeof(client->rsa.challenge) },
+		{}
+	});
 
 	crypto_dump_base64("Client session key", client_session_key,
 			sizeof(client_session_key));
@@ -647,16 +648,18 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	uint32_t client_key_len_be = htonl(client_key_len * 8);
 
 	uint8_t server_hash[20] = {};
-	crypto_hash_append(hasher, (uint8_t*)&server_key_len_be, 4);
-	crypto_hash_append(hasher, server_modulus, 256);
-	crypto_hash_append(hasher, server_exponent, 256);
-	crypto_hash_append(hasher, (uint8_t*)&client_key_len_be, 4);
-	crypto_hash_append(hasher, client_modulus, client_key_len);
-	crypto_hash_append(hasher, client_exponent, client_key_len);
-	crypto_hash_digest(hasher, server_hash, 20);
+	crypto_hash_many(server_hash, sizeof(server_hash),
+			CRYPTO_HASH_SHA1, (const struct crypto_data_entry[]) {
+		{ (uint8_t*)&server_key_len_be, 4 },
+		{ server_modulus, 256 },
+		{ server_exponent, 256 },
+		{ (uint8_t*)&client_key_len_be, 4 },
+		{ client_modulus, client_key_len },
+		{ client_exponent, client_key_len },
+		{}
+	});
 
 	free(client_modulus);
-	crypto_hash_del(hasher);
 
 	crypto_dump_base16("Server hash", server_hash, 20);
 
@@ -676,7 +679,6 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 
 	struct nvnc* server = client->server;
 
-	struct crypto_hash* hasher = crypto_hash_new(CRYPTO_HASH_SHA1);
 	uint8_t server_modulus[256];
 	uint8_t server_exponent[256];
 	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus, 256);
@@ -695,16 +697,18 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 	uint32_t client_key_len_be = htonl(client_key_len * 8);
 
 	uint8_t client_hash[20] = {};
-	crypto_hash_append(hasher, (uint8_t*)&client_key_len_be, 4);
-	crypto_hash_append(hasher, client_modulus, client_key_len);
-	crypto_hash_append(hasher, client_exponent, client_key_len);
-	crypto_hash_append(hasher, (uint8_t*)&server_key_len_be, 4);
-	crypto_hash_append(hasher, server_modulus, 256);
-	crypto_hash_append(hasher, server_exponent, 256);
-	crypto_hash_digest(hasher, client_hash, 20);
+	crypto_hash_many(client_hash, sizeof(client_hash),
+			CRYPTO_HASH_SHA1, (const struct crypto_data_entry[]) {
+		{ (uint8_t*)&client_key_len_be, 4 },
+		{ client_modulus, client_key_len },
+		{ client_exponent, client_key_len },
+		{ (uint8_t*)&server_key_len_be, 4 },
+		{ server_modulus, 256 },
+		{ server_exponent, 256 },
+		{}
+	});
 
 	free(client_modulus);
-	crypto_hash_del(hasher);
 
 	crypto_dump_base16("Client hash", client_hash, 20);
 

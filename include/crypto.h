@@ -15,6 +15,7 @@ enum crypto_cipher_type {
 	CRYPTO_CIPHER_INVALID = 0,
 	CRYPTO_CIPHER_AES128_ECB,
 	CRYPTO_CIPHER_AES_EAX,
+	CRYPTO_CIPHER_AES256_EAX,
 };
 
 enum crypto_hash_type {

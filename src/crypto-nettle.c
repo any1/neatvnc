@@ -36,15 +36,22 @@ struct crypto_aes_eax {
 	uint64_t count[2];
 };
 
+struct crypto_aes256_eax {
+	struct EAX_CTX(struct aes256_ctx) ctx;
+	uint64_t count[2];
+};
+
 struct crypto_cipher {
 	union {
 		struct aes128_ctx aes128_ecb;
 		struct crypto_aes_eax aes_eax;
+		struct crypto_aes256_eax aes256_eax;
 	} enc_ctx;
 
 	union {
 		struct aes128_ctx aes128_ecb;
 		struct crypto_aes_eax aes_eax;
+		struct crypto_aes256_eax aes256_eax;
 	} dec_ctx;
 
 	const uint8_t* ad;
@@ -381,6 +388,68 @@ static struct crypto_cipher* crypto_cipher_new_aes_eax(const uint8_t* enc_key,
 	return self;
 }
 
+static void crypto_aes256_eax_update_nonce(struct crypto_aes256_eax* self)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	EAX_SET_NONCE(&self->ctx, aes256_encrypt, 16, (const uint8_t*)self->count);
+#else
+	uint64_t c[2];
+	c[0] = __builtin_bswap64(self->count[0]);
+	c[1] = __builtin_bswap64(self->count[1]);
+	EAX_SET_NONCE(&self->ctx, aes256_encrypt, 16, (const uint8_t*)c);
+#endif
+
+	if (++self->count[0] == 0)
+		++self->count[1];
+}
+
+static bool crypto_cipher_aes256_eax_encrypt(struct crypto_cipher* self,
+		struct vec* dst, uint8_t* mac, const uint8_t* src,
+		size_t src_len, const uint8_t* ad, size_t ad_len)
+{
+	vec_reserve(dst, dst->len + src_len);
+
+	crypto_aes256_eax_update_nonce(&self->enc_ctx.aes256_eax);
+
+	EAX_UPDATE(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, ad_len, ad);
+	EAX_ENCRYPT(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, src_len,
+			(uint8_t*)dst->data + dst->len, src);
+	dst->len += src_len;
+
+	EAX_DIGEST(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, 32, mac);
+
+	return true;
+}
+
+static ssize_t crypto_cipher_aes256_eax_decrypt(struct crypto_cipher* self,
+		uint8_t* dst, uint8_t* mac, const uint8_t* src, size_t len,
+		const uint8_t* ad, size_t ad_len)
+{
+	crypto_aes256_eax_update_nonce(&self->dec_ctx.aes256_eax);
+	EAX_UPDATE(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, ad_len, ad);
+	EAX_DECRYPT(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, len, dst, src);
+	EAX_DIGEST(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, 32, mac);
+	return len;
+}
+
+static struct crypto_cipher* crypto_cipher_new_aes256_eax(const uint8_t* enc_key,
+		const uint8_t* dec_key)
+{
+	struct crypto_cipher* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	EAX_SET_KEY(&self->enc_ctx.aes256_eax.ctx, aes256_set_encrypt_key,
+			aes256_encrypt, enc_key);
+	EAX_SET_KEY(&self->dec_ctx.aes256_eax.ctx, aes256_set_decrypt_key,
+			aes256_encrypt, enc_key);
+
+	self->encrypt = crypto_cipher_aes256_eax_encrypt;
+	self->decrypt = crypto_cipher_aes256_eax_decrypt;
+
+	return self;
+}
+
 struct crypto_cipher* crypto_cipher_new(const uint8_t* enc_key,
 		const uint8_t* dec_key, enum crypto_cipher_type type)
 {
@@ -389,6 +458,8 @@ struct crypto_cipher* crypto_cipher_new(const uint8_t* enc_key,
 		return crypto_cipher_new_aes128_ecb(enc_key, dec_key);
 	case CRYPTO_CIPHER_AES_EAX:
 		return crypto_cipher_new_aes_eax(enc_key, dec_key);
+	case CRYPTO_CIPHER_AES256_EAX:
+		return crypto_cipher_new_aes256_eax(enc_key, dec_key);
 	case CRYPTO_CIPHER_INVALID:
 		break;
 	}

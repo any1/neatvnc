@@ -23,6 +23,11 @@ enum crypto_hash_type {
 	CRYPTO_HASH_SHA1,
 };
 
+struct crypto_data_entry {
+	uint8_t* data;
+	size_t len;
+};
+
 void crypto_dump_base16(const char* msg, const uint8_t* bytes, size_t len);
 void crypto_dump_base64(const char* msg, const uint8_t* bytes, size_t len);
 
@@ -72,6 +77,11 @@ void crypto_hash_append(struct crypto_hash* self, const uint8_t* src,
 		size_t len);
 void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst,
 		size_t len);
+
+void crypto_hash_one(uint8_t* dst, size_t dst_len, enum crypto_hash_type type,
+		const uint8_t* src, size_t src_len);
+void crypto_hash_many(uint8_t* dst, size_t dst_len, enum crypto_hash_type type,
+		const struct crypto_data_entry *src);
 
 // RSA
 struct crypto_rsa_pub_key* crypto_rsa_pub_key_new(void);

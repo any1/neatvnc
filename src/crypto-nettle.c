@@ -143,6 +143,8 @@ struct crypto_key *crypto_key_new(int g, const uint8_t* p, uint32_t p_len,
 
 void crypto_key_del(struct crypto_key* key)
 {
+	if (!key)
+		return;
 	mpz_clear(key->q);
 	mpz_clear(key->p);
 	free(key);
@@ -558,6 +560,8 @@ struct crypto_rsa_pub_key *crypto_rsa_pub_key_new(void)
 
 void crypto_rsa_pub_key_del(struct crypto_rsa_pub_key* self)
 {
+	if (!self)
+		return;
 	rsa_public_key_clear(&self->key);
 	free(self);
 }
@@ -607,6 +611,8 @@ struct crypto_rsa_priv_key *crypto_rsa_priv_key_new(void)
 
 void crypto_rsa_priv_key_del(struct crypto_rsa_priv_key* self)
 {
+	if (!self)
+		return;
 	rsa_private_key_clear(&self->key);
 	free(self);
 }

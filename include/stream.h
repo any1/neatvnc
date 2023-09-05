@@ -21,6 +21,10 @@
 #include "rcbuf.h"
 #include "vec.h"
 
+#ifdef HAVE_CRYPTO
+#include "crypto.h"
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -114,5 +118,8 @@ void stream_exec_and_send(struct stream* self, stream_exec_fn, void* userdata);
 int stream_upgrade_to_tls(struct stream* self, void* context);
 #endif
 
-int stream_upgrade_to_rsa_eas(struct stream* base, const uint8_t* enc_key,
-		const uint8_t* dec_key);
+#ifdef HAVE_CRYPTO
+int stream_upgrade_to_rsa_eas(struct stream* base,
+		enum crypto_cipher_type cipher_type,
+		const uint8_t* enc_key, const uint8_t* dec_key);
+#endif

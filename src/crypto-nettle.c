@@ -412,7 +412,7 @@ static bool crypto_cipher_aes256_eax_encrypt(struct crypto_cipher* self,
 			(uint8_t*)dst->data + dst->len, src);
 	dst->len += src_len;
 
-	EAX_DIGEST(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, 32, mac);
+	EAX_DIGEST(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, 16, mac);
 
 	return true;
 }
@@ -424,7 +424,7 @@ static ssize_t crypto_cipher_aes256_eax_decrypt(struct crypto_cipher* self,
 	crypto_aes256_eax_update_nonce(&self->dec_ctx.aes256_eax);
 	EAX_UPDATE(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, ad_len, ad);
 	EAX_DECRYPT(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, len, dst, src);
-	EAX_DIGEST(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, 32, mac);
+	EAX_DIGEST(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, 16, mac);
 	return len;
 }
 
@@ -437,8 +437,8 @@ static struct crypto_cipher* crypto_cipher_new_aes256_eax(const uint8_t* enc_key
 
 	EAX_SET_KEY(&self->enc_ctx.aes256_eax.ctx, aes256_set_encrypt_key,
 			aes256_encrypt, enc_key);
-	EAX_SET_KEY(&self->dec_ctx.aes256_eax.ctx, aes256_set_decrypt_key,
-			aes256_encrypt, enc_key);
+	EAX_SET_KEY(&self->dec_ctx.aes256_eax.ctx, aes256_set_encrypt_key,
+			aes256_encrypt, dec_key);
 
 	self->encrypt = crypto_cipher_aes256_eax_encrypt;
 	self->decrypt = crypto_cipher_aes256_eax_decrypt;

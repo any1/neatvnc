@@ -127,6 +127,11 @@ static void client_close(struct nvnc_client* client)
 		nvnc_fb_unref(client->current_fb);
 	}
 
+#ifdef HAVE_CRYPTO
+	crypto_key_del(client->apple_dh_secret);
+	crypto_rsa_pub_key_del(client->rsa.pub);
+#endif
+
 	LIST_REMOVE(client, link);
 	stream_destroy(client->net_stream);
 	if (client->encoder) {

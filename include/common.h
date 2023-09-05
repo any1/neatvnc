@@ -26,6 +26,10 @@
 #include "neatvnc.h"
 #include "config.h"
 
+#ifdef HAVE_CRYPTO
+#include "crypto.h"
+#endif
+
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
 #endif
@@ -108,8 +112,11 @@ struct nvnc_client {
 	struct crypto_key* apple_dh_secret;
 
 	struct {
-		struct crypto_rsa_pub_key *pub;
-		uint8_t challenge[16];
+		enum crypto_hash_type hash_type;
+		enum crypto_cipher_type cipher_type;
+		size_t challenge_len;
+		uint8_t challenge[32];
+		struct crypto_rsa_pub_key* pub;
 	} rsa;
 #endif
 };

@@ -186,8 +186,9 @@ static struct stream_impl impl = {
 	.send = stream_rsa_aes_send,
 };
 
-int stream_upgrade_to_rsa_eas(struct stream* base, const uint8_t* enc_key,
-		const uint8_t* dec_key)
+int stream_upgrade_to_rsa_eas(struct stream* base,
+		enum crypto_cipher_type cipher_type,
+		const uint8_t* enc_key, const uint8_t* dec_key)
 {
 	struct stream_rsa_aes* self = (struct stream_rsa_aes*)base;
 
@@ -196,8 +197,7 @@ int stream_upgrade_to_rsa_eas(struct stream* base, const uint8_t* enc_key,
 	if (!self->read_buffer)
 		return -1;
 
-	self->cipher = crypto_cipher_new(enc_key, dec_key,
-			CRYPTO_CIPHER_AES_EAX);
+	self->cipher = crypto_cipher_new(enc_key, dec_key, cipher_type);
 	if (!self->cipher) {
 		free(self->read_buffer);
 		return -1;

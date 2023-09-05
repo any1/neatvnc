@@ -68,6 +68,7 @@
 
 #define DEFAULT_NAME "Neat VNC"
 #define SECURITY_TYPES_MAX 3
+#define RSA_AES_SERVER_KEY_LENGTH 256
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -402,11 +403,11 @@ static int apple_dh_send_public_key(struct nvnc_client* client)
 		crypto_derive_public_key(client->apple_dh_secret);
 	assert(pub);
 
-	uint8_t mod[256] = {};
+	uint8_t mod[RSA_AES_SERVER_KEY_LENGTH] = {};
 	int mod_len = crypto_key_p(pub, mod, sizeof(mod));
 	assert(mod_len == sizeof(mod));
 
-	uint8_t q[256] = {};
+	uint8_t q[RSA_AES_SERVER_KEY_LENGTH] = {};
 	int q_len = crypto_key_q(pub, q, sizeof(q));
 	assert(q_len == sizeof(q));
 
@@ -430,7 +431,7 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	struct rfb_apple_dh_client_msg* msg =
 	        (void*)(client->msg_buffer + client->buffer_index);
 
-	uint8_t p[256];
+	uint8_t p[RSA_AES_SERVER_KEY_LENGTH];
 	int key_len = crypto_key_p(client->apple_dh_secret, p, sizeof(p));
 	assert(key_len == sizeof(p));
 
@@ -447,7 +448,7 @@ static int on_apple_dh_response(struct nvnc_client* client)
 		crypto_derive_shared_secret(client->apple_dh_secret, remote_key);
 	assert(shared_secret);
 
-	uint8_t shared_buf[256];
+	uint8_t shared_buf[RSA_AES_SERVER_KEY_LENGTH];
 	crypto_key_q(shared_secret, shared_buf, sizeof(shared_buf));
 	crypto_key_del(shared_secret);
 
@@ -497,19 +498,20 @@ static int rsa_aes_send_public_key(struct nvnc_client* client)
 	}
 	assert(server->rsa_pub && server->rsa_priv);
 
-	char buffer[sizeof(struct rfb_rsa_aes_pub_key_msg) + 512] = {};
+	char buffer[sizeof(struct rfb_rsa_aes_pub_key_msg) +
+		RSA_AES_SERVER_KEY_LENGTH * 2] = {};
 	struct rfb_rsa_aes_pub_key_msg* msg =
 		(struct rfb_rsa_aes_pub_key_msg*)buffer;
 
 	uint8_t* modulus = msg->modulus_and_exponent;
-	uint8_t* exponent = msg->modulus_and_exponent + 256;
+	uint8_t* exponent = msg->modulus_and_exponent +
+		RSA_AES_SERVER_KEY_LENGTH;
 
-	msg->length = htonl(2048);
-	crypto_rsa_pub_key_modulus(server->rsa_pub, modulus, 256);
-	crypto_rsa_pub_key_exponent(server->rsa_pub, exponent, 256);
-
-	crypto_dump_base16("Sending public key modulus", modulus, 256);
-	crypto_dump_base16("Sending public key exponent", exponent, 256);
+	msg->length = htonl(RSA_AES_SERVER_KEY_LENGTH * 8);
+	crypto_rsa_pub_key_modulus(server->rsa_pub, modulus,
+			RSA_AES_SERVER_KEY_LENGTH);
+	crypto_rsa_pub_key_exponent(server->rsa_pub, exponent,
+			RSA_AES_SERVER_KEY_LENGTH);
 
 	stream_write(client->net_stream, buffer, sizeof(buffer), NULL, NULL);
 	return 0;
@@ -524,8 +526,9 @@ static int rsa_aes_send_challenge(struct nvnc_client* client,
 	struct rfb_rsa_aes_challenge_msg *msg =
 		(struct rfb_rsa_aes_challenge_msg*)buffer;
 
-	ssize_t len = crypto_rsa_encrypt(pub, msg->challenge, 256,
-			client->rsa.challenge, sizeof(client->rsa.challenge));
+	ssize_t len = crypto_rsa_encrypt(pub, msg->challenge,
+			RSA_AES_SERVER_KEY_LENGTH, client->rsa.challenge,
+			sizeof(client->rsa.challenge));
 	msg->length = htons(len);
 
 	nvnc_trace("Challenge length is %zd", len);
@@ -560,10 +563,6 @@ static int on_rsa_aes_public_key(struct nvnc_client* client)
 	client->rsa.pub =
 		crypto_rsa_pub_key_import(modulus, exponent, byte_length);
 	assert(client->rsa.pub);
-
-	uint8_t foo[256];
-	crypto_rsa_pub_key_exponent(client->rsa.pub, foo, 256);
-	crypto_dump_base16("Got public key exponent check", foo, 256);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CHALLENGE;
 	rsa_aes_send_challenge(client, client->rsa.pub);
@@ -630,10 +629,12 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	stream_upgrade_to_rsa_eas(client->net_stream, server_session_key,
 			client_session_key);
 
-	uint8_t server_modulus[256];
-	uint8_t server_exponent[256];
-	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus, 256);
-	crypto_rsa_pub_key_exponent(server->rsa_pub, server_exponent, 256);
+	uint8_t server_modulus[RSA_AES_SERVER_KEY_LENGTH];
+	uint8_t server_exponent[RSA_AES_SERVER_KEY_LENGTH];
+	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus,
+			RSA_AES_SERVER_KEY_LENGTH);
+	crypto_rsa_pub_key_exponent(server->rsa_pub, server_exponent,
+			RSA_AES_SERVER_KEY_LENGTH);
 
 	size_t client_key_len = crypto_rsa_pub_key_length(client->rsa.pub);
 	uint8_t* client_modulus = malloc(client_key_len * 2);
@@ -644,15 +645,15 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	crypto_rsa_pub_key_exponent(client->rsa.pub, client_exponent,
 			client_key_len);
 
-	uint32_t server_key_len_be = htonl(256 * 8);
+	uint32_t server_key_len_be = htonl(RSA_AES_SERVER_KEY_LENGTH * 8);
 	uint32_t client_key_len_be = htonl(client_key_len * 8);
 
 	uint8_t server_hash[20] = {};
 	crypto_hash_many(server_hash, sizeof(server_hash),
 			CRYPTO_HASH_SHA1, (const struct crypto_data_entry[]) {
 		{ (uint8_t*)&server_key_len_be, 4 },
-		{ server_modulus, 256 },
-		{ server_exponent, 256 },
+		{ server_modulus, RSA_AES_SERVER_KEY_LENGTH },
+		{ server_exponent, RSA_AES_SERVER_KEY_LENGTH },
 		{ (uint8_t*)&client_key_len_be, 4 },
 		{ client_modulus, client_key_len },
 		{ client_exponent, client_key_len },
@@ -660,8 +661,6 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	});
 
 	free(client_modulus);
-
-	crypto_dump_base16("Server hash", server_hash, 20);
 
 	stream_write(client->net_stream, server_hash, 20, NULL, NULL);
 
@@ -679,10 +678,12 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 
 	struct nvnc* server = client->server;
 
-	uint8_t server_modulus[256];
-	uint8_t server_exponent[256];
-	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus, 256);
-	crypto_rsa_pub_key_exponent(server->rsa_pub, server_exponent, 256);
+	uint8_t server_modulus[RSA_AES_SERVER_KEY_LENGTH];
+	uint8_t server_exponent[RSA_AES_SERVER_KEY_LENGTH];
+	crypto_rsa_pub_key_modulus(server->rsa_pub, server_modulus,
+			RSA_AES_SERVER_KEY_LENGTH);
+	crypto_rsa_pub_key_exponent(server->rsa_pub, server_exponent,
+			RSA_AES_SERVER_KEY_LENGTH);
 
 	size_t client_key_len = crypto_rsa_pub_key_length(client->rsa.pub);
 	uint8_t* client_modulus = malloc(client_key_len * 2);
@@ -693,7 +694,7 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 	crypto_rsa_pub_key_exponent(client->rsa.pub, client_exponent,
 			client_key_len);
 
-	uint32_t server_key_len_be = htonl(256 * 8);
+	uint32_t server_key_len_be = htonl(RSA_AES_SERVER_KEY_LENGTH * 8);
 	uint32_t client_key_len_be = htonl(client_key_len * 8);
 
 	uint8_t client_hash[20] = {};
@@ -703,8 +704,8 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 		{ client_modulus, client_key_len },
 		{ client_exponent, client_key_len },
 		{ (uint8_t*)&server_key_len_be, 4 },
-		{ server_modulus, 256 },
-		{ server_exponent, 256 },
+		{ server_modulus, RSA_AES_SERVER_KEY_LENGTH },
+		{ server_exponent, RSA_AES_SERVER_KEY_LENGTH },
 		{}
 	});
 

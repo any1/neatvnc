@@ -1,8 +1,7 @@
 #include "websocket.h"
 #include "http.h"
-
-#include <nettle/sha1.h>
-#include <nettle/base64.h>
+#include "crypto.h"
+#include "base64.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -61,16 +60,16 @@ ssize_t ws_handshake(char* output, size_t output_maxlen, const char* input)
 	if (have_versions && !strstr(versions, ",13,"))
 		goto failure;
 
-	struct sha1_ctx ctx;
-	sha1_init(&ctx);
-	sha1_update(&ctx, strlen(challenge), (const uint8_t*)challenge);
-	sha1_update(&ctx, strlen(magic_uuid), (const uint8_t*)magic_uuid);
+	uint8_t hash[20];
+	crypto_hash_many(hash, sizeof(hash), CRYPTO_HASH_SHA1,
+			(struct crypto_data_entry[]){
+		{ (uint8_t*)challenge, strlen(challenge) },
+		{ (uint8_t*)magic_uuid, strlen(magic_uuid) },
+		{}
+	});
 
-	uint8_t hash[SHA1_DIGEST_SIZE];
-	sha1_digest(&ctx, sizeof(hash), hash);
-
-	char response[BASE64_ENCODE_RAW_LENGTH(SHA1_DIGEST_SIZE) + 1] = {};
-	base64_encode_raw(response, SHA1_DIGEST_SIZE, hash);
+	char response[BASE64_ENCODED_SIZE(sizeof(hash))] = {};
+	base64_encode(response, hash, sizeof(hash));
 
 	size_t len = snprintf(output, output_maxlen,
 		"HTTP/1.1 101 Switching Protocols\r\n"

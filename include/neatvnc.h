@@ -48,6 +48,9 @@
 #define nvnc_trace(...)
 #endif
 
+#define NVNC_BASE64_ENCODED_SIZE(x) ((((x) + 2) / 3) * 4 + 1)
+#define NVNC_BASE64_DECODED_MAX_SIZE(x) ((((x) + 3) / 4) * 3)
+
 struct nvnc;
 struct nvnc_client;
 struct nvnc_desktop_layout;
@@ -237,3 +240,6 @@ void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t width,
 void nvnc_set_log_fn(nvnc_log_fn);
 void nvnc_set_log_level(enum nvnc_log_level);
 void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
+
+void nvnc_base64_encode(char* dst, const uint8_t* src, size_t src_len);
+ssize_t nvnc_base64_decode(uint8_t* dst, const char* src);

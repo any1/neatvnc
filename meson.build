@@ -95,6 +95,7 @@ sources = [
 	'src/encoder.c',
 	'src/cursor.c',
 	'src/logging.c',
+	'src/base64.c',
 ]
 
 dependencies = [

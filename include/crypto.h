@@ -95,6 +95,13 @@ void crypto_rsa_pub_key_modulus(const struct crypto_rsa_pub_key* key,
 void crypto_rsa_pub_key_exponent(const struct crypto_rsa_pub_key* key,
 		uint8_t* dst, size_t dst_size);
 
+bool crypto_rsa_priv_key_import_pkcs1_der(struct crypto_rsa_priv_key* priv,
+		struct crypto_rsa_pub_key* pub, const uint8_t* key,
+		size_t size);
+
+bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
+		struct crypto_rsa_pub_key* pub, const char* path);
+
 struct crypto_rsa_priv_key *crypto_rsa_priv_key_new(void);
 void crypto_rsa_priv_key_del(struct crypto_rsa_priv_key*);
 

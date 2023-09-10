@@ -168,6 +168,8 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 
 int nvnc_enable_auth2(struct nvnc* self, nvnc_auth_fn, void* userdata);
 
+int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
+
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);
 struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,

@@ -492,10 +492,10 @@ static int rsa_aes_send_public_key(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
 
-	// TODO: The key should be loaded if it exists; otherwise generated and
-	// saved.
 	if (!server->rsa_priv) {
 		assert(!server->rsa_pub);
+
+		nvnc_log(NVNC_LOG_WARNING, "An RSA key has not been set. A new key will be generated.");
 
 		server->rsa_priv = crypto_rsa_priv_key_new();
 		server->rsa_pub = crypto_rsa_pub_key_new();
@@ -2395,4 +2395,20 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link)
 		process_fb_update_requests(client);
+}
+
+EXPORT
+int nvnc_set_rsa_creds(struct nvnc* self, const char* path)
+{
+#ifdef HAVE_CRYPTO
+	crypto_rsa_priv_key_del(self->rsa_priv);
+	crypto_rsa_pub_key_del(self->rsa_pub);
+
+	self->rsa_priv = crypto_rsa_priv_key_new();
+	self->rsa_pub = crypto_rsa_pub_key_new();
+
+	bool ok = crypto_rsa_priv_key_load(self->rsa_priv, self->rsa_pub, path);
+	return ok ? 0 : -1;
+#endif
+	return -1;
 }

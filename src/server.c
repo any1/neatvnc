@@ -537,8 +537,6 @@ static int rsa_aes_send_challenge(struct nvnc_client* client,
 			client->rsa.challenge, client->rsa.challenge_len);
 	msg->length = htons(len);
 
-	nvnc_trace("Challenge length is %zd", len);
-
 	stream_write(client->net_stream, buffer, sizeof(*msg) + len, NULL, NULL);
 	return 0;
 }
@@ -558,13 +556,8 @@ static int on_rsa_aes_public_key(struct nvnc_client* client)
 			sizeof(*msg) + byte_length * 2)
 		return 0;
 
-	nvnc_trace("Got public key with bit size %d", bit_length);
-
 	const uint8_t* modulus = msg->modulus_and_exponent;
 	const uint8_t* exponent = msg->modulus_and_exponent + byte_length;
-
-	crypto_dump_base16("Got public key modulus", modulus, byte_length);
-	crypto_dump_base16("Got public key exponent", exponent, byte_length);
 
 	client->rsa.pub =
 		crypto_rsa_pub_key_import(modulus, exponent, byte_length);
@@ -599,13 +592,7 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	if (client->buffer_len - client->buffer_index < sizeof(*msg) + length)
 		return 0;
 
-	crypto_dump_base16("client buffer", client->msg_buffer +
-			client->buffer_index, client->buffer_len -
-			client->buffer_index);
-
 	struct nvnc* server = client->server;
-
-	nvnc_trace("Encrypted challenge has length: %d", length);
 
 	uint8_t client_random[32] = {};
 	ssize_t len = crypto_rsa_decrypt(server->rsa_priv, client_random,

@@ -664,7 +664,6 @@ void crypto_rsa_pub_key_exponent(const struct crypto_rsa_pub_key* key,
 		uint8_t* dst, size_t dst_size)
 {
 	char* str = mpz_get_str(NULL, 16, key->key.e);
-	nvnc_trace("e: %s", str);
 	free(str);
 
 	crypto_export(dst, dst_size, key->key.e);

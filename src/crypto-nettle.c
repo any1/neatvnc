@@ -1,6 +1,7 @@
 #include "crypto.h"
 #include "neatvnc.h"
 #include "vec.h"
+#include "base64.h"
 
 #include <gmp.h>
 #include <nettle/base64.h>
@@ -13,6 +14,7 @@
 #include <nettle/rsa.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -581,6 +583,75 @@ struct crypto_rsa_pub_key* crypto_rsa_pub_key_import(const uint8_t* modulus,
 	rsa_public_key_prepare(&self->key);
 
 	return self;
+}
+
+bool crypto_rsa_priv_key_import_pkcs1_der(struct crypto_rsa_priv_key* priv,
+		struct crypto_rsa_pub_key* pub, const uint8_t* key,
+		size_t size)
+{
+	return rsa_keypair_from_der(&pub->key, &priv->key, 0, size, key);
+}
+
+bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
+		struct crypto_rsa_pub_key* pub, const char* path)
+{
+	FILE* stream = fopen(path, "r");
+	if (!stream) {
+		nvnc_log(NVNC_LOG_ERROR, "Could not open file: %m");
+		return false;
+	}
+
+	char* line = NULL;
+	size_t n = 0;
+	if (getline(&line, &n, stream) < 0) {
+		nvnc_log(NVNC_LOG_ERROR, "RSA private key file is not PEM");
+		return false;
+	}
+
+	char head[128];
+	strlcpy(head, line, sizeof(head));
+	char* end = strchr(head, '\n');
+	if (end)
+		*end = '\0';
+
+	nvnc_trace("Read PEM head: \"%s\"\n", head);
+
+	struct vec base64_der;
+	vec_init(&base64_der, 4096);
+
+	while (getline(&line, &n, stream) >= 0) {
+		if (strncmp(line, "-----END", 8) == 0)
+			break;
+
+
+		vec_append(&base64_der, line, strcspn(line, "\n"));
+	}
+	free(line);
+	fclose(stream);
+
+	vec_append_zero(&base64_der, 1);
+
+	uint8_t* der = malloc(BASE64_DECODED_MAX_SIZE(base64_der.len));
+	assert(der);
+	vec_destroy(&base64_der);
+
+	ssize_t der_len = base64_decode(der, base64_der.data);
+	if (der_len < 0) {
+		free(der);
+		return false;
+	}
+
+	bool ok = false;
+	if (strcmp(head, "-----BEGIN RSA PRIVATE KEY-----") == 0) {
+		ok = crypto_rsa_priv_key_import_pkcs1_der(priv, pub, der, der_len);
+	} else {
+		nvnc_log(NVNC_LOG_ERROR, "Unsupported RSA private key format");
+	}
+
+	nvnc_trace("Private key is %d bits long", priv->key.size * 8);
+
+	free(der);
+	return ok;
 }
 
 void crypto_rsa_pub_key_modulus(const struct crypto_rsa_pub_key* key,

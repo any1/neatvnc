@@ -631,10 +631,14 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	struct nvnc_fb* fb = client->server->display->buffer;
 	assert(fb);
 
+	nvnc_log(NVNC_LOG_INFO, "process_fb_update_requests fb fourcc_format %X", fb->fourcc_format);
+
 	if (!client->has_pixfmt) {
 		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
 		client->has_pixfmt = true;
 	}
+
+	nvnc_log(NVNC_LOG_INFO, "process_fb_update_requests client->pixfmt %X", client->pixfmt);
 
 	if (fb->width != client->known_width
 	    || fb->height != client->known_height) {

@@ -24,6 +24,7 @@
 #include "fb.h"
 #include "damage-refinery.h"
 #include "murmurhash.h"
+#include "pixels.h"
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -63,20 +64,42 @@ void damage_refinery_destroy(struct damage_refinery* self)
 static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 		uint32_t ty, const struct nvnc_fb* buffer)
 {
-	uint32_t* pixels = buffer->addr;
-	int pixel_stride = buffer->stride;
-
-	int x_start = tx * 32;
-	int x_stop = MIN((tx + 1) * 32, self->width);
-	int y_start = ty * 32;
-	int y_stop = MIN((ty + 1) * 32, self->height);
-
+	int rc;
 	uint32_t hash = 0;
+	struct rfb_pixel_format fmt;
+	rc = rfb_pixfmt_from_fourcc(&fmt, buffer->fourcc_format);
 
-	// TODO: Support different pixel sizes
-	for (int y = y_start; y < y_stop; ++y)
-		hash = murmurhash((void*)&(pixels[x_start + y * pixel_stride]),
-				4 * (x_stop - x_start), hash);
+	if (rc != 0)
+		return hash;
+
+	if (fmt.bits_per_pixel == 32) {
+		uint32_t* pixels = buffer->addr;
+		int pixel_stride = buffer->stride;
+
+		int x_start = tx * 32;
+		int x_stop = MIN((tx + 1) * 32, self->width);
+		int y_start = ty * 32;
+		int y_stop = MIN((ty + 1) * 32, self->height);
+
+
+		for (int y = y_start; y < y_stop; ++y)
+			hash = murmurhash((void*)&(pixels[x_start + y * pixel_stride]),
+					4 * (x_stop - x_start), hash);
+	} else if (fmt.bits_per_pixel == 24) {
+		uint8_t* pixels = buffer->addr;
+		int pixel_stride = buffer->stride;
+
+		int x_start = tx * 24;
+		int x_stop = MIN((tx + 1) * 24, self->width);
+		int y_start = ty * 24;
+		int y_stop = MIN((ty + 1) * 24, self->height);
+
+		uint32_t hash = 0;
+
+		for (int y = y_start; y < y_stop; ++y)
+			hash = murmurhash((void*)&(pixels[(x_start * 3) + (y * pixel_stride * 3)]),
+					3 * (x_stop - x_start), hash);
+	}
 
 	return hash;
 }

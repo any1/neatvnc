@@ -28,6 +28,11 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
                        const uint32_t* restrict src,
                        const struct rfb_pixel_format* src_fmt,
                        size_t bytes_per_cpixel, size_t len);
+void pixel24_to_cpixel(uint8_t* restrict dst,
+                       const struct rfb_pixel_format* dst_fmt,
+                       const uint8_t* restrict src,
+                       const struct rfb_pixel_format* src_fmt,
+                       size_t bytes_per_cpixel, size_t len);
 
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src);
 uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format* fmt);

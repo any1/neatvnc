@@ -69,9 +69,8 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 	if (rc < 0)
 		return -1;
 
-	uint32_t* b = fb->addr;
-
 	int bpp = dst_fmt->bits_per_pixel / 8;
+	int src_bpp = src_fmt->bits_per_pixel / 8;
 
 	rc = vec_reserve(dst, width * height * bpp + dst->len);
 	if (rc < 0)
@@ -79,10 +78,22 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 
 	uint8_t* d = dst->data;
 
+
 	for (int y = y_start; y < y_start + height; ++y) {
-		pixel32_to_cpixel(d + dst->len, dst_fmt,
+
+        if (src_bpp == 4) {
+    	    uint32_t* b = fb->addr;
+			//each x is 4 bytes
+		    pixel32_to_cpixel(d + dst->len, dst_fmt,
 		                  b + x_start + y * stride, src_fmt,
 		                  bpp, width);
+		} else if (src_bpp == 3) {
+            uint8_t* b = fb->addr;
+			//each x is 3 bytes
+            pixel24_to_cpixel(d + dst->len, dst_fmt,
+		                  b + (x_start * 3) + (y * stride * 3), src_fmt,
+		                  bpp, width);
+		}
 		dst->len += width * bpp;
 	}
 

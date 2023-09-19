@@ -87,7 +87,7 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 					4 * (x_stop - x_start), hash);
 	} else if (fmt.bits_per_pixel == 24) {
 		uint8_t* pixels = buffer->addr;
-		int pixel_stride = buffer->stride;
+		int pixel_stride = buffer->width * 3;
 
 		int x_start = tx * 32;
 		int x_stop = MIN((tx + 1) * 32, self->width);

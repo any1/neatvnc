@@ -304,8 +304,8 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 
 
 	int32_t stride = nvnc_fb_get_stride(self->fb);
-	uint32_t src_bpp = self->sfmt.bits_per_pixel;
-    if (src_bpp == 32) {
+	int src_bpp = nvnc_fb_get_pixel_size(self->fb);
+    if (src_bpp == 4) {
 	     uint32_t* addr = nvnc_fb_get_addr(self->fb);
 	     // TODO: Limit width and hight to the sides
 	     for (uint32_t y = y_start; y < y_start + height; ++y) {
@@ -318,11 +318,11 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 				zs, y == y_start + height - 1) < 0)
 			abort();
 	     }
-	} else if (src_bpp == 24) {
+	} else if (src_bpp == 3) {
+	     uint32_t fb_width = nvnc_fb_get_width(self->fb);
          uint8_t* addr = nvnc_fb_get_addr(self->fb);
 	     for (uint32_t y = y_start; y < y_start + height; ++y) {
-		     //this formula could be wrong, stride might need to be *3
-		     uint8_t* img = addr + (x * 1) + y * stride * 1;
+		     uint8_t* img = addr + (x * src_bpp) + (y * fb_width * src_bpp);
 		     pixel24_to_cpixel(row, &cfmt, img, &self->sfmt,
 				bytes_per_cpixel, width);
 

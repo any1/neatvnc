@@ -25,6 +25,7 @@
 
 #include "fb.h"
 #include "murmurhash.h"
+#include "neatvnc.h"
 #include "pixels.h"
 
 #define UDIV_UP(a, b) (((a) + (b)-1) / (b))
@@ -91,7 +92,7 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 
     for (int y = y_start; y < y_stop; ++y)
       hash = murmurhash((void*)&(pixels[(x_start * 3) + (y * pixel_stride)]),
-                        4 * (x_stop - x_start), hash);
+                        3 * (x_stop - x_start), hash);
   }
 
   return hash;
@@ -111,8 +112,11 @@ static void damage_refine_tile(struct damage_refinery* self,
   int is_damaged = hash != *old_hash_ptr;
   *old_hash_ptr = hash;
 
-  if (is_damaged)
+  if (is_damaged) {
+    nvnc_log(NVNC_LOG_INFO, "damage_refine_tile X=%ld,y=%ld is damaged.", tx,
+             ty);
     pixman_region_union_rect(refined, refined, tx * 32, ty * 32, 32, 32);
+  }
 }
 
 static void tile_region_from_region(struct pixman_region16* dst,

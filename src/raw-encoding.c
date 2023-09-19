@@ -92,7 +92,7 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 			//each x is 3 bytes
 
             pixel24_to_cpixel(d + dst->len, dst_fmt,
-		                  b + (x_start * 3) + (y * stride), src_fmt,
+		                  b + (x_start * 3) + (y * stride * 3), src_fmt,
 		                  bpp, width);
 		}
 		dst->len += width * bpp;

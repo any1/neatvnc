@@ -190,11 +190,9 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 
 	uint32_t dst_endian_correction;
 
-#define CONVERT_PIXELS(cpx, src)                                       \
+#define CONVERT_PIXELS(cpx, px)                                       \
 	{                                                                  \
-		uint32_t px=0, r, g, b;                                        \
-		memcpy(&px, src, 3);											 \
-		src += 3;												     \
+		uint32_t r, g, b;                                        \
 		r = ((px >> src_red_shift) & src_red_max) << dst_red_bits      \
 		        >> src_red_bits << dst_red_shift;                      \
 		g = ((px >> src_green_shift) & src_green_max) << dst_green_bits\
@@ -208,9 +206,10 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 	case 4:
 		if (dst_fmt->big_endian_flag) {
 			while (len--) {
-				uint32_t cpx;
+				uint32_t cpx, px;
+				memcpy(&px, src, 3), src += 3;
 
-				CONVERT_PIXELS(cpx, src)
+				CONVERT_PIXELS(cpx, px)
 
 				*dst++ = (cpx >> 24) & 0xff;
 				*dst++ = (cpx >> 16) & 0xff;
@@ -219,9 +218,10 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 			}
 		} else {
 			while (len--) {
-				uint32_t cpx;
+				uint32_t cpx, px;
+				memcpy(&px, src, 3), src += 3;
 
-				CONVERT_PIXELS(cpx, src)
+				CONVERT_PIXELS(cpx, px)
 
 				*dst++ = (cpx >> 0) & 0xff;
 				*dst++ = (cpx >> 8) & 0xff;
@@ -246,9 +246,10 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
 
 		while (len--) {
-			uint32_t cpx;
+			uint32_t cpx, px;
+			memcpy(&px, src, 3), src += 3;
 
-			CONVERT_PIXELS(cpx, src)
+			CONVERT_PIXELS(cpx, px)
 
 			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
 			*dst++ = (cpx >> 8) & 0xff;
@@ -259,9 +260,10 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 		dst_endian_correction = dst_fmt->big_endian_flag ? 8 : 0;
 
 		while (len--) {
-			uint32_t cpx;
+			uint32_t cpx, px;
+			memcpy(&px, src, 3), src += 3;
 
-			CONVERT_PIXELS(cpx, src)
+			CONVERT_PIXELS(cpx, px)
 
 			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
 			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
@@ -269,9 +271,10 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 		break;
 	case 1:
 		while (len--) {
-			uint32_t cpx;
+			uint32_t cpx, px;
+			memcpy(&px, src, 3), src += 3;
 
-			CONVERT_PIXELS(cpx, src)
+			CONVERT_PIXELS(cpx, px)
 
 			*dst++ = cpx & 0xff;
 		}
@@ -286,8 +289,6 @@ void pixel24_to_cpixel(uint8_t* restrict dst,
 
 /* clang-format off */
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
-	nvnc_log(NVNC_LOG_INFO, "rfb_pixfmt_from_fourcc src %X -> %X", src, DRM_FORMAT_BGR888);
-
 	switch (src & ~DRM_FORMAT_BIG_ENDIAN) {
 	case DRM_FORMAT_RGBA1010102:
 	case DRM_FORMAT_RGBX1010102:

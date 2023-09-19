@@ -45,7 +45,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->ref = 1;
 	fb->width = width;
 	fb->height = height;
-	nvnc_log(NVNC_LOG_INFO, "nvnc_fb_new created with fourcc_format %X", fourcc_format);
+	nvnc_log(NVNC_LOG_INFO, "nvnc_fb_new created with fourcc_format %X and stride %ld", fourcc_format, stride);
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;
@@ -77,7 +77,7 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t heigh
 	fb->is_external = true;
 	fb->width = width;
 	fb->height = height;
-	nvnc_log(NVNC_LOG_INFO, "nvnc_fb_from_buffer created with fourcc_format %X", fourcc_format);
+	nvnc_log(NVNC_LOG_INFO, "nvnc_fb_from_buffer created with fourcc_format %X and stride %ld", fourcc_format, stride);
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;

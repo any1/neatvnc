@@ -89,15 +89,15 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 		uint8_t* pixels = buffer->addr;
 		int pixel_stride = buffer->stride;
 
-		int x_start = tx * 24;
-		int x_stop = MIN((tx + 1) * 24, self->width);
-		int y_start = ty * 24;
-		int y_stop = MIN((ty + 1) * 24, self->height);
+		int x_start = tx * 32;
+		int x_stop = MIN((tx + 1) * 32, self->width);
+		int y_start = ty * 32;
+		int y_stop = MIN((ty + 1) * 32, self->height);
 
 		uint32_t hash = 0;
 
 		for (int y = y_start; y < y_stop; ++y)
-			hash = murmurhash((void*)&(pixels[(x_start * 3) + (y * pixel_stride * 3)]),
+			hash = murmurhash((void*)&(pixels[(x_start * 3) + (y * pixel_stride)]),
 					3 * (x_stop - x_start), hash);
 	}
 

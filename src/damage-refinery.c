@@ -40,6 +40,8 @@ int damage_refinery_init(struct damage_refinery* self, uint32_t width,
   uint32_t twidth = UDIV_UP(width, 32);
   uint32_t theight = UDIV_UP(height, 32);
 
+  nvnc_log(NVNC_LOG_INFO, "damage_refinery_init.");
+
   self->hashes = calloc(twidth * theight, sizeof(*self->hashes));
   if (!self->hashes) return -1;
 

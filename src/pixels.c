@@ -25,14 +25,13 @@
 #define XSTR(s) STR(s)
 #define STR(s) #s
 
-void pixel32_to_cpixel(uint8_t* restrict dst,
-                       const struct rfb_pixel_format* dst_fmt,
-                       const uint32_t* restrict src,
-                       const struct rfb_pixel_format* src_fmt,
-                       size_t bytes_per_cpixel, size_t len)
+static void pixel32_to_cpixel(uint8_t* restrict dst,
+             const struct rfb_pixel_format* dst_fmt,
+             const uint32_t* restrict src,
+             const struct rfb_pixel_format* src_fmt,
+             size_t bytes_per_cpixel, size_t len)
 {
 	assert(src_fmt->true_colour_flag);
-	assert(src_fmt->bits_per_pixel == 32);
 	assert(src_fmt->depth <= 32);
 	assert(dst_fmt->true_colour_flag);
 	assert(dst_fmt->bits_per_pixel <= 32);
@@ -152,6 +151,148 @@ void pixel32_to_cpixel(uint8_t* restrict dst,
 #undef CONVERT_PIXELS
 }
 
+void pixel_to_cpixel(uint8_t* restrict dst,
+                       const struct rfb_pixel_format* dst_fmt,
+                       const uint8_t* restrict src,
+                       const struct rfb_pixel_format* src_fmt,
+                       size_t bytes_per_cpixel, size_t len)
+{
+	if (src_fmt->bits_per_pixel == 32) {
+		pixel32_to_cpixel(dst, dst_fmt, (uint32_t*)src, src_fmt, bytes_per_cpixel, len);
+		return;
+	}
+
+	assert(src_fmt->true_colour_flag);
+	assert(src_fmt->depth <= 32);
+	assert(dst_fmt->true_colour_flag);
+	assert(dst_fmt->bits_per_pixel <= 32);
+	assert(dst_fmt->depth <= 32);
+	assert(bytes_per_cpixel <= 4 && bytes_per_cpixel >= 1);
+
+	uint32_t src_bpp = src_fmt->bits_per_pixel / 8;
+	uint32_t src_red_shift = src_fmt->red_shift;
+	uint32_t src_green_shift = src_fmt->green_shift;
+	uint32_t src_blue_shift = src_fmt->blue_shift;
+
+	uint32_t dst_red_shift = dst_fmt->red_shift;
+	uint32_t dst_green_shift = dst_fmt->green_shift;
+	uint32_t dst_blue_shift = dst_fmt->blue_shift;
+
+	uint32_t src_red_max = src_fmt->red_max;
+	uint32_t src_green_max = src_fmt->green_max;
+	uint32_t src_blue_max = src_fmt->blue_max;
+
+	uint32_t src_red_bits = POPCOUNT(src_fmt->red_max);
+	uint32_t src_green_bits = POPCOUNT(src_fmt->green_max);
+	uint32_t src_blue_bits = POPCOUNT(src_fmt->blue_max);
+
+	uint32_t dst_red_bits = POPCOUNT(dst_fmt->red_max);
+	uint32_t dst_green_bits = POPCOUNT(dst_fmt->green_max);
+	uint32_t dst_blue_bits = POPCOUNT(dst_fmt->blue_max);
+
+	uint32_t dst_endian_correction;
+
+#define CONVERT_PIXELS(cpx, px)                                                \
+	{                                                                      \
+		uint32_t r, g, b;                                              \
+		r = ((px >> src_red_shift) & src_red_max) << dst_red_bits      \
+		        >> src_red_bits << dst_red_shift;                      \
+		g = ((px >> src_green_shift) & src_green_max) << dst_green_bits\
+		        >> src_green_bits << dst_green_shift;                  \
+		b = ((px >> src_blue_shift) & src_blue_max) << dst_blue_bits   \
+		        >> src_blue_bits << dst_blue_shift;                    \
+		cpx = r | g | b;                                               \
+	}
+
+	switch (bytes_per_cpixel) {
+	case 4:
+		if (dst_fmt->big_endian_flag) {
+			while (len--) {
+				uint32_t cpx, px = 0;
+				memcpy(&px, src, src_bpp);
+				src += src_bpp;
+
+				CONVERT_PIXELS(cpx, px)
+
+				*dst++ = (cpx >> 24) & 0xff;
+				*dst++ = (cpx >> 16) & 0xff;
+				*dst++ = (cpx >> 8) & 0xff;
+				*dst++ = (cpx >> 0) & 0xff;
+			}
+		} else {
+			while (len--) {
+				uint32_t cpx, px = 0;
+				memcpy(&px, src, src_bpp);
+				src += src_bpp;
+
+				CONVERT_PIXELS(cpx, px)
+
+				*dst++ = (cpx >> 0) & 0xff;
+				*dst++ = (cpx >> 8) & 0xff;
+				*dst++ = (cpx >> 16) & 0xff;
+				*dst++ = (cpx >> 24) & 0xff;
+			}
+		}
+		break;
+	case 3:
+		if (dst_fmt->bits_per_pixel == 32 && dst_fmt->depth <= 24) {
+			uint32_t min_dst_shift = dst_red_shift;
+			if (min_dst_shift > dst_green_shift)
+				min_dst_shift = dst_green_shift;
+			if (min_dst_shift > dst_blue_shift)
+				min_dst_shift = dst_blue_shift;
+
+			dst_red_shift -= min_dst_shift;
+			dst_green_shift -= min_dst_shift;
+			dst_blue_shift -= min_dst_shift;
+		}
+
+		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
+
+		while (len--) {
+			uint32_t cpx, px = 0;
+			memcpy(&px, src, src_bpp);
+			src += src_bpp;
+
+			CONVERT_PIXELS(cpx, px)
+
+			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
+			*dst++ = (cpx >> (16 ^ dst_endian_correction)) & 0xff;
+		}
+		break;
+	case 2:
+		dst_endian_correction = dst_fmt->big_endian_flag ? 8 : 0;
+
+		while (len--) {
+			uint32_t cpx, px = 0;
+			memcpy(&px, src, src_bpp);
+			src += src_bpp;
+
+			CONVERT_PIXELS(cpx, px)
+
+			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
+		}
+		break;
+	case 1:
+		while (len--) {
+			uint32_t cpx, px = 0;
+			memcpy(&px, src, src_bpp);
+			src += src_bpp;
+
+			CONVERT_PIXELS(cpx, px)
+
+			*dst++ = cpx & 0xff;
+		}
+		break;
+	default:
+		abort();
+	}
+
+#undef CONVERT_PIXELS
+}
+
 /* clang-format off */
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
 	switch (src & ~DRM_FORMAT_BIG_ENDIAN) {
@@ -210,6 +351,22 @@ bpp_32_10bit:
 		dst->blue_shift = 16;
 bpp_32:
 		dst->bits_per_pixel = 32;
+		dst->depth = 24;
+		dst->red_max = 0xff;
+		dst->green_max = 0xff;
+		dst->blue_max = 0xff;
+		break;
+	case DRM_FORMAT_BGR888:
+		dst->red_shift = 0;
+		dst->green_shift = 8;
+		dst->blue_shift = 16;
+		goto bpp_24;
+	case DRM_FORMAT_RGB888:
+		dst->red_shift = 16;
+		dst->green_shift = 8;
+		dst->blue_shift = 0;
+bpp_24:
+		dst->bits_per_pixel = 24;
 		dst->depth = 24;
 		dst->red_max = 0xff;
 		dst->green_max = 0xff;
@@ -275,6 +432,9 @@ int pixel_size_from_fourcc(uint32_t fourcc)
 	case DRM_FORMAT_ABGR8888:
 	case DRM_FORMAT_XBGR8888:
 		return 4;
+	case DRM_FORMAT_BGR888:
+	case DRM_FORMAT_RGB888:
+		return 3;
 	case DRM_FORMAT_RGBA4444:
 	case DRM_FORMAT_RGBX4444:
 	case DRM_FORMAT_BGRA4444:
@@ -457,6 +617,8 @@ const char* drm_format_to_string(uint32_t fmt)
 	X(XRGB8888) \
 	X(ABGR8888) \
 	X(XBGR8888) \
+	X(RGB888) \
+	X(BGR888) \
 	X(RGBA4444) \
 	X(RGBX4444) \
 	X(BGRA4444) \

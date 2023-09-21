@@ -22,6 +22,7 @@
 #include <sys/param.h>
 
 #include "fb.h"
+#include "pixels.h"
 #include "damage-refinery.h"
 #include "murmurhash.h"
 
@@ -63,8 +64,9 @@ void damage_refinery_destroy(struct damage_refinery* self)
 static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 		uint32_t ty, const struct nvnc_fb* buffer)
 {
-	uint32_t* pixels = buffer->addr;
-	int pixel_stride = buffer->stride;
+	uint8_t* pixels = buffer->addr;
+	int bpp = pixel_size_from_fourcc(buffer->fourcc_format);
+	int byte_stride = buffer->stride * bpp;
 
 	int x_start = tx * 32;
 	int x_stop = MIN((tx + 1) * 32, self->width);
@@ -72,11 +74,11 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 	int y_stop = MIN((ty + 1) * 32, self->height);
 
 	uint32_t hash = 0;
+	int32_t xoff = x_start * bpp;
 
-	// TODO: Support different pixel sizes
 	for (int y = y_start; y < y_stop; ++y)
-		hash = murmurhash((void*)&(pixels[x_start + y * pixel_stride]),
-				4 * (x_stop - x_start), hash);
+		hash = murmurhash((void*)&(pixels[xoff + y * byte_stride]),
+				bpp * (x_stop - x_start), hash);
 
 	return hash;
 }

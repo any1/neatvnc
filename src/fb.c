@@ -41,6 +41,8 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	if (!fb)
 		return NULL;
 
+	uint32_t bpp = pixel_size_from_fourcc(fourcc_format);
+
 	fb->type = NVNC_FB_SIMPLE;
 	fb->ref = 1;
 	fb->width = width;
@@ -49,7 +51,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;
 
-	size_t size = height * stride * 4; /* Assume 4 byte format for now */
+	size_t size = height * stride * bpp;
 	size_t alignment = MAX(4, sizeof(void*));
 	size_t aligned_size = ALIGN_UP(size, alignment);
 

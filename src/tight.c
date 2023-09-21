@@ -302,14 +302,15 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	else
 		memcpy(&cfmt, &self->dfmt, sizeof(cfmt));
 
-	uint32_t* addr = nvnc_fb_get_addr(self->fb);
-	int32_t stride = nvnc_fb_get_stride(self->fb);
-
+	uint8_t* addr = nvnc_fb_get_addr(self->fb);
+	int32_t bpp = self->sfmt.bits_per_pixel / 8;
+	int32_t byte_stride = nvnc_fb_get_stride(self->fb) * bpp;
+	int32_t xoff = x * bpp;
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
-		void* img = addr + x + y * stride;
-		pixel32_to_cpixel(row, &cfmt, img, &self->sfmt,
-				bytes_per_cpixel, width);
+		uint8_t* img = addr + xoff + y * byte_stride;
+		pixel_to_cpixel(row, &cfmt, img, &self->sfmt,
+			bytes_per_cpixel, width);
 
 		// TODO What to do if the buffer fills up?
 		if (tight_deflate(tile, row, bytes_per_cpixel * width,
@@ -335,6 +336,10 @@ static enum TJPF tight_get_jpeg_pixfmt(uint32_t fourcc)
 	case DRM_FORMAT_ABGR8888:
 	case DRM_FORMAT_XBGR8888:
 		return TJPF_RGBX;
+	case DRM_FORMAT_BGR888:
+		return TJPF_RGB;
+	case DRM_FORMAT_RGB888:
+		return TJPF_BGR;
 	}
 
 	return TJPF_UNKNOWN;
@@ -360,14 +365,16 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	if (!handle)
 		return -1;
 
-	uint32_t* addr = nvnc_fb_get_addr(self->fb);
-	int32_t stride = nvnc_fb_get_stride(self->fb);
-	void* img = (uint32_t*)addr + x + y * stride;
+	uint8_t* addr = nvnc_fb_get_addr(self->fb);
+	int32_t bpp = self->sfmt.bits_per_pixel / 8;
+	int32_t byte_stride = nvnc_fb_get_stride(self->fb) * bpp;
+	int32_t xoff = x * bpp;
+	uint8_t* img = addr + xoff + y * byte_stride;
 
 	enum TJSAMP subsampling = (quality == 9) ? TJSAMP_444 : TJSAMP_420;
 
 	int rc = -1;
-	rc = tjCompress2(handle, img, width, stride * 4, height, tjfmt, &buffer,
+	rc = tjCompress2(handle, img, width, byte_stride, height, tjfmt, &buffer,
 			&size, subsampling, quality, TJFLAG_FASTDCT);
 	if (rc < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to encode tight JPEG box: %s",

@@ -102,7 +102,7 @@ static void zrle_encode_unichrome_tile(struct vec* dst,
 
 	vec_fast_append_8(dst, 1);
 
-	pixel32_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, &colour, src_fmt,
+	pixel_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, (uint8_t*)&colour, src_fmt,
 	                  bytes_per_cpixel, 1);
 
 	dst->len += bytes_per_cpixel;
@@ -135,7 +135,7 @@ static void zrle_encode_packed_tile(struct vec* dst,
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 
 	uint8_t cpalette[16 * 3];
-	pixel32_to_cpixel((uint8_t*)cpalette, dst_fmt, palette, src_fmt,
+	pixel_to_cpixel((uint8_t*)cpalette, dst_fmt, (uint8_t*)palette, src_fmt,
 	                  bytes_per_cpixel, palette_size);
 
 	vec_fast_append_8(dst, 128 | palette_size);
@@ -196,7 +196,7 @@ static void zrle_encode_tile(struct vec* dst,
 
 	vec_fast_append_8(dst, 0);
 
-	pixel32_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, src, src_fmt,
+	pixel_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, (uint8_t*)src, src_fmt,
 	                  bytes_per_cpixel, length);
 
 	dst->len += bytes_per_cpixel * length;

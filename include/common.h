@@ -152,10 +152,12 @@ struct nvnc {
 	} cursor;
 	uint32_t cursor_seq;
 
-#ifdef ENABLE_TLS
-	gnutls_certificate_credentials_t tls_creds;
+	enum nvnc_auth_flags auth_flags;
 	nvnc_auth_fn auth_fn;
 	void* auth_ud;
+
+#ifdef ENABLE_TLS
+	gnutls_certificate_credentials_t tls_creds;
 #endif
 
 #ifdef HAVE_CRYPTO

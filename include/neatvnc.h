@@ -97,6 +97,11 @@ enum nvnc_log_level {
 	NVNC_LOG_TRACE = 5,
 };
 
+enum nvnc_auth_flags {
+	NVNC_AUTH_REQUIRE_AUTH = 1 << 0,
+	NVNC_AUTH_REQUIRE_ENCRYPTION = 1 << 1,
+};
+
 struct nvnc_log_data {
 	enum nvnc_log_level level;
 	const char* file;
@@ -157,17 +162,11 @@ void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
 void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn);
 
-/* TODO: Changes this interface so that we have enable_auth(auth_fn),
- * set_tls_creds(key, cert), and has_tls() -> bool
- */
-
 bool nvnc_has_auth(void);
-
-int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
-                     const char* cert_path, nvnc_auth_fn, void* userdata);
-
-int nvnc_enable_auth2(struct nvnc* self, nvnc_auth_fn, void* userdata);
-
+int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
+		nvnc_auth_fn, void* userdata);
+int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
+                     const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,

@@ -227,7 +227,9 @@ static int on_version_message(struct nvnc_client* client)
 		(struct rfb_security_types_msg*)buf;
 
 	security->n = 0;
-	if (client->server->auth_fn) {
+	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+		assert(server->auth_fn);
+
 #ifdef ENABLE_TLS
 		if (server->tls_creds) {
 			security->types[security->n++] = RFB_SECURITY_TYPE_VENCRYPT;
@@ -237,13 +239,18 @@ static int on_version_message(struct nvnc_client* client)
 #ifdef HAVE_CRYPTO
 		security->types[security->n++] = RFB_SECURITY_TYPE_RSA_AES256;
 		security->types[security->n++] = RFB_SECURITY_TYPE_RSA_AES;
-		security->types[security->n++] = RFB_SECURITY_TYPE_APPLE_DH;
+
+		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+			security->types[security->n++] = RFB_SECURITY_TYPE_APPLE_DH;
+		}
 #endif
+	} else {
+		security->n = 1;
+		security->types[0] = RFB_SECURITY_TYPE_NONE;
 	}
 
 	if (security->n == 0) {
-		security->n = 1;
-		security->types[0] = RFB_SECURITY_TYPE_NONE;
+		nvnc_log(NVNC_LOG_PANIC, "Failed to satisfy requested security constraints");
 	}
 
 	stream_write(client->net_stream, security, sizeof(*security) +
@@ -2293,9 +2300,8 @@ bool nvnc_has_auth(void)
 }
 
 EXPORT
-int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
-                     const char* cert_path, nvnc_auth_fn auth_fn,
-                     void* userdata)
+int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
+                     const char* cert_path)
 {
 #ifdef ENABLE_TLS
 	if (self->tls_creds)
@@ -2326,9 +2332,6 @@ int nvnc_enable_auth(struct nvnc* self, const char* privkey_path,
 		goto cert_set_failure;
 	}
 
-	self->auth_fn = auth_fn;
-	self->auth_ud = userdata;
-
 	return 0;
 
 cert_set_failure:
@@ -2341,10 +2344,13 @@ cert_alloc_failure:
 }
 
 EXPORT
-int nvnc_enable_auth2(struct nvnc* self, nvnc_auth_fn auth_fn, void* userdata)
+int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
+		nvnc_auth_fn auth_fn, void* userdata)
 {
 #ifdef HAVE_CRYPTO
+	self->auth_flags = flags;
 	self->auth_fn = auth_fn;
+	self->auth_ud = userdata;
 	return 0;
 #endif
 	return -1;

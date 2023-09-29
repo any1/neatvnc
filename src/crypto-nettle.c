@@ -609,7 +609,8 @@ bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
 	}
 
 	char head[128];
-	strlcpy(head, line, sizeof(head));
+	strncpy(head, line, sizeof(head));
+	head[sizeof(head) - 1] = '\0';
 	char* end = strchr(head, '\n');
 	if (end)
 		*end = '\0';

@@ -103,7 +103,7 @@ struct nvnc_client {
 	uint32_t known_width;
 	uint32_t known_height;
 	struct cut_text cut_text;
-	bool is_qemu_key_ext_notified;
+	bool is_ext_notified;
 	struct encoder* encoder;
 	uint32_t cursor_seq;
 	int quality;

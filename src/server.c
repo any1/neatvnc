@@ -75,7 +75,7 @@
 #define EXPORT __attribute__((visibility("default")))
 
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
-static int send_qemu_key_ext_frame(struct nvnc_client* client);
+static bool send_ext_support_frame(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		struct nvnc_fb*);
 static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
@@ -1072,13 +1072,13 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			return;
 	}
 
-	if (server->key_code_fn && !client->is_qemu_key_ext_notified
-	    && client_has_encoding(client, RFB_ENCODING_QEMU_EXT_KEY_EVENT)) {
-		send_qemu_key_ext_frame(client);
-		client->is_qemu_key_ext_notified = true;
+	if (!client->is_ext_notified) {
+		client->is_ext_notified = true;
 
-		if (--client->n_pending_requests <= 0)
-			return;
+		if (send_ext_support_frame(client)) {
+			if (--client->n_pending_requests <= 0)
+				return;
+		}
 	}
 
 	if (server->cursor_seq != client->cursor_seq
@@ -2120,20 +2120,36 @@ static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
 	return 0;
 }
 
-static int send_qemu_key_ext_frame(struct nvnc_client* client)
+static bool send_ext_support_frame(struct nvnc_client* client)
 {
+	int has_qemu_ext =
+		client_has_encoding(client, RFB_ENCODING_QEMU_EXT_KEY_EVENT);
+	int has_ntp = client_has_encoding(client, RFB_ENCODING_NTP);
+	int n_rects = has_qemu_ext + has_ntp;
+	if (n_rects == 0)
+		return false;
+
 	struct rfb_server_fb_update_msg head = {
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(1),
+		.n_rects = htons(n_rects),
 	};
-
-	struct rfb_server_fb_rect rect = {
-		.encoding = htonl(RFB_ENCODING_QEMU_EXT_KEY_EVENT),
-	};
-
 	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
-	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
-	return 0;
+
+	if (has_qemu_ext) {
+		struct rfb_server_fb_rect rect = {
+			.encoding = htonl(RFB_ENCODING_QEMU_EXT_KEY_EVENT),
+		};
+		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	}
+
+	if (has_ntp) {
+		struct rfb_server_fb_rect rect = {
+			.encoding = htonl(RFB_ENCODING_NTP),
+		};
+		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	}
+
+	return true;
 }
 
 void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage)

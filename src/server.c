@@ -755,11 +755,10 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 	char username[256];
 	char password[256];
 
-	strncpy(username, (const char*)(msg + 1), username_len + 1);
-	username[sizeof(username) - 1] = '\0';
-	strncpy(password, (const char*)(msg + 2 + username_len),
-			password_len + 1);
-	password[sizeof(password) - 1] = '\0';
+	memcpy(username, (const char*)(msg + 1), username_len);
+	username[username_len] = '\0';
+	memcpy(password, (const char*)(msg + 2 + username_len), password_len);
+	password[password_len] = '\0';
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
 		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);

@@ -14,15 +14,12 @@
  */
 
 #include "base64.h"
-#include "neatvnc.h"
 
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define EXPORT __attribute__((visibility("default")))
 
 static const char base64_enc_lut[] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -155,16 +152,4 @@ ssize_t base64_decode(uint8_t* dst, const char* src)
 	}
 
 	return i * 3 + di;
-}
-
-EXPORT
-void nvnc_base64_encode(char* dst, const uint8_t* src, size_t src_len)
-{
-	base64_encode(dst, src, src_len);
-}
-
-EXPORT
-ssize_t nvnc_base64_decode(uint8_t* dst, const char* src)
-{
-	return base64_decode(dst, src);
 }

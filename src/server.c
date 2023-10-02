@@ -267,7 +267,7 @@ static int security_handshake_failed(struct nvnc_client* client,
 
 	client->state = VNC_CLIENT_STATE_ERROR;
 
-	uint8_t* result = (uint8_t*)buffer;
+	uint32_t* result = (uint32_t*)buffer;
 
 	struct rfb_error_reason* reason =
 	        (struct rfb_error_reason*)(buffer + sizeof(*result));

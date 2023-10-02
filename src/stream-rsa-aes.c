@@ -170,13 +170,16 @@ static int stream_rsa_aes_send(struct stream* base, struct rcbuf* payload,
 		vec_append(&buf, mac, sizeof(mac));
 	}
 
+	size_t payload_size = payload->size;
+	rcbuf_unref(payload);
+
 	int r = stream_tcp_send(base, rcbuf_new(buf.data, buf.len), on_done,
 			userdata);
 	if (r < 0) {
 		return r;
 	}
 
-	return payload->size;
+	return payload_size;
 }
 
 static struct stream_impl impl = {

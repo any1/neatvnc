@@ -91,7 +91,6 @@ sources = [
 	'src/resampler.c',
 	'src/transform-util.c',
 	'src/damage-refinery.c',
-	'src/murmurhash.c',
 	'src/encoder.c',
 	'src/cursor.c',
 	'src/logging.c',

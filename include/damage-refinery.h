@@ -20,8 +20,10 @@
 
 struct pixman_region16;
 struct nvnc_fb;
+struct XXH3_state_s;
 
 struct damage_refinery {
+	struct XXH3_state_s* state;
 	uint32_t* hashes;
 	uint32_t width;
 	uint32_t height;

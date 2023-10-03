@@ -24,7 +24,10 @@
 #include "fb.h"
 #include "pixels.h"
 #include "damage-refinery.h"
-#include "murmurhash.h"
+
+#define XXH_STATIC_LINKING_ONLY
+#define XXH_IMPLEMENTATION
+#include "xxhash.h"
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
@@ -39,9 +42,15 @@ int damage_refinery_init(struct damage_refinery* self, uint32_t width,
 	uint32_t twidth = UDIV_UP(width, 32);
 	uint32_t theight = UDIV_UP(height, 32);
 
-	self->hashes = calloc(twidth * theight, sizeof(*self->hashes));
-	if (!self->hashes)
+	self->state = XXH3_createState();
+	if (!self->state)
 		return -1;
+
+	self->hashes = calloc(twidth * theight, sizeof(*self->hashes));
+	if (!self->hashes) {
+		XXH3_freeState(self->state);
+		return -1;
+	}
 
 	return 0;
 }
@@ -58,6 +67,7 @@ int damage_refinery_resize(struct damage_refinery* self, uint32_t width,
 
 void damage_refinery_destroy(struct damage_refinery* self)
 {
+	XXH3_freeState(self->state);
 	free(self->hashes);
 }
 
@@ -73,14 +83,15 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 	int y_start = ty * 32;
 	int y_stop = MIN((ty + 1) * 32, self->height);
 
-	uint32_t hash = 0;
 	int32_t xoff = x_start * bpp;
 
-	for (int y = y_start; y < y_stop; ++y)
-		hash = murmurhash((void*)&(pixels[xoff + y * byte_stride]),
-				bpp * (x_stop - x_start), hash);
+	XXH3_64bits_reset(self->state);
+	for (int y = y_start; y < y_stop; ++y) {
+		XXH3_64bits_update(self->state, pixels + xoff + y * byte_stride,
+				bpp * (x_stop - x_start));
+	}
 
-	return hash;
+	return XXH3_64bits_digest(self->state);
 }
 
 static uint32_t* damage_tile_hash_ptr(struct damage_refinery* self,

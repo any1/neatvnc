@@ -159,7 +159,7 @@ static inline void client_ref(struct nvnc_client* client)
 	++client->ref;
 }
 
-static void deferred_client_close(void *obj)
+static void do_deferred_client_close(void *obj)
 {
 	client_unref(obj);
 }
@@ -167,6 +167,14 @@ static void deferred_client_close(void *obj)
 static void stop_self(void* obj)
 {
 	aml_stop(aml_get_default(), obj);
+}
+
+static void defer_client_close(struct nvnc_client* client)
+{
+	struct aml_idle* idle = aml_idle_new(stop_self, client,
+			do_deferred_client_close);
+	aml_start(aml_get_default(), idle);
+	aml_unref(idle);
 }
 
 static void close_after_write(void* userdata, enum stream_req_status status)
@@ -180,10 +188,7 @@ static void close_after_write(void* userdata, enum stream_req_status status)
 	 * stays alive while the stream is processing its queue.
 	 * TODO: Figure out some better resource management for clients
 	 */
-	struct aml_idle* idle = aml_idle_new(stop_self, client,
-			deferred_client_close);
-	aml_start(aml_get_default(), idle);
-	aml_unref(idle);
+	defer_client_close(client);
 }
 
 static int handle_unsupported_version(struct nvnc_client* client)
@@ -1621,7 +1626,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	if (event == STREAM_EVENT_REMOTE_CLOSED) {
 		nvnc_log(NVNC_LOG_INFO, "Client %p (%d) hung up", client, client->ref);
-		nvnc_client_close(client);
+		defer_client_close(client);
 		return;
 	}
 

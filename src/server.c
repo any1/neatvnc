@@ -1973,6 +1973,11 @@ void nvnc_close(struct nvnc* self)
 	unlink_fd_path(self->fd);
 	close(self->fd);
 
+#ifdef HAVE_CRYPTO
+	crypto_rsa_priv_key_del(self->rsa_priv);
+	crypto_rsa_pub_key_del(self->rsa_pub);
+#endif
+
 #ifdef ENABLE_TLS
 	if (self->tls_creds) {
 		gnutls_certificate_free_credentials(self->tls_creds);

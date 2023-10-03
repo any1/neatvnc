@@ -634,9 +634,9 @@ bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
 
 	uint8_t* der = malloc(BASE64_DECODED_MAX_SIZE(base64_der.len));
 	assert(der);
-	vec_destroy(&base64_der);
 
 	ssize_t der_len = base64_decode(der, base64_der.data);
+	vec_destroy(&base64_der);
 	if (der_len < 0) {
 		free(der);
 		return false;

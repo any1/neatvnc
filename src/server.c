@@ -970,9 +970,10 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_DESKTOPSIZE:
 		case RFB_ENCODING_EXTENDEDDESKTOPSIZE:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
+			client->encodings[n++] = encoding;
 		case RFB_ENCODING_PTS:
 		case RFB_ENCODING_NTP:
-			client->encodings[n++] = encoding;
+			;
 		}
 
 		if (RFB_ENCODING_JPEG_LOWQ <= encoding &&

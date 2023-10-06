@@ -18,6 +18,9 @@ neat.
  * gnutls (optional)
  * libdrm (optional)
  * libturbojpeg (optional)
+ * nettle (optional)
+ * hogweed (optional)
+ * gmp (optional)
  * pixman
  * zlib
 

@@ -13,7 +13,6 @@ buildtype = get_option('buildtype')
 host_system = host_machine.system()
 
 c_args = [
-	'-DPROJECT_VERSION="@0@"'.format(meson.project_version()),
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
 	'-DAML_UNSTABLE_API=1',
@@ -27,17 +26,20 @@ if buildtype != 'debug' and buildtype != 'debugoptimized'
 	c_args += '-DNDEBUG'
 endif
 
+version = '"@0@"'.format(meson.project_version())
 git = find_program('git', native: true, required: false)
 if git.found()
-	git_describe = run_command([git, 'describe', '--tags', '--long'], check: false)
-	git_branch = run_command([git, 'rev-parse', '--abbrev-ref', 'HEAD'], check: false)
-	if git_describe.returncode() == 0 and git_branch.returncode() == 0
-		c_args += '-DGIT_VERSION="@0@ (@1@)"'.format(
-			git_describe.stdout().strip(),
+	git_commit = run_command([git, 'rev-parse', '--short', 'HEAD'])
+	git_branch = run_command([git, 'rev-parse', '--abbrev-ref', 'HEAD'])
+	if git_commit.returncode() == 0 and git_branch.returncode() == 0
+		version = '"v@0@-@1@ (@2@)"'.format(
+			meson.project_version(),
+			git_commit.stdout().strip(),
 			git_branch.stdout().strip(),
 		)
 	endif
 endif
+add_project_arguments('-DPROJECT_VERSION=@0@'.format(version), language: 'c')
 
 libdrm_inc = dependency('libdrm').partial_dependency(compile_args: true)
 

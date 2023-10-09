@@ -83,9 +83,7 @@ static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
 static void process_fb_update_requests(struct nvnc_client* client);
 
-#if defined(GIT_VERSION)
-EXPORT const char nvnc_version[] = GIT_VERSION;
-#elif defined(PROJECT_VERSION)
+#if defined(PROJECT_VERSION)
 EXPORT const char nvnc_version[] = PROJECT_VERSION;
 #else
 EXPORT const char nvnc_version[] = "UNKNOWN";

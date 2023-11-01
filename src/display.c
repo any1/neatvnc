@@ -117,6 +117,9 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 	struct nvnc* server = self->server;
 	assert(server);
 
+	pixman_region_intersect_rect(damage, damage, 0, 0, fb->width,
+			fb->height);
+
 	struct pixman_region16 refined_damage;
 	pixman_region_init(&refined_damage);
 

@@ -318,7 +318,7 @@ static struct crypto_cipher* crypto_cipher_new_aes128_ecb(
 		aes128_set_encrypt_key(&self->enc_ctx.aes128_ecb, enc_key);
 
 	if (dec_key)
-		aes128_set_decrypt_key(&self->enc_ctx.aes128_ecb, dec_key);
+		aes128_set_decrypt_key(&self->dec_ctx.aes128_ecb, dec_key);
 
 	self->encrypt = crypto_cipher_aes128_ecb_encrypt;
 	self->decrypt = crypto_cipher_aes128_ecb_decrypt;

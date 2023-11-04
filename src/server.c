@@ -494,7 +494,6 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	} else {
 		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
 		security_handshake_failed(client, "Invalid username or password");
-		crypto_cipher_del(cipher);
 	}
 
 	return sizeof(*msg) + key_len;

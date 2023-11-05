@@ -82,6 +82,8 @@ static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
 static void process_fb_update_requests(struct nvnc_client* client);
+static void sockaddr_to_string(char* dst, size_t sz,
+		const struct sockaddr* addr);
 
 #if defined(GIT_VERSION)
 EXPORT const char nvnc_version[] = GIT_VERSION;
@@ -1673,21 +1675,23 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
+// TODO: Remove this when nvnc_client_get_hostname gets renamed.
 static void record_peer_hostname(int fd, struct nvnc_client* client)
 {
 	struct sockaddr_storage storage;
 	struct sockaddr* peer = (struct sockaddr*)&storage;
 	socklen_t peerlen = sizeof(storage);
-	if (getpeername(fd, peer, &peerlen) == 0) {
-		if (peer->sa_family == AF_UNIX) {
-			snprintf(client->hostname, sizeof(client->hostname),
-					"unix domain socket");
-		} else {
-			getnameinfo(peer, peerlen,
-					client->hostname, sizeof(client->hostname),
-					NULL, 0, // no need for port
-					0);
-		}
+	if (getpeername(fd, peer, &peerlen) < 0) {
+		nvnc_log(NVNC_LOG_WARNING, "Failed to get address for client: %m");
+		return;
+	}
+
+	if (peer->sa_family == AF_UNIX) {
+		snprintf(client->hostname, sizeof(client->hostname),
+				"unix domain socket");
+	} else {
+		sockaddr_to_string(client->hostname, sizeof(client->hostname),
+				peer);
 	}
 }
 
@@ -1773,6 +1777,11 @@ static void sockaddr_to_string(char* dst, size_t sz, const struct sockaddr* addr
 		break;
 	case AF_INET6:
 		inet_ntop(addr->sa_family, &sa_in6->sin6_addr, dst, sz);
+		break;
+	default:
+		nvnc_log(NVNC_LOG_DEBUG,
+				"Don't know how to convert sa_family %d to string",
+				addr->sa_family);
 		break;
 	}
 }
@@ -2265,6 +2274,8 @@ struct nvnc* nvnc_client_get_server(const struct nvnc_client* client)
 	return client->server;
 }
 
+// TODO: This function should be renamed to nvnc_client_get_address and it
+// should return the sockaddr.
 EXPORT
 const char* nvnc_client_get_hostname(const struct nvnc_client* client) {
 	if (client->hostname[0] == '\0')

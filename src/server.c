@@ -2002,6 +2002,8 @@ void nvnc_close(struct nvnc* self)
 
 static void complete_fb_update(struct nvnc_client* client)
 {
+	if (!client->is_updating)
+		return;
 	client->is_updating = false;
 	assert(client->current_fb);
 	nvnc_fb_release(client->current_fb);

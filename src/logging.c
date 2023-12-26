@@ -183,7 +183,7 @@ void nvnc_set_log_level(enum nvnc_log_level level)
 EXPORT
 void nvnc_set_log_fn(nvnc_log_fn fn)
 {
-	log_fn = fn;
+	log_fn = fn ? fn : nvnc_default_logger;
 }
 
 EXPORT

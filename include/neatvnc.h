@@ -238,5 +238,6 @@ void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t width,
 void nvnc_default_logger(const struct nvnc_log_data* meta, const char* message);
 
 void nvnc_set_log_fn(nvnc_log_fn);
+void nvnc_set_log_fn_thread_local(nvnc_log_fn fn);
 void nvnc_set_log_level(enum nvnc_log_level);
 void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);

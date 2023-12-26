@@ -25,6 +25,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
+#include <threads.h>
 
 #ifdef HAVE_LIBAVUTIL
 #include <libavutil/avutil.h>
@@ -33,6 +34,7 @@
 #define EXPORT __attribute__((visibility("default")))
 
 static nvnc_log_fn log_fn = nvnc_default_logger;
+static thread_local nvnc_log_fn thread_local_log_fn = NULL;
 
 #ifndef NDEBUG
 static enum nvnc_log_level log_level = NVNC_LOG_DEBUG;
@@ -41,6 +43,11 @@ static enum nvnc_log_level log_level = NVNC_LOG_WARNING;
 #endif
 
 static bool is_initialised = false;
+
+static nvnc_log_fn get_log_fn(void)
+{
+	return thread_local_log_fn ? thread_local_log_fn : log_fn;
+}
 
 static char* trim_left(char* str)
 {
@@ -97,7 +104,7 @@ static void nvnc__vlog(const struct nvnc_log_data* meta, const char* fmt,
 
 	if (meta->level <= log_level) {
 		vsnprintf(message, sizeof(message), fmt, args);
-		log_fn(meta, trim(message));
+		get_log_fn()(meta, trim(message));
 	}
 
 	if (meta->level == NVNC_LOG_PANIC)
@@ -177,6 +184,12 @@ EXPORT
 void nvnc_set_log_fn(nvnc_log_fn fn)
 {
 	log_fn = fn;
+}
+
+EXPORT
+void nvnc_set_log_fn_thread_local(nvnc_log_fn fn)
+{
+	thread_local_log_fn = fn;
 }
 
 EXPORT

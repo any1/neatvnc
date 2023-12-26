@@ -32,10 +32,7 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-static void default_logger(const struct nvnc_log_data* meta,
-		const char* message);
-
-static nvnc_log_fn log_fn = default_logger;
+static nvnc_log_fn log_fn = nvnc_default_logger;
 
 #ifndef NDEBUG
 static enum nvnc_log_level log_level = NVNC_LOG_DEBUG;
@@ -107,7 +104,8 @@ static void nvnc__vlog(const struct nvnc_log_data* meta, const char* fmt,
 		abort();
 }
 
-static void default_logger(const struct nvnc_log_data* meta,
+EXPORT
+void nvnc_default_logger(const struct nvnc_log_data* meta,
 		const char* message)
 {
 	const char* level = log_level_to_string(meta->level);

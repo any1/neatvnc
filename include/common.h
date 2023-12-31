@@ -83,7 +83,6 @@ struct nvnc_client {
 	struct nvnc_common common;
 	int ref;
 	struct stream* net_stream;
-	char hostname[256];
 	char username[256];
 	struct nvnc* server;
 	enum nvnc_client_state state;

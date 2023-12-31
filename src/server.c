@@ -1672,26 +1672,6 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
-// TODO: Remove this when nvnc_client_get_hostname gets renamed.
-static void record_peer_hostname(int fd, struct nvnc_client* client)
-{
-	struct sockaddr_storage storage;
-	struct sockaddr* peer = (struct sockaddr*)&storage;
-	socklen_t peerlen = sizeof(storage);
-	if (getpeername(fd, peer, &peerlen) < 0) {
-		nvnc_log(NVNC_LOG_WARNING, "Failed to get address for client: %m");
-		return;
-	}
-
-	if (peer->sa_family == AF_UNIX) {
-		snprintf(client->hostname, sizeof(client->hostname),
-				"unix domain socket");
-	} else {
-		sockaddr_to_string(client->hostname, sizeof(client->hostname),
-				peer);
-	}
-}
-
 static void on_connection(void* obj)
 {
 	struct nvnc* server = aml_get_userdata(obj);
@@ -1712,8 +1692,6 @@ static void on_connection(void* obj)
 
 	int one = 1;
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-
-	record_peer_hostname(fd, client);
 
 #ifdef ENABLE_WEBSOCKET
 	if (server->socket_type == NVNC__SOCKET_WEBSOCKET)
@@ -1749,7 +1727,14 @@ static void on_connection(void* obj)
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
 
-	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p (ref %d)", client->hostname, client, client->ref);
+	char ip_address[256];
+	struct sockaddr_storage addr;
+	socklen_t addrlen = sizeof(addr);
+	nvnc_client_get_address(client, (struct sockaddr*)&addr, &addrlen);
+	sockaddr_to_string(ip_address, sizeof(ip_address),
+			(struct sockaddr*)&addr);
+	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p (ref %d)",
+			ip_address, client, client->ref);
 
 	return;
 
@@ -2273,13 +2258,10 @@ struct nvnc* nvnc_client_get_server(const struct nvnc_client* client)
 	return client->server;
 }
 
-// TODO: This function should be renamed to nvnc_client_get_address and it
-// should return the sockaddr.
 EXPORT
-const char* nvnc_client_get_hostname(const struct nvnc_client* client) {
-	if (client->hostname[0] == '\0')
-		return NULL;
-	return client->hostname;
+int nvnc_client_get_address(const struct nvnc_client* client,
+		struct sockaddr* restrict addr, socklen_t* restrict addrlen) {
+	return getpeername(client->net_stream->fd, addr, addrlen);
 }
 
 EXPORT

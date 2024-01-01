@@ -409,10 +409,18 @@ static void h264_encoder__do_work(void* handle)
 	frame->hw_frames_ctx = av_buffer_ref(self->hw_frames_ctx);
 
 	if (self->current_frame_is_keyframe) {
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(58, 7, 100)
+		frame->flags |= AV_FRAME_FLAG_KEY;
+#else
 		frame->key_frame = 1;
+#endif
 		frame->pict_type = AV_PICTURE_TYPE_I;
 	} else {
+#if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(58, 7, 100)
+		frame->flags &= ~AV_FRAME_FLAG_KEY;
+#else
 		frame->key_frame = 0;
+#endif
 		frame->pict_type = AV_PICTURE_TYPE_P;
 	}
 

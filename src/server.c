@@ -946,7 +946,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	        (struct rfb_client_set_encodings_msg*)(client->msg_buffer +
 	                                               client->buffer_index);
 
-	size_t n_encodings = MIN(MAX_ENCODINGS, ntohs(msg->n_encodings));
+	size_t n_encodings = ntohs(msg->n_encodings);
 	size_t n = 0;
 
 	if (client->buffer_len - client->buffer_index <
@@ -955,7 +955,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 	client->quality = 10;
 
-	for (size_t i = 0; i < n_encodings; ++i) {
+	for (size_t i = 0; i < n_encodings && n < MAX_ENCODINGS; ++i) {
 		enum rfb_encodings encoding = htonl(msg->encodings[i]);
 
 		switch (encoding) {

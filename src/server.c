@@ -923,6 +923,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 
 	if (!fmt->true_colour_flag) {
 		/* We don't really know what to do with color maps right now */
+		nvnc_log(NVNC_LOG_WARNING, "Client requested non-true-color pixel format, but this is not implemented.");
 		nvnc_client_close(client);
 		return 0;
 	}

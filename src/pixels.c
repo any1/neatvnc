@@ -657,6 +657,8 @@ const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt)
 	CASE(8, 4, 0):   return "XRGB4444";
 	CASE(0, 4, 8):   return "XBGR4444";
 	CASE(11, 5, 0):  return "RGB565";
+	CASE(4, 2, 0):   return "RGB222";
+	CASE(0, 2, 4):   return "BGR222";
 #undef CASE
 	}
 

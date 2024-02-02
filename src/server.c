@@ -84,6 +84,7 @@ static bool client_has_encoding(const struct nvnc_client* client,
 static void process_fb_update_requests(struct nvnc_client* client);
 static void sockaddr_to_string(char* dst, size_t sz,
 		const struct sockaddr* addr);
+static const char* encoding_to_string(enum rfb_encodings encoding);
 
 #if defined(PROJECT_VERSION)
 EXPORT const char nvnc_version[] = PROJECT_VERSION;
@@ -944,6 +945,20 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	return 4 + sizeof(struct rfb_pixel_format);
 }
 
+static void encodings_to_string_list(char* dst, size_t len,
+		enum rfb_encodings* encodings, size_t n)
+{
+	size_t off = 0;
+
+	if (n > 0)
+		off += snprintf(dst, len, "%s",
+				encoding_to_string(encodings[0]));
+
+	for (size_t i = 1; i < n; ++i)
+		off += snprintf(dst + off, len - off, ",%s",
+				encoding_to_string(encodings[i]));
+}
+
 static int on_client_set_encodings(struct nvnc_client* client)
 {
 	struct rfb_client_set_encodings_msg* msg =
@@ -984,6 +999,12 @@ static int on_client_set_encodings(struct nvnc_client* client)
 				encoding <= RFB_ENCODING_JPEG_HIGHQ)
 			client->quality = encoding - RFB_ENCODING_JPEG_LOWQ;
 	}
+
+	char encoding_list[256] = {};
+	encodings_to_string_list(encoding_list, sizeof(encoding_list),
+			client->encodings, n);
+	nvnc_log(NVNC_LOG_DEBUG, "Client %p set encodings: %s", client,
+			encoding_list);
 
 	client->n_encodings = n;
 
@@ -1042,13 +1063,20 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 {
 	switch (encoding) {
 	case RFB_ENCODING_RAW: return "raw";
+	case RFB_ENCODING_COPYRECT: return "copyrect";
+	case RFB_ENCODING_RRE: return "rre";
+	case RFB_ENCODING_HEXTILE: return "hextile";
 	case RFB_ENCODING_TIGHT: return "tight";
+	case RFB_ENCODING_TRLE: return "trle";
 	case RFB_ENCODING_ZRLE: return "zrle";
 	case RFB_ENCODING_OPEN_H264: return "open-h264";
-	default:
-		break;
+	case RFB_ENCODING_CURSOR: return "cursor";
+	case RFB_ENCODING_DESKTOPSIZE: return "desktop-size";
+	case RFB_ENCODING_EXTENDEDDESKTOPSIZE: return "extended-desktop-size";
+	case RFB_ENCODING_QEMU_EXT_KEY_EVENT: return "qemu-extended-key-event";
+	case RFB_ENCODING_PTS: return "pts";
+	case RFB_ENCODING_NTP: return "ntp";
 	}
-
 	return "UNKNOWN";
 }
 

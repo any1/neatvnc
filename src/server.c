@@ -77,7 +77,7 @@
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
 static bool send_ext_support_frame(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
-		struct nvnc_fb*);
+		const struct nvnc_fb*);
 static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
@@ -1082,6 +1082,62 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	return "UNKNOWN";
 }
 
+static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
+{
+	struct nvnc* server = client->server;
+
+	enum rfb_encodings encoding = choose_frame_encoding(client, fb);
+	if (client->encoder && encoding == encoder_get_type(client->encoder))
+		return true;
+
+	int width = server->display->buffer->width;
+	int height = server->display->buffer->height;
+	if (client->encoder) {
+		server->n_damage_clients -= !(client->encoder->impl->flags &
+				ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+		client->encoder->on_done = NULL;
+	}
+	encoder_unref(client->encoder);
+
+	/* Zlib streams need to be saved so we keep encoders around that
+	 * use them.
+	 */
+	switch (encoding) {
+	case RFB_ENCODING_ZRLE:
+		if (!client->zrle_encoder) {
+			client->zrle_encoder =
+				encoder_new(encoding, width, height);
+		}
+		client->encoder = client->zrle_encoder;
+		encoder_ref(client->encoder);
+		break;
+	case RFB_ENCODING_TIGHT:
+		if (!client->tight_encoder) {
+			client->tight_encoder =
+				encoder_new(encoding, width, height);
+		}
+		client->encoder = client->tight_encoder;
+		encoder_ref(client->encoder);
+		break;
+	default:
+		client->encoder = encoder_new(encoding, width, height);
+		break;
+	}
+
+	if (!client->encoder) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to allocate new encoder");
+		return false;
+	}
+
+	server->n_damage_clients += !(client->encoder->impl->flags &
+			ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
+
+	nvnc_log(NVNC_LOG_INFO, "Choosing %s encoding for client %p",
+			encoding_to_string(encoding), client);
+
+	return true;
+}
+
 static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -1131,57 +1187,10 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (!pixman_region_not_empty(&client->damage))
 		return;
 
+	if (!ensure_encoder(client, fb))
+		return;
+
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
-
-	enum rfb_encodings encoding = choose_frame_encoding(client, fb);
-	if (!client->encoder || encoding != encoder_get_type(client->encoder)) {
-		int width = server->display->buffer->width;
-		int height = server->display->buffer->height;
-		if (client->encoder) {
-			server->n_damage_clients -=
-				!(client->encoder->impl->flags &
-						ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
-			client->encoder->on_done = NULL;
-		}
-		encoder_unref(client->encoder);
-
-		/* Zlib streams need to be saved so we keep encoders around that
-		 * use them.
-		 */
-		switch (encoding) {
-		case RFB_ENCODING_ZRLE:
-			if (!client->zrle_encoder) {
-				client->zrle_encoder = encoder_new(encoding,
-						width, height);
-			}
-			client->encoder = client->zrle_encoder;
-			encoder_ref(client->encoder);
-			break;
-		case RFB_ENCODING_TIGHT:
-			if (!client->tight_encoder) {
-				client->tight_encoder = encoder_new(encoding,
-						width, height);
-			}
-			client->encoder = client->tight_encoder;
-			encoder_ref(client->encoder);
-			break;
-		default:
-			client->encoder = encoder_new(encoding, width, height);
-			break;
-		}
-
-		if (!client->encoder) {
-			nvnc_log(NVNC_LOG_ERROR, "Failed to allocate new encoder");
-			return;
-		}
-
-		server->n_damage_clients +=
-			!(client->encoder->impl->flags &
-					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
-
-		nvnc_log(NVNC_LOG_INFO, "Choosing %s encoding for client %p",
-				encoding_to_string(encoding), client);
-	}
 
 	/* The client's damage is exchanged for an empty one */
 	struct pixman_region16 damage = client->damage;
@@ -2069,7 +2078,7 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 }
 
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
-		struct nvnc_fb* fb)
+		const struct nvnc_fb* fb)
 {
 	for (size_t i = 0; i < client->n_encodings; ++i)
 		switch (client->encodings[i]) {

@@ -108,6 +108,7 @@ struct nvnc_client {
 	struct encoder* tight_encoder;
 	uint32_t cursor_seq;
 	int quality;
+	bool formats_changed;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

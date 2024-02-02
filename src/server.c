@@ -938,6 +938,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 
 	client->has_pixfmt = true;
+	client->formats_changed = true;
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client %p chose pixel format: %s", client,
 			rfb_pixfmt_to_string(fmt));
@@ -1007,6 +1008,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 			encoding_list);
 
 	client->n_encodings = n;
+	client->formats_changed = true;
 
 	return sizeof(*msg) + 4 * n_encodings;
 }
@@ -1186,6 +1188,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	pixman_region_init(&client->damage);
 
 	client->is_updating = true;
+	client->formats_changed = false;
 	client->current_fb = fb;
 	nvnc_fb_hold(fb);
 	nvnc_fb_ref(fb);
@@ -1207,6 +1210,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
 		client_unref(client);
 		client->is_updating = false;
+		client->formats_changed = false;
 		assert(client->current_fb);
 		nvnc_fb_release(client->current_fb);
 		nvnc_fb_unref(client->current_fb);
@@ -2104,6 +2108,17 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		goto complete;
+
+	if (client->formats_changed) {
+		/* Client has requested new pixel format or encoding in the
+		 * meantime, so it probably won't know what to do with this
+		 * frame. Pending requests get incremented because this one is
+		 * dropped.
+		 */
+		nvnc_log(NVNC_LOG_DEBUG, "Client changed pixel format or encoding with in-flight buffer");
+		client->n_pending_requests++;
+		goto complete;
+	}
 
 	DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
 	n_rects += will_send_pts(client, pts) ? 1 : 0;

@@ -104,6 +104,8 @@ struct nvnc_client {
 	struct cut_text cut_text;
 	bool is_ext_notified;
 	struct encoder* encoder;
+	struct encoder* zrle_encoder;
+	struct encoder* tight_encoder;
 	uint32_t cursor_seq;
 	int quality;
 

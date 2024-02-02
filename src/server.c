@@ -143,6 +143,8 @@ static void client_close(struct nvnc_client* client)
 		client->encoder->on_done = NULL;
 	}
 	encoder_unref(client->encoder);
+	encoder_unref(client->zrle_encoder);
+	encoder_unref(client->tight_encoder);
 	pixman_region_fini(&client->damage);
 	free(client->cut_text.buffer);
 	free(client);
@@ -1111,7 +1113,32 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			client->encoder->on_done = NULL;
 		}
 		encoder_unref(client->encoder);
-		client->encoder = encoder_new(encoding, width, height);
+
+		/* Zlib streams need to be saved so we keep encoders around that
+		 * use them.
+		 */
+		switch (encoding) {
+		case RFB_ENCODING_ZRLE:
+			if (!client->zrle_encoder) {
+				client->zrle_encoder = encoder_new(encoding,
+						width, height);
+			}
+			client->encoder = client->zrle_encoder;
+			encoder_ref(client->encoder);
+			break;
+		case RFB_ENCODING_TIGHT:
+			if (!client->tight_encoder) {
+				client->tight_encoder = encoder_new(encoding,
+						width, height);
+			}
+			client->encoder = client->tight_encoder;
+			encoder_ref(client->encoder);
+			break;
+		default:
+			client->encoder = encoder_new(encoding, width, height);
+			break;
+		}
+
 		if (!client->encoder) {
 			nvnc_log(NVNC_LOG_ERROR, "Failed to allocate new encoder");
 			return;

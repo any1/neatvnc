@@ -938,6 +938,9 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 
 	client->has_pixfmt = true;
 
+	nvnc_log(NVNC_LOG_DEBUG, "Client %p chose pixel format: %s", client,
+			rfb_pixfmt_to_string(fmt));
+
 	return 4 + sizeof(struct rfb_pixel_format);
 }
 

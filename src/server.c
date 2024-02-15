@@ -269,8 +269,15 @@ static int on_version_message(struct nvnc_client* client)
 }
 
 static int security_handshake_failed(struct nvnc_client* client,
-		const char* reason_string)
+		const char* username, const char* reason_string)
 {
+	if (username)
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
+				username, reason_string);
+	else
+		nvnc_log(NVNC_LOG_INFO, "Security handshake: %s",
+				username, reason_string);
+
 	char buffer[256];
 
 	client->state = VNC_CLIENT_STATE_ERROR;
@@ -291,8 +298,15 @@ static int security_handshake_failed(struct nvnc_client* client,
 	return 0;
 }
 
-static int security_handshake_ok(struct nvnc_client* client)
+static int security_handshake_ok(struct nvnc_client* client, const char* username)
 {
+	if (username) {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
+
+		strncpy(client->username, username, sizeof(client->username));
+		client->username[sizeof(client->username) - 1] = '\0';
+	}
+
 	uint32_t result = htonl(RFB_SECURITY_HANDSHAKE_OK);
 	return stream_write(client->net_stream, &result, sizeof(result), NULL,
 			NULL);
@@ -329,7 +343,8 @@ static int on_vencrypt_version_message(struct nvnc_client* client)
 		return 0;
 
 	if (msg->major != 0 || msg->minor != 2) {
-		security_handshake_failed(client, "Unsupported VeNCrypt version");
+		security_handshake_failed(client, NULL,
+				"Unsupported VeNCrypt version");
 		return sizeof(*msg);
 	}
 
@@ -398,16 +413,12 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	username[MIN(ulen, sizeof(username) - 1)] = '\0';
 	password[MIN(plen, sizeof(password) - 1)] = '\0';
 
-	strncpy(client->username, username, sizeof(client->username));
-	client->username[sizeof(client->username) - 1] = '\0';
-
 	if (server->auth_fn(username, password, server->auth_ud)) {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
-		security_handshake_ok(client);
+		security_handshake_ok(client, username);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	} else {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
-		security_handshake_failed(client, "Invalid username or password");
+		security_handshake_failed(client, username,
+				"Invalid username or password");
 	}
 
 	return sizeof(*msg) + ulen + plen;
@@ -491,12 +502,11 @@ static int on_apple_dh_response(struct nvnc_client* client)
 	crypto_cipher_del(cipher);
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
-		security_handshake_ok(client);
+		security_handshake_ok(client, username);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	} else {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
-		security_handshake_failed(client, "Invalid username or password");
+		security_handshake_failed(client, username,
+				"Invalid username or password");
 	}
 
 	return sizeof(*msg) + key_len;
@@ -768,12 +778,11 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 	password[password_len] = '\0';
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
-		security_handshake_ok(client);
+		security_handshake_ok(client, username);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	} else {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" rejected", username);
-		security_handshake_failed(client, "Invalid username or password");
+		security_handshake_failed(client, username,
+				"Invalid username or password");
 	}
 
 	return 2 + username_len + password_len;
@@ -791,7 +800,7 @@ static int on_security_message(struct nvnc_client* client)
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
-		security_handshake_ok(client);
+		security_handshake_ok(client, NULL);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
 #ifdef ENABLE_TLS
@@ -821,7 +830,8 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 	default:
-		security_handshake_failed(client, "Unsupported security type");
+		security_handshake_failed(client, NULL,
+				"Unsupported security type");
 		break;
 	}
 

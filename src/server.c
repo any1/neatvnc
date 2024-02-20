@@ -924,6 +924,30 @@ static int on_init_message(struct nvnc_client* client)
 	return sizeof(shared_flag);
 }
 
+static int cook_pixel_map(struct nvnc_client* client)
+{
+	struct rfb_pixel_format* fmt = &client->pixfmt;
+
+	// We'll just pretend that this is rgb332
+	fmt->true_colour_flag = true;
+	fmt->big_endian_flag = false;
+	fmt->bits_per_pixel = 8;
+	fmt->depth = 8;
+	fmt->red_max = 7;
+	fmt->green_max = 7;
+	fmt->blue_max = 3;
+	fmt->red_shift = 5;
+	fmt->green_shift = 2;
+	fmt->blue_shift = 0;
+
+	uint8_t buf[sizeof(struct rfb_set_colour_map_entries_msg)
+		+ 256 * sizeof(struct rfb_colour_map_entry)];
+	struct rfb_set_colour_map_entries_msg* msg =
+		(struct rfb_set_colour_map_entries_msg*)buf;
+	make_rgb332_pal8_map(msg);
+	return stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
+}
+
 static int on_client_set_pixel_format(struct nvnc_client* client)
 {
 	if (client->buffer_len - client->buffer_index <
@@ -934,24 +958,24 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	        (struct rfb_pixel_format*)(client->msg_buffer +
 	                                   client->buffer_index + 4);
 
-	if (!fmt->true_colour_flag) {
-		/* We don't really know what to do with color maps right now */
-		nvnc_log(NVNC_LOG_WARNING, "Client requested non-true-color pixel format, but this is not implemented.");
-		nvnc_client_close(client);
-		return 0;
+	if (fmt->true_colour_flag) {
+		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
+				client);
+		fmt->red_max = ntohs(fmt->red_max);
+		fmt->green_max = ntohs(fmt->green_max);
+		fmt->blue_max = ntohs(fmt->blue_max);
+		memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
+	} else {
+		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
+				client);
+		cook_pixel_map(client);
 	}
-
-	fmt->red_max = ntohs(fmt->red_max);
-	fmt->green_max = ntohs(fmt->green_max);
-	fmt->blue_max = ntohs(fmt->blue_max);
-
-	memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 
 	client->has_pixfmt = true;
 	client->formats_changed = true;
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client %p chose pixel format: %s", client,
-			rfb_pixfmt_to_string(fmt));
+			rfb_pixfmt_to_string(&client->pixfmt));
 
 	return 4 + sizeof(struct rfb_pixel_format);
 }

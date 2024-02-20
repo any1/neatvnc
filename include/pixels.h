@@ -22,6 +22,7 @@
 #include <stdbool.h>
 
 struct rfb_pixel_format;
+struct rfb_set_colour_map_entries_msg;
 
 void pixel_to_cpixel(uint8_t* restrict dst,
                        const struct rfb_pixel_format* dst_fmt,
@@ -41,3 +42,4 @@ bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 
 const char* drm_format_to_string(uint32_t fmt);
 const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt);
+void make_rgb332_pal8_map(struct rfb_set_colour_map_entries_msg* msg);

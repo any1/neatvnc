@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>
+#include <math.h>
 
 #define POPCOUNT(x) __builtin_popcount(x)
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
@@ -636,9 +637,6 @@ const char* drm_format_to_string(uint32_t fmt)
 // Not exact, but close enough for debugging
 const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt)
 {
-	if (!(fmt->red_max == fmt->green_max && fmt->red_max == fmt->blue_max))
-		goto failure;
-
 	uint32_t profile = (fmt->red_shift << 16) | (fmt->green_shift << 8)
 		| (fmt->blue_shift);
 
@@ -657,11 +655,25 @@ const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt)
 	CASE(8, 4, 0):   return "XRGB4444";
 	CASE(0, 4, 8):   return "XBGR4444";
 	CASE(11, 5, 0):  return "RGB565";
+	CASE(5, 2, 0):   return "RGB332";
+	CASE(0, 2, 5):   return "RGB332";
 	CASE(4, 2, 0):   return "RGB222";
 	CASE(0, 2, 4):   return "BGR222";
 #undef CASE
 	}
-
-failure:
 	return "UNKNOWN";
+}
+
+void make_rgb332_pal8_map(struct rfb_set_colour_map_entries_msg* msg)
+{
+	msg->type = RFB_SERVER_TO_CLIENT_SET_COLOUR_MAP_ENTRIES;
+	msg->padding = 0;
+	msg->first_colour = htons(0);
+	msg->n_colours = htons(256);
+
+	for (unsigned int i = 0; i < 256; ++i) {
+		msg->colours[i].r = htons(round(65535.0 / 7.0 * ((i >> 5) & 7)));
+		msg->colours[i].g = htons(round(65535.0 / 7.0 * ((i >> 2) & 7)));
+		msg->colours[i].b = htons(round(65535.0 / 3.0 * (i & 3)));
+	}
 }

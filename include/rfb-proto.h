@@ -266,3 +266,15 @@ struct rfb_rsa_aes_challenge_msg {
 	uint16_t length;
 	uint8_t challenge[0];
 } RFB_PACKED;
+
+struct rfb_colour_map_entry {
+	uint16_t r, g, b;
+} RFB_PACKED;
+
+struct rfb_set_colour_map_entries_msg {
+	uint8_t type;
+	uint8_t padding;
+	uint16_t first_colour;
+	uint16_t n_colours;
+	struct rfb_colour_map_entry colours[0];
+} RFB_PACKED;

@@ -2109,7 +2109,7 @@ static void complete_fb_update(struct nvnc_client* client)
 	client->current_fb = NULL;
 	process_fb_update_requests(client);
 	client_unref(client);
-	DTRACE_PROBE2(neatvnc, update_fb_done, client, pts);
+	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 }
 
 static void on_write_frame_done(void* userdata, enum stream_req_status status)

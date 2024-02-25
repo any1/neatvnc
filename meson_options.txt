@@ -7,3 +7,4 @@ option('nettle', type: 'feature', value: 'auto', description: 'Enable nettle low
 option('systemtap', type: 'boolean', value: false, description: 'Enable tracing using sdt')
 option('gbm', type: 'feature', value: 'auto', description: 'Enable GBM integration')
 option('h264', type: 'feature', value: 'auto', description: 'Enable open h264 encoding')
+option('experimental', type: 'boolean', value: false, description: 'Enable experimental features')

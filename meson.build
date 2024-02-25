@@ -155,6 +155,13 @@ if enable_websocket
 	config.set('ENABLE_WEBSOCKET', true)
 endif
 
+if get_option('experimental')
+	if buildtype == 'release'
+		warning('Experimental features enabled in release build')
+	endif
+	config.set('ENABLE_EXPERIMENTAL', true)
+endif
+
 configure_file(
 	output: 'config.h',
 	configuration: config,

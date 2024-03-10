@@ -15,13 +15,36 @@
  */
 
 #include "h264-encoder.h"
+#include "config.h"
 
+#ifdef HAVE_FFMPEG
 extern struct h264_encoder_impl h264_encoder_ffmpeg_impl;
+#endif
+
+#ifdef HAVE_V4L2
+extern struct h264_encoder_impl h264_encoder_v4l2m2m_impl;
+#endif
 
 struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 		uint32_t format, int quality)
 {
-	return h264_encoder_ffmpeg_impl.create(width, height, format, quality);
+	struct h264_encoder* encoder = NULL;
+
+#ifdef HAVE_FFMPEG
+	encoder = h264_encoder_ffmpeg_impl.create(width, height, format, quality);
+	if (encoder) {
+		return encoder;
+	}
+#endif
+
+#ifdef HAVE_V4L2
+	encoder = h264_encoder_v4l2m2m_impl.create(width, height, format, quality);
+	if (encoder) {
+		return encoder;
+	}
+#endif
+
+	return encoder;
 }
 
 void h264_encoder_destroy(struct h264_encoder* self)

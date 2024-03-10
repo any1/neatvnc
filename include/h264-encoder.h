@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 - 2022 Andri Yngvason
+ * Copyright (c) 2021 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -17,12 +17,27 @@
 
 #include <stdint.h>
 #include <unistd.h>
+#include <stdbool.h>
 
-struct h264_encoder;
 struct nvnc_fb;
+struct h264_encoder;
 
 typedef void (*h264_encoder_packet_handler_fn)(const void* payload, size_t size,
 		uint64_t pts, void* userdata);
+
+struct h264_encoder_impl {
+	struct h264_encoder* (*create)(uint32_t width, uint32_t height,
+			uint32_t format, int quality);
+	void (*destroy)(struct h264_encoder*);
+	void (*feed)(struct h264_encoder*, struct nvnc_fb*);
+};
+
+struct h264_encoder {
+	struct h264_encoder_impl *impl;
+	h264_encoder_packet_handler_fn on_packet_ready;
+	void* userdata;
+	bool next_frame_should_be_keyframe;
+};
 
 struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 		uint32_t format, int quality);

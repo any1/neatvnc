@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 - 2022 Andri Yngvason
+ * Copyright (c) 2021 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -50,9 +50,8 @@ struct fb_queue_entry {
 
 TAILQ_HEAD(fb_queue, fb_queue_entry);
 
-struct h264_encoder {
-	h264_encoder_packet_handler_fn on_packet_ready;
-	void* userdata;
+struct h264_encoder_ffmpeg {
+	struct h264_encoder base;
 
 	uint32_t width;
 	uint32_t height;
@@ -74,7 +73,6 @@ struct h264_encoder {
 	AVFilterContext* filter_in;
 	AVFilterContext* filter_out;
 
-	bool next_frame_should_be_keyframe;
 	struct fb_queue fb_queue;
 
 	struct aml_work* work;
@@ -84,6 +82,8 @@ struct h264_encoder {
 
 	bool please_destroy;
 };
+
+struct h264_encoder_impl h264_encoder_ffmpeg_impl;
 
 static enum AVPixelFormat drm_to_av_pixel_format(uint32_t format)
 {
@@ -197,7 +197,7 @@ static int fb_queue_enqueue(struct fb_queue* queue, struct nvnc_fb* fb)
 	return 0;
 }
 
-static int h264_encoder__init_buffersrc(struct h264_encoder* self)
+static int h264_encoder__init_buffersrc(struct h264_encoder_ffmpeg* self)
 {
 	int rc;
 
@@ -229,7 +229,7 @@ static int h264_encoder__init_buffersrc(struct h264_encoder* self)
 	return 0;
 }
 
-static int h264_encoder__init_filters(struct h264_encoder* self)
+static int h264_encoder__init_filters(struct h264_encoder_ffmpeg* self)
 {
 	int rc;
 
@@ -292,7 +292,7 @@ failure:
 	return -1;
 }
 
-static int h264_encoder__init_codec_context(struct h264_encoder* self,
+static int h264_encoder__init_codec_context(struct h264_encoder_ffmpeg* self,
 		const AVCodec* codec, int quality)
 {
 	self->codec_ctx = avcodec_alloc_context3(codec);
@@ -317,7 +317,7 @@ static int h264_encoder__init_codec_context(struct h264_encoder* self,
 	return 0;
 }
 
-static int h264_encoder__init_hw_frames_context(struct h264_encoder* self)
+static int h264_encoder__init_hw_frames_context(struct h264_encoder_ffmpeg* self)
 {
 	self->hw_frames_ctx = av_hwframe_ctx_alloc(self->hw_device_ctx);
 	if (!self->hw_frames_ctx)
@@ -335,7 +335,7 @@ static int h264_encoder__init_hw_frames_context(struct h264_encoder* self)
 	return 0;
 }
 
-static int h264_encoder__schedule_work(struct h264_encoder* self)
+static int h264_encoder__schedule_work(struct h264_encoder_ffmpeg* self)
 {
 	if (self->current_fb)
 		return 0;
@@ -346,13 +346,14 @@ static int h264_encoder__schedule_work(struct h264_encoder* self)
 
 	DTRACE_PROBE1(neatvnc, h264_encode_frame_begin, self->current_fb->pts);
 
-	self->current_frame_is_keyframe = self->next_frame_should_be_keyframe;
-	self->next_frame_should_be_keyframe = false;
+	self->current_frame_is_keyframe = self->base.next_frame_should_be_keyframe;
+	self->base.next_frame_should_be_keyframe = false;
 
 	return aml_start(aml_get_default(), self->work);
 }
 
-static int h264_encoder__encode(struct h264_encoder* self, AVFrame* frame_in)
+static int h264_encoder__encode(struct h264_encoder_ffmpeg* self,
+		AVFrame* frame_in)
 {
 	int rc;
 
@@ -401,7 +402,7 @@ get_frame_failure:
 
 static void h264_encoder__do_work(void* handle)
 {
-	struct h264_encoder* self = aml_get_userdata(handle);
+	struct h264_encoder_ffmpeg* self = aml_get_userdata(handle);
 
 	AVFrame* frame = fb_to_avframe(self->current_fb);
 	assert(frame); // TODO
@@ -439,7 +440,7 @@ failure:
 
 static void h264_encoder__on_work_done(void* handle)
 {
-	struct h264_encoder* self = aml_get_userdata(handle);
+	struct h264_encoder_ffmpeg* self = aml_get_userdata(handle);
 
 	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
 	nvnc_fb_release(self->current_fb);
@@ -450,7 +451,7 @@ static void h264_encoder__on_work_done(void* handle)
 
 	if (self->please_destroy) {
 		vec_destroy(&self->current_packet);
-		h264_encoder_destroy(self);
+		h264_encoder_destroy(&self->base);
 		return;
 	}
 
@@ -459,7 +460,7 @@ static void h264_encoder__on_work_done(void* handle)
 		return;
 	}
 
-	void* userdata = self->userdata;
+	void* userdata = self->base.userdata;
 
 	// Must make a copy of packet because the callback might destroy the
 	// encoder object.
@@ -471,7 +472,7 @@ static void h264_encoder__on_work_done(void* handle)
 	vec_clear(&self->current_packet);
 	h264_encoder__schedule_work(self);
 
-	self->on_packet_ready(packet.data, packet.len, pts, userdata);
+	self->base.on_packet_ready(packet.data, packet.len, pts, userdata);
 	vec_destroy(&packet);
 }
 
@@ -495,14 +496,16 @@ static int find_render_node(char *node, size_t maxlen) {
 	return r;
 }
 
-struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
-		uint32_t format, int quality)
+static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
+		uint32_t height, uint32_t format, int quality)
 {
 	int rc;
 
-	struct h264_encoder* self = calloc(1, sizeof(*self));
+	struct h264_encoder_ffmpeg* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
+
+	self->base.impl = &h264_encoder_ffmpeg_impl;
 
 	if (vec_init(&self->current_packet, 65536) < 0)
 		goto packet_failure;
@@ -521,7 +524,7 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 	if (rc != 0)
 		goto hwdevice_ctx_failure;
 
-	self->next_frame_should_be_keyframe = true;
+	self->base.next_frame_should_be_keyframe = true;
 	TAILQ_INIT(&self->fb_queue);
 
 	self->width = width;
@@ -558,7 +561,7 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 	if (rc != 0)
 		goto avcodec_open_failure;
 
-	return self;
+	return &self->base;
 
 avcodec_open_failure:
 	avcodec_free_context(&self->codec_ctx);
@@ -579,8 +582,10 @@ packet_failure:
 	return NULL;
 }
 
-void h264_encoder_destroy(struct h264_encoder* self)
+static void h264_encoder_ffmpeg_destroy(struct h264_encoder* base)
 {
+	struct h264_encoder_ffmpeg* self = (struct h264_encoder_ffmpeg*)base;
+
 	if (self->current_fb) {
 		self->please_destroy = true;
 		return;
@@ -595,24 +600,10 @@ void h264_encoder_destroy(struct h264_encoder* self)
 	free(self);
 }
 
-void h264_encoder_set_packet_handler_fn(struct h264_encoder* self,
-		h264_encoder_packet_handler_fn value)
+static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
+		struct nvnc_fb* fb)
 {
-	self->on_packet_ready = value;
-}
-
-void h264_encoder_set_userdata(struct h264_encoder* self, void* value)
-{
-	self->userdata = value;
-}
-
-void h264_encoder_request_keyframe(struct h264_encoder* self)
-{
-	self->next_frame_should_be_keyframe = true;
-}
-
-void h264_encoder_feed(struct h264_encoder* self, struct nvnc_fb* fb)
-{
+	struct h264_encoder_ffmpeg* self = (struct h264_encoder_ffmpeg*)base;
 	assert(fb->type == NVNC_FB_GBM_BO);
 
 	// TODO: Add transform filter
@@ -626,3 +617,9 @@ void h264_encoder_feed(struct h264_encoder* self, struct nvnc_fb* fb)
 	rc = h264_encoder__schedule_work(self);
 	assert(rc == 0); // TODO
 }
+
+struct h264_encoder_impl h264_encoder_ffmpeg_impl = {
+	.create = h264_encoder_ffmpeg_create,
+	.destroy = h264_encoder_ffmpeg_destroy,
+	.feed = h264_encoder_ffmpeg_feed,
+};

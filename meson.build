@@ -139,7 +139,7 @@ if gbm.found()
 endif
 
 if gbm.found() and libdrm.found() and libavcodec.found() and libavfilter.found() and libavutil.found()
-	sources += [ 'src/h264-encoder.c', 'src/open-h264.c' ]
+	sources += [ 'src/h264-encoder-ffmpeg-impl.c', 'src/open-h264.c' ]
 	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
 	config.set('ENABLE_OPEN_H264', true)
 	config.set('HAVE_LIBAVUTIL', true)

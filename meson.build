@@ -138,15 +138,24 @@ if gbm.found()
 	config.set('HAVE_GBM', true)
 endif
 
-if gbm.found() and libdrm.found() and libavcodec.found() and libavfilter.found() and libavutil.found()
-	sources += [
-		'src/h264-encoder.c',
-		'src/h264-encoder-ffmpeg-impl.c',
-		'src/open-h264.c'
-	]
+have_ffmpeg = gbm.found() and libdrm.found() and libavcodec.found() and libavfilter.found() and libavutil.found()
+have_v4l2 = gbm.found() and libdrm.found() and cc.check_header('linux/videodev2.h')
+
+if have_ffmpeg
+	sources += [ 'src/h264-encoder-ffmpeg-impl.c' ]
 	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
-	config.set('ENABLE_OPEN_H264', true)
+	config.set('HAVE_FFMPEG', true)
 	config.set('HAVE_LIBAVUTIL', true)
+endif
+
+if have_v4l2
+	sources += [ 'src/h264-encoder-v4l2m2m-impl.c' ]
+	config.set('HAVE_V4L2', true)
+endif
+
+if have_ffmpeg or have_v4l2
+	sources += [ 'src/h264-encoder.c', 'src/open-h264.c' ]
+	config.set('ENABLE_OPEN_H264', true)
 endif
 
 if enable_websocket

@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 #include <inttypes.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -514,6 +515,111 @@ static void h264_encoder_v4l2m2m_configure(struct h264_encoder_v4l2m2m* self)
 	ioctl(self->fd, VIDIOC_S_CTRL, &ctrl);
 }
 
+static bool can_encode_to_h264(int fd)
+{
+	size_t i = 0;
+	for (;; ++i) {
+		struct v4l2_fmtdesc desc = {
+			.index = i,
+			.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+		};
+		int rc = ioctl(fd, VIDIOC_ENUM_FMT, &desc);
+		if (rc < 0)
+			break;
+
+		if (desc.pixelformat == V4L2_PIX_FMT_H264)
+			return true;
+	}
+	return false;
+}
+
+static bool can_handle_frame_size(int fd, uint32_t width, uint32_t height)
+{
+	size_t i = 0;
+	for (;; ++i) {
+		struct v4l2_frmsizeenum size = {
+			.index = i,
+			.pixel_format = V4L2_PIX_FMT_H264,
+		};
+		int rc = ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &size);
+		if (rc < 0)
+			break;
+
+		switch (size.type) {
+		case V4L2_FRMSIZE_TYPE_DISCRETE:
+			if (size.discrete.width == width &&
+					size.discrete.height == height)
+				return true;
+			break;
+		case V4L2_FRMSIZE_TYPE_CONTINUOUS:
+		case V4L2_FRMSIZE_TYPE_STEPWISE:
+			if (size.stepwise.min_width <= width &&
+					width <= size.stepwise.max_width &&
+					size.stepwise.min_height <= height &&
+					height <= size.stepwise.max_height &&
+					(16 % size.stepwise.step_width) == 0 &&
+					(16 % size.stepwise.step_height) == 0)
+				return true;
+			break;
+		}
+	}
+	return false;
+}
+
+static bool is_device_capable(int fd, uint32_t width, uint32_t height)
+{
+	struct v4l2_capability cap = { 0 };
+	int rc = ioctl(fd, VIDIOC_QUERYCAP, &cap);
+	if (rc < 0)
+		return false;
+
+	uint32_t required_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
+	if ((cap.capabilities & required_caps) != required_caps)
+		return false;
+
+	if (!can_encode_to_h264(fd))
+		return false;
+
+	if (!can_handle_frame_size(fd, width, height))
+		return false;
+
+	return true;
+}
+
+static int find_capable_device(uint32_t width, uint32_t height)
+{
+	int fd = -1;
+	DIR *dir = opendir("/dev");
+	assert(dir);
+
+	for (;;) {
+		struct dirent* entry = readdir(dir);
+		if (!entry)
+			break;
+
+		if (strncmp(entry->d_name, "video", 5) != 0)
+			continue;
+
+		char path[256];
+		snprintf(path, sizeof(path), "/dev/%s", entry->d_name);
+		fd = open(path, O_RDWR | O_CLOEXEC);
+		if (fd < 0) {
+			continue;
+		}
+
+		if (is_device_capable(fd, width, height)) {
+			nvnc_log(NVNC_LOG_DEBUG, "Using v4l2m2m device: %s",
+					path);
+			break;
+		}
+		close(fd);
+		fd = -1;
+	}
+
+	closedir(dir);
+	return fd;
+}
+
 static struct h264_encoder* h264_encoder_v4l2m2m_create(uint32_t width,
 		uint32_t height, uint32_t format, int quality)
 {
@@ -528,8 +634,7 @@ static struct h264_encoder* h264_encoder_v4l2m2m_create(uint32_t width,
 	self->format = format;
 	self->quality = quality;
 
-	// TODO: Find a device that supports the given config
-	self->fd = open("/dev/video11", O_RDWR | O_CLOEXEC);
+	self->fd = find_capable_device(width, height);
 	if (self->fd < 0)
 		goto failure;
 

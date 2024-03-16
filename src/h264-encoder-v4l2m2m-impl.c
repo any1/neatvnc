@@ -42,6 +42,8 @@ struct h264_encoder_v4l2m2m {
 	uint32_t format;
 	int quality; // TODO: Can we affect the quality?
 
+	char driver[16];
+
 	int fd;
 	struct aml_handler* handler;
 
@@ -172,6 +174,23 @@ static uint32_t v4l2_format_from_drm(const uint32_t* formats,
 #undef TRY_FORMAT
 }
 
+// This driver mixes up pixel formats...
+static uint32_t v4l2_format_from_drm_bcm2835(const uint32_t* formats,
+		size_t n_formats, uint32_t drm_format)
+{
+	switch (drm_format) {
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+		return V4L2_PIX_FMT_RGBA32;
+	case DRM_FORMAT_BGRX8888:
+	case DRM_FORMAT_BGRA8888:
+		// TODO: This could also be ABGR, based on how this driver
+		// behaves
+		return V4L2_PIX_FMT_BGR32;
+	}
+	return 0;
+}
+
 static int set_src_fmt(struct h264_encoder_v4l2m2m* self)
 {
 	int rc;
@@ -180,8 +199,13 @@ static int set_src_fmt(struct h264_encoder_v4l2m2m* self)
 	size_t n_formats = get_supported_formats(self, supported_formats,
 			ARRAY_LENGTH(supported_formats));
 
-	uint32_t format = v4l2_format_from_drm(supported_formats, n_formats,
-			self->format);
+	uint32_t format;
+	if (strcmp(self->driver, "bcm2835-codec") == 0)
+		format = v4l2_format_from_drm_bcm2835(supported_formats,
+				n_formats, self->format);
+	else
+		format = v4l2_format_from_drm(supported_formats, n_formats,
+				self->format);
 	if (!format) {
 		nvnc_log(NVNC_LOG_DEBUG, "Failed to find a proper pixel format");
 		return -1;
@@ -506,6 +530,10 @@ static struct h264_encoder* h264_encoder_v4l2m2m_create(uint32_t width,
 	self->fd = open("/dev/video11", O_RDWR | O_CLOEXEC);
 	if (self->fd < 0)
 		goto failure;
+
+	struct v4l2_capability cap = { 0 };
+	ioctl(self->fd, VIDIOC_QUERYCAP, &cap);
+	strncpy(self->driver, (const char*)cap.driver, sizeof(self->driver));
 
 	if (set_src_fmt(self) < 0)
 		goto failure;

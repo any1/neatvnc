@@ -13,8 +13,10 @@
 #include <drm_fourcc.h>
 #include <gbm.h>
 #include <aml.h>
+#include <dirent.h>
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+#define ALIGN_UP(a, b) ((b) * UDIV_UP((a), (b)))
 #define ARRAY_LENGTH(a) (sizeof(a) / sizeof((a)[0]))
 
 #define N_SRC_BUFS 3
@@ -221,8 +223,8 @@ static int set_src_fmt(struct h264_encoder_v4l2m2m* self)
 
 	struct v4l2_pix_format_mplane* pix_fmt = &fmt.fmt.pix_mp;
 	pix_fmt->pixelformat = format;
-	pix_fmt->width = self->width;
-	pix_fmt->height = self->height;
+	pix_fmt->width = ALIGN_UP(self->width, 16);
+	pix_fmt->height = ALIGN_UP(self->height, 16);
 
 	rc = ioctl(self->fd, VIDIOC_S_FMT, &fmt);
 	if (rc < 0) {
@@ -466,7 +468,7 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 
 	int n_planes = gbm_bo_get_plane_count(bo);
 	int fd = gbm_bo_get_fd(bo);
-	uint32_t height = gbm_bo_get_height(bo);
+	uint32_t height = ALIGN_UP(gbm_bo_get_height(bo), 16);
 
 	for (int i = 0; i < n_planes; ++i) {
 		uint32_t stride = gbm_bo_get_stride_for_plane(bo, i);

@@ -1,6 +1,7 @@
 #include "h264-encoder.h"
 #include "neatvnc.h"
 #include "fb.h"
+#include "pixels.h"
 
 #include <assert.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
+#include <drm_fourcc.h>
 #include <gbm.h>
 #include <aml.h>
 
@@ -97,12 +99,93 @@ static bool any_src_buf_is_taken(struct h264_encoder_v4l2m2m* self)
 	return result;
 }
 
+static int u32_cmp(const void* pa, const void* pb)
+{
+	const uint32_t *a = pa;
+	const uint32_t *b = pb;
+	return *a < *b ? -1 : *a > *b;
+}
+
+static size_t get_supported_formats(struct h264_encoder_v4l2m2m* self,
+		uint32_t* formats, size_t max_len)
+{
+	size_t i = 0;
+	for (;; ++i) {
+		struct v4l2_fmtdesc desc = {
+			.index = i,
+			.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
+		};
+		int rc = ioctl(self->fd, VIDIOC_ENUM_FMT, &desc);
+		if (rc < 0)
+			break;
+
+		nvnc_trace("Got pixel format: %s", desc.description);
+
+		formats[i] = desc.pixelformat;
+	}
+
+	qsort(formats, i, sizeof(*formats), u32_cmp);
+
+	return i;
+}
+
+static bool have_v4l2_format(const uint32_t* formats, size_t n_formats,
+		uint32_t format)
+{
+	return bsearch(&format, formats, n_formats, sizeof(format), u32_cmp);
+}
+
+static uint32_t v4l2_format_from_drm(const uint32_t* formats,
+		size_t n_formats, uint32_t drm_format)
+{
+#define TRY_FORMAT(f) \
+	if (have_v4l2_format(formats, n_formats, f)) \
+		return f
+
+	switch (drm_format) {
+	case DRM_FORMAT_RGBX8888:
+	case DRM_FORMAT_RGBA8888:
+		TRY_FORMAT(V4L2_PIX_FMT_RGBX32);
+		TRY_FORMAT(V4L2_PIX_FMT_RGBA32);
+		break;
+	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ARGB8888:
+		TRY_FORMAT(V4L2_PIX_FMT_XRGB32);
+		TRY_FORMAT(V4L2_PIX_FMT_ARGB32);
+		TRY_FORMAT(V4L2_PIX_FMT_RGB32);
+		break;
+	case DRM_FORMAT_BGRX8888:
+	case DRM_FORMAT_BGRA8888:
+		TRY_FORMAT(V4L2_PIX_FMT_XBGR32);
+		TRY_FORMAT(V4L2_PIX_FMT_ABGR32);
+		TRY_FORMAT(V4L2_PIX_FMT_BGR32);
+		break;
+	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_ABGR8888:
+		TRY_FORMAT(V4L2_PIX_FMT_BGRX32);
+		TRY_FORMAT(V4L2_PIX_FMT_BGRA32);
+		break;
+	// TODO: More formats
+	}
+
+	return 0;
+#undef TRY_FORMAT
+}
+
 static int set_src_fmt(struct h264_encoder_v4l2m2m* self)
 {
 	int rc;
 
-	// TODO: Derive the correct format
-	uint32_t format = V4L2_PIX_FMT_RGBA32;
+	uint32_t supported_formats[256];
+	size_t n_formats = get_supported_formats(self, supported_formats,
+			ARRAY_LENGTH(supported_formats));
+
+	uint32_t format = v4l2_format_from_drm(supported_formats, n_formats,
+			self->format);
+	if (!format) {
+		nvnc_log(NVNC_LOG_DEBUG, "Failed to find a proper pixel format");
+		return -1;
+	}
 
 	struct v4l2_format fmt = {
 		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,

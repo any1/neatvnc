@@ -482,6 +482,9 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 		srcbuf->buffer.m.planes[i].data_offset = offset;
 	}
 
+	srcbuf->buffer.timestamp.tv_sec = fb->pts / UINT64_C(1000000);
+	srcbuf->buffer.timestamp.tv_usec = fb->pts % UINT64_C(1000000);
+
 	int rc = v4l2_qbuf(self->fd, &srcbuf->buffer);
 	if (rc < 0) {
 		nvnc_log(NVNC_LOG_PANIC, "Failed to enqueue buffer: %m");

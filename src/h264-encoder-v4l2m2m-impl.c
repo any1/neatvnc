@@ -386,15 +386,6 @@ static void stream_off(struct h264_encoder_v4l2m2m* self)
 	ioctl(self->fd, VIDIOC_STREAMOFF, &type);
 }
 
-static void free_src_buffers(struct h264_encoder_v4l2m2m* self)
-{
-	for (unsigned int i = 0; i < ARRAY_LENGTH(self->src_bufs); ++i) {
-		struct h264_encoder_v4l2m2m_src_buf* buf = &self->src_bufs[i];
-		assert(!buf->is_taken);
-		close(buf->fd);
-	}
-}
-
 static void free_dst_buffers(struct h264_encoder_v4l2m2m* self)
 {
 	for (unsigned int i = 0; i < ARRAY_LENGTH(self->dst_bufs); ++i) {
@@ -714,7 +705,6 @@ static void h264_encoder_v4l2m2m_destroy(struct h264_encoder* base)
 	aml_unref(self->handler);
 	stream_off(self);
 	free_dst_buffers(self);
-	free_src_buffers(self);
 	if (self->fd >= 0)
 		close(self->fd);
 	free(self);

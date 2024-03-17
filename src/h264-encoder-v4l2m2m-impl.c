@@ -443,6 +443,14 @@ static int alloc_src_buffers(struct h264_encoder_v4l2m2m* self)
 	return 0;
 }
 
+static void force_key_frame(struct h264_encoder_v4l2m2m* self)
+{
+	struct v4l2_control ctrl = { 0 };
+	ctrl.id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME;
+	ctrl.value = 0;
+	ioctl(self->fd, VIDIOC_S_CTRL, &ctrl);
+}
+
 static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 		struct nvnc_fb* fb)
 {
@@ -484,6 +492,10 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 
 	srcbuf->buffer.timestamp.tv_sec = fb->pts / UINT64_C(1000000);
 	srcbuf->buffer.timestamp.tv_usec = fb->pts % UINT64_C(1000000);
+
+	if (self->base.next_frame_should_be_keyframe)
+		force_key_frame(self);
+	self->base.next_frame_should_be_keyframe = false;
 
 	int rc = v4l2_qbuf(self->fd, &srcbuf->buffer);
 	if (rc < 0) {

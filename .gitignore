@@ -8,3 +8,7 @@ build
 experiments
 subprojects
 sandbox
+debian/tmp
+debian/libneatvnc0
+debian/libneatvnc-dev
+debian/.debhelper

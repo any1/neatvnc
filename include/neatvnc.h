@@ -86,6 +86,12 @@ enum nvnc_transform {
 	NVNC_TRANSFORM_FLIPPED_270 = 7,
 };
 
+enum nvnc_keyboard_led_state {
+	NVNC_KEYBOARD_LED_SCROLL_LOCK = 1 << 0,
+	NVNC_KEYBOARD_LED_NUM_LOCK = 1 << 1,
+	NVNC_KEYBOARD_LED_CAPS_LOCK = 1 << 2,
+};
+
 enum nvnc_log_level {
 	NVNC_LOG_PANIC = 0,
 	NVNC_LOG_ERROR = 1,
@@ -149,6 +155,9 @@ const char* nvnc_client_get_auth_username(const struct nvnc_client* client);
 struct nvnc_client* nvnc_client_first(struct nvnc* self);
 struct nvnc_client* nvnc_client_next(struct nvnc_client* client);
 void nvnc_client_close(struct nvnc_client* client);
+
+void nvnc_client_set_led_state(struct nvnc_client*,
+		enum nvnc_keyboard_led_state);
 
 void nvnc_set_name(struct nvnc* self, const char* name);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -69,9 +69,11 @@ enum rfb_encodings {
 	RFB_ENCODING_CURSOR = -239,
 	RFB_ENCODING_DESKTOPSIZE = -223,
 	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
+	RFB_ENCODING_QEMU_LED_STATE = -261,
 	RFB_ENCODING_EXTENDEDDESKTOPSIZE = -308,
 	RFB_ENCODING_PTS = -1000,
 	RFB_ENCODING_NTP = -1001,
+	RFB_ENCODING_VMWARE_LED_STATE = 0x574d5668,
 };
 
 #define RFB_ENCODING_JPEG_HIGHQ -23
@@ -112,6 +114,13 @@ enum rfb_resize_status {
 enum rfb_rsa_aes_cred_subtype {
 	RFB_RSA_AES_CRED_SUBTYPE_USER_AND_PASS = 1,
 	RFB_RSA_AES_CRED_SUBTYPE_ONLY_PASS = 2,
+};
+
+// This is the same for both qemu and vmware extensions
+enum rfb_led_state {
+	RFB_LED_STATE_SCROLL_LOCK = 1 << 0,
+	RFB_LED_STATE_NUM_LOCK = 1 << 1,
+	RFB_LED_STATE_CAPS_LOCK = 1 << 2,
 };
 
 struct rfb_security_types_msg {

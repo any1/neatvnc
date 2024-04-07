@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -85,6 +85,7 @@ static void process_fb_update_requests(struct nvnc_client* client);
 static void sockaddr_to_string(char* dst, size_t sz,
 		const struct sockaddr* addr);
 static const char* encoding_to_string(enum rfb_encodings encoding);
+static bool client_send_led_state(struct nvnc_client* client);
 
 #if defined(PROJECT_VERSION)
 EXPORT const char nvnc_version[] = PROJECT_VERSION;
@@ -1025,6 +1026,8 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_DESKTOPSIZE:
 		case RFB_ENCODING_EXTENDEDDESKTOPSIZE:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
+		case RFB_ENCODING_QEMU_LED_STATE:
+		case RFB_ENCODING_VMWARE_LED_STATE:
 #ifdef ENABLE_EXPERIMENTAL
 		case RFB_ENCODING_PTS:
 		case RFB_ENCODING_NTP:
@@ -1117,6 +1120,8 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_DESKTOPSIZE: return "desktop-size";
 	case RFB_ENCODING_EXTENDEDDESKTOPSIZE: return "extended-desktop-size";
 	case RFB_ENCODING_QEMU_EXT_KEY_EVENT: return "qemu-extended-key-event";
+	case RFB_ENCODING_QEMU_LED_STATE: return "qemu-led-state";
+	case RFB_ENCODING_VMWARE_LED_STATE: return "vmware-led-state";
 	case RFB_ENCODING_PTS: return "pts";
 	case RFB_ENCODING_NTP: return "ntp";
 	}
@@ -1221,6 +1226,11 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			&& client_has_encoding(client, RFB_ENCODING_CURSOR)) {
 		send_cursor_update(client);
 
+		if (--client->n_pending_requests <= 0)
+			return;
+	}
+
+	if (client_send_led_state(client)) {
 		if (--client->n_pending_requests <= 0)
 			return;
 	}
@@ -1796,6 +1806,7 @@ static void on_connection(void* obj)
 	client->ref = 1;
 	client->server = server;
 	client->quality = 10; /* default to lossless */
+	client->led_state = -1; /* trigger sending of initial state */
 
 	int fd = accept(server->fd, NULL, 0);
 	if (fd < 0) {
@@ -2423,6 +2434,60 @@ bool nvnc_client_supports_cursor(const struct nvnc_client* client)
 			return true;
 	}
 	return false;
+}
+
+static bool client_send_led_state(struct nvnc_client* client)
+{
+	if (client->pending_led_state == client->led_state)
+		return false;
+
+	bool have_qemu_led_state =
+		client_has_encoding(client, RFB_ENCODING_QEMU_LED_STATE);
+	bool have_vmware_led_state =
+		client_has_encoding(client, RFB_ENCODING_VMWARE_LED_STATE);
+
+	if (!have_qemu_led_state && !have_vmware_led_state)
+		return false;
+
+	nvnc_log(NVNC_LOG_DEBUG, "Keyboard LED state changed: %x -> %x",
+			client->led_state, client->pending_led_state);
+
+	struct vec payload;
+	vec_init(&payload, 4096);
+
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_QEMU_LED_STATE),
+	};
+
+	vec_append(&payload, &head, sizeof(head));
+	vec_append(&payload, &rect, sizeof(rect));
+
+	if (have_qemu_led_state) {
+		uint8_t data = client->pending_led_state;
+		vec_append(&payload, &data, sizeof(data));
+	} else if (have_vmware_led_state) {
+		uint32_t data = htonl(client->pending_led_state);
+		vec_append(&payload, &data, sizeof(data));
+	}
+
+	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len),
+			NULL, NULL);
+	client->led_state = client->pending_led_state;
+
+	return true;
+}
+
+EXPORT
+void nvnc_client_set_led_state(struct nvnc_client* client,
+		enum nvnc_keyboard_led_state state)
+{
+	client->pending_led_state = state;
+	process_fb_update_requests(client);
 }
 
 EXPORT

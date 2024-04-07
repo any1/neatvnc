@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Andri Yngvason
+ * Copyright (c) 2019 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -109,6 +109,8 @@ struct nvnc_client {
 	uint32_t cursor_seq;
 	int quality;
 	bool formats_changed;
+	enum nvnc_keyboard_led_state led_state;
+	enum nvnc_keyboard_led_state pending_led_state;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

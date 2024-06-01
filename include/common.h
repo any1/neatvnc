@@ -131,6 +131,7 @@ enum nvnc__socket_type {
 	NVNC__SOCKET_TCP,
 	NVNC__SOCKET_UNIX,
 	NVNC__SOCKET_WEBSOCKET,
+	NVNC__SOCKET_FROM_FD,
 };
 
 struct nvnc {

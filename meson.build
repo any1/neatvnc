@@ -126,7 +126,14 @@ if nettle.found() and hogweed.found() and gmp.found()
 	dependencies += [ nettle, hogweed, gmp ]
 	enable_websocket = true
 	config.set('HAVE_CRYPTO', true)
-	sources += ['src/crypto-nettle.c', 'src/stream-rsa-aes.c']
+	sources += [
+		'src/crypto/random.c',
+		'src/crypto/nettle/cipher.c',
+		'src/crypto/nettle/hash.c',
+		'src/crypto/nettle/key.c',
+		'src/crypto/nettle/rsa.c',
+		'src/stream-rsa-aes.c',
+	]
 endif
 
 if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')

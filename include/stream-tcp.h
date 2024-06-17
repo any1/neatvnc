@@ -32,5 +32,3 @@ int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 int stream_tcp_send_first(struct stream* self, struct rcbuf* payload);
 void stream_tcp_exec_and_send(struct stream* self,
 		stream_exec_fn exec_fn, void* userdata);
-int stream_tcp_install_cipher(struct stream* self,
-		struct crypto_cipher* cipher);

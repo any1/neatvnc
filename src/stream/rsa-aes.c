@@ -23,9 +23,9 @@
 #include <arpa/inet.h>
 
 #include "rcbuf.h"
-#include "stream.h"
-#include "stream-tcp.h"
-#include "stream-common.h"
+#include "stream/stream.h"
+#include "stream/tcp.h"
+#include "stream/common.h"
 #include "crypto.h"
 #include "neatvnc.h"
 

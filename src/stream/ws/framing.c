@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "websocket.h"
+#include "stream/websocket.h"
 
 #include <stdint.h>
 #include <stdbool.h>

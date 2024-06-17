@@ -15,7 +15,7 @@
  */
 
 #include "vec.h"
-#include "http.h"
+#include "stream/http.h"
 
 #include <stdlib.h>
 #include <string.h>

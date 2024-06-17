@@ -14,8 +14,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "stream.h"
-#include "stream-common.h"
+#include "stream/stream.h"
+#include "stream/common.h"
 
 #include <stdlib.h>
 

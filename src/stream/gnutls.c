@@ -30,8 +30,8 @@
 #include <gnutls/gnutls.h>
 
 #include "rcbuf.h"
-#include "stream.h"
-#include "stream-common.h"
+#include "stream/stream.h"
+#include "stream/common.h"
 #include "sys/queue.h"
 
 struct stream_gnutls {

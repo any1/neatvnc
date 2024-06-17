@@ -28,9 +28,9 @@
 #include <sys/socket.h>
 
 #include "rcbuf.h"
-#include "stream.h"
-#include "stream-common.h"
-#include "stream-tcp.h"
+#include "stream/stream.h"
+#include "stream/common.h"
+#include "stream/tcp.h"
 #include "sys/queue.h"
 #include "neatvnc.h"
 

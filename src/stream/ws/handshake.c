@@ -14,8 +14,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "websocket.h"
-#include "http.h"
+#include "stream/websocket.h"
+#include "stream/http.h"
 #include "crypto.h"
 #include "base64.h"
 

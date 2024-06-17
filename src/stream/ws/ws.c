@@ -14,10 +14,10 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "stream.h"
-#include "stream-common.h"
-#include "stream-tcp.h"
-#include "websocket.h"
+#include "stream/stream.h"
+#include "stream/common.h"
+#include "stream/tcp.h"
+#include "stream/websocket.h"
 #include "vec.h"
 #include "neatvnc.h"
 

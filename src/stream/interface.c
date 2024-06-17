@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "stream.h"
+#include "stream/stream.h"
 
 #include <assert.h>
 

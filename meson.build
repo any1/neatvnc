@@ -118,7 +118,10 @@ if libturbojpeg.found()
 endif
 
 if gnutls.found()
-	sources += 'src/stream/gnutls.c'
+	sources += [
+		'src/stream/gnutls.c',
+		'src/auth/vencrypt.c',
+	]
 	dependencies += gnutls
 	config.set('ENABLE_TLS', true)
 endif

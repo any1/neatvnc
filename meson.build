@@ -76,8 +76,8 @@ inc = include_directories('include')
 sources = [
 	'src/server.c',
 	'src/vec.c',
-	'src/zrle.c',
-	'src/raw-encoding.c',
+	'src/enc/zrle.c',
+	'src/enc/raw.c',
 	'src/pixels.c',
 	'src/fb.c',
 	'src/fb_pool.c',
@@ -87,13 +87,13 @@ sources = [
 	'src/stream/tcp.c',
 	'src/desktop-layout.c',
 	'src/display.c',
-	'src/tight.c',
-	'src/enc-util.c',
+	'src/enc/tight.c',
+	'src/enc/util.c',
 	'src/qnum-to-evdev.c',
 	'src/resampler.c',
 	'src/transform-util.c',
 	'src/damage-refinery.c',
-	'src/encoder.c',
+	'src/enc/interface.c',
 	'src/cursor.c',
 	'src/logging.c',
 	'src/base64.c',
@@ -149,19 +149,19 @@ have_ffmpeg = gbm.found() and libdrm.found() and libavcodec.found() and libavfil
 have_v4l2 = gbm.found() and libdrm.found() and cc.check_header('linux/videodev2.h')
 
 if have_ffmpeg
-	sources += [ 'src/h264-encoder-ffmpeg-impl.c' ]
+	sources += [ 'src/enc/h264/ffmpeg-impl.c' ]
 	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
 	config.set('HAVE_FFMPEG', true)
 	config.set('HAVE_LIBAVUTIL', true)
 endif
 
 if have_v4l2
-	sources += [ 'src/h264-encoder-v4l2m2m-impl.c' ]
+	sources += [ 'src/enc/h264/v4l2m2m-impl.c' ]
 	config.set('HAVE_V4L2', true)
 endif
 
 if have_ffmpeg or have_v4l2
-	sources += [ 'src/h264-encoder.c', 'src/open-h264.c' ]
+	sources += [ 'src/enc/h264/encoder.c', 'src/enc/h264/open-h264.c' ]
 	config.set('ENABLE_OPEN_H264', true)
 endif
 

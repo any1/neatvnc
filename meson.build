@@ -74,6 +74,7 @@ endif
 inc = include_directories('include')
 
 sources = [
+	'src/auth/common.c',
 	'src/server.c',
 	'src/vec.c',
 	'src/enc/zrle.c',
@@ -133,6 +134,7 @@ if nettle.found() and hogweed.found() and gmp.found()
 		'src/crypto/nettle/key.c',
 		'src/crypto/nettle/rsa.c',
 		'src/stream/rsa-aes.c',
+		'src/auth/rsa-aes.c'
 	]
 endif
 

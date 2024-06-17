@@ -23,6 +23,7 @@
 #include "rfb-proto.h"
 #include "sys/queue.h"
 
+#include "stream/stream.h"
 #include "neatvnc.h"
 #include "config.h"
 
@@ -175,3 +176,4 @@ struct nvnc {
 
 void nvnc__damage_region(struct nvnc* self,
                          const struct pixman_region16* damage);
+void close_after_write(void* userdata, enum stream_req_status status);

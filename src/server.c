@@ -26,8 +26,8 @@
 #include "stream/stream.h"
 #include "config.h"
 #include "usdt.h"
-#include "encoder.h"
-#include "enc-util.h"
+#include "enc/encoder.h"
+#include "enc/util.h"
 #include "cursor.h"
 #include "logging.h"
 

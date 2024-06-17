@@ -20,10 +20,10 @@
 #include "pixels.h"
 #include "vec.h"
 #include "config.h"
-#include "enc-util.h"
+#include "enc/util.h"
 #include "fb.h"
 #include "rcbuf.h"
-#include "encoder.h"
+#include "enc/encoder.h"
 
 #include <stdlib.h>
 #include <unistd.h>

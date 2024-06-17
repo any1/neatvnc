@@ -20,7 +20,7 @@
 #include "pixels.h"
 #include "rfb-proto.h"
 #include "vec.h"
-#include "enc-util.h"
+#include "enc/util.h"
 #include "resampler.h"
 #include "transform-util.h"
 

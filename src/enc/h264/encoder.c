@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "h264-encoder.h"
+#include "enc/h264-encoder.h"
 #include "config.h"
 
 #ifdef HAVE_FFMPEG

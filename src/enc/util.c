@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "enc-util.h"
+#include "enc/util.h"
 #include "rfb-proto.h"
 #include "vec.h"
 

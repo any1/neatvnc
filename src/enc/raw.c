@@ -19,8 +19,8 @@
 #include "vec.h"
 #include "fb.h"
 #include "pixels.h"
-#include "enc-util.h"
-#include "encoder.h"
+#include "enc/util.h"
+#include "enc/encoder.h"
 #include "rcbuf.h"
 
 #include <stdlib.h>

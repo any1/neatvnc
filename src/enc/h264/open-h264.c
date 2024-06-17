@@ -14,13 +14,13 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "h264-encoder.h"
+#include "enc/h264-encoder.h"
 #include "rfb-proto.h"
-#include "enc-util.h"
+#include "enc/util.h"
 #include "vec.h"
 #include "fb.h"
 #include "rcbuf.h"
-#include "encoder.h"
+#include "enc/encoder.h"
 #include "usdt.h"
 
 #include <stdlib.h>

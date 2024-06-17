@@ -20,7 +20,7 @@
 #include "fb.h"
 #include "resampler.h"
 #include "transform-util.h"
-#include "encoder.h"
+#include "enc/encoder.h"
 #include "usdt.h"
 
 #include <assert.h>

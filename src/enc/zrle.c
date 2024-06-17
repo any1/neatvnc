@@ -19,8 +19,8 @@
 #include "neatvnc.h"
 #include "pixels.h"
 #include "fb.h"
-#include "enc-util.h"
-#include "encoder.h"
+#include "enc/util.h"
+#include "enc/encoder.h"
 #include "rcbuf.h"
 
 #include <stdint.h>

@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "h264-encoder.h"
+#include "enc/h264-encoder.h"
 #include "neatvnc.h"
 #include "fb.h"
 #include "pixels.h"

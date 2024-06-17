@@ -82,9 +82,9 @@ sources = [
 	'src/fb.c',
 	'src/fb_pool.c',
 	'src/rcbuf.c',
-	'src/stream.c',
-	'src/stream-common.c',
-	'src/stream-tcp.c',
+	'src/stream/interface.c',
+	'src/stream/common.c',
+	'src/stream/tcp.c',
 	'src/desktop-layout.c',
 	'src/display.c',
 	'src/tight.c',
@@ -117,7 +117,7 @@ if libturbojpeg.found()
 endif
 
 if gnutls.found()
-	sources += 'src/stream-gnutls.c'
+	sources += 'src/stream/gnutls.c'
 	dependencies += gnutls
 	config.set('ENABLE_TLS', true)
 endif
@@ -132,7 +132,7 @@ if nettle.found() and hogweed.found() and gmp.found()
 		'src/crypto/nettle/hash.c',
 		'src/crypto/nettle/key.c',
 		'src/crypto/nettle/rsa.c',
-		'src/stream-rsa-aes.c',
+		'src/stream/rsa-aes.c',
 	]
 endif
 
@@ -170,7 +170,7 @@ if enable_websocket
 		'src/ws-handshake.c',
 		'src/ws-framing.c',
 		'src/http.c',
-		'src/stream-ws.c',
+		'src/stream/ws.c',
 	]
 	config.set('ENABLE_WEBSOCKET', true)
 endif

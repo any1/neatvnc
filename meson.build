@@ -167,10 +167,10 @@ endif
 
 if enable_websocket
 	sources += [
-		'src/ws-handshake.c',
-		'src/ws-framing.c',
-		'src/http.c',
-		'src/stream/ws.c',
+		'src/stream/ws/handshake.c',
+		'src/stream/ws/framing.c',
+		'src/stream/ws/http.c',
+		'src/stream/ws/ws.c',
 	]
 	config.set('ENABLE_WEBSOCKET', true)
 endif

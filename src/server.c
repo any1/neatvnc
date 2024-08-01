@@ -67,7 +67,6 @@
 #endif
 
 #define DEFAULT_NAME "Neat VNC"
-#define SECURITY_TYPES_MAX 3
 #define APPLE_DH_SERVER_KEY_LENGTH 256
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
@@ -215,6 +214,53 @@ static int handle_unsupported_version(struct nvnc_client* client)
 	return 0;
 }
 
+static void init_security_types(struct nvnc* server)
+{
+#define ADD_SECURITY_TYPE(type) \
+	assert(server->n_security_types < MAX_SECURITY_TYPES); \
+	server->security_types[server->n_security_types++] = (type);
+
+	if (server->n_security_types > 0)
+		return;
+
+	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+		assert(server->auth_fn);
+
+#ifdef ENABLE_TLS
+		if (server->tls_creds) {
+			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_VENCRYPT);
+		}
+#endif
+
+#ifdef HAVE_CRYPTO
+		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_RSA_AES256);
+		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_RSA_AES);
+
+		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
+		}
+#endif
+	} else {
+		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_NONE);
+	}
+
+	if (server->n_security_types == 0) {
+		nvnc_log(NVNC_LOG_PANIC, "Failed to satisfy requested security constraints");
+	}
+
+#undef ADD_SECURITY_TYPE
+}
+
+static bool is_allowed_security_type(const struct nvnc* server, uint8_t type)
+{
+	for (int i = 0; i < server->n_security_types; ++i) {
+		if ((uint8_t)server->security_types[i] == type) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static int on_version_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -230,35 +276,15 @@ static int on_version_message(struct nvnc_client* client)
 		return handle_unsupported_version(client);
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
-		SECURITY_TYPES_MAX] = {};
+		MAX_SECURITY_TYPES] = {};
 	struct rfb_security_types_msg* security =
 		(struct rfb_security_types_msg*)buf;
 
-	security->n = 0;
-	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
-		assert(server->auth_fn);
+	init_security_types(server);
 
-#ifdef ENABLE_TLS
-		if (server->tls_creds) {
-			security->types[security->n++] = RFB_SECURITY_TYPE_VENCRYPT;
-		}
-#endif
-
-#ifdef HAVE_CRYPTO
-		security->types[security->n++] = RFB_SECURITY_TYPE_RSA_AES256;
-		security->types[security->n++] = RFB_SECURITY_TYPE_RSA_AES;
-
-		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
-			security->types[security->n++] = RFB_SECURITY_TYPE_APPLE_DH;
-		}
-#endif
-	} else {
-		security->n = 1;
-		security->types[0] = RFB_SECURITY_TYPE_NONE;
-	}
-
-	if (security->n == 0) {
-		nvnc_log(NVNC_LOG_PANIC, "Failed to satisfy requested security constraints");
+	security->n = server->n_security_types;
+	for (int i = 0; i < server->n_security_types; ++i) {
+		security->types[i] = server->security_types[i];
 	}
 
 	stream_write(client->net_stream, security, sizeof(*security) +
@@ -797,6 +823,11 @@ static int on_security_message(struct nvnc_client* client)
 
 	uint8_t type = client->msg_buffer[client->buffer_index];
 	nvnc_log(NVNC_LOG_DEBUG, "Client chose security type: %d", type);
+
+	if (!is_allowed_security_type(client->server, type)) {
+		security_handshake_failed(client, NULL, "Illegal security type");
+		return sizeof(type);
+	}
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:

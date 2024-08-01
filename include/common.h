@@ -39,6 +39,7 @@
 #define MAX_OUTGOING_FRAMES 4
 #define MSG_BUFFER_SIZE 4096
 #define MAX_CUT_TEXT_SIZE 10000000
+#define MAX_SECURITY_TYPES 32
 
 enum nvnc_client_state {
 	VNC_CLIENT_STATE_ERROR = -1,
@@ -170,6 +171,9 @@ struct nvnc {
 	struct crypto_rsa_pub_key* rsa_pub;
 	struct crypto_rsa_priv_key* rsa_priv;
 #endif
+
+	int n_security_types;
+	enum rfb_security_type security_types[MAX_SECURITY_TYPES];
 
 	uint32_t n_damage_clients;
 };

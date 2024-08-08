@@ -137,7 +137,7 @@ void resample_now(struct nvnc_fb* dst, struct nvnc_fb* src,
 		pixman_image_set_clip_region(dstimg, damage);
 	}
 
-	pixman_image_composite(PIXMAN_OP_OVER, srcimg, NULL, dstimg,
+	pixman_image_composite(PIXMAN_OP_SRC, srcimg, NULL, dstimg,
 			0, 0,
 			0, 0,
 			0, 0,

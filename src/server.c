@@ -28,6 +28,7 @@
 #include "usdt.h"
 #include "enc/encoder.h"
 #include "enc/util.h"
+#include "enc/h264-encoder.h"
 #include "cursor.h"
 #include "logging.h"
 #include "auth/auth.h"
@@ -109,6 +110,25 @@ static uint64_t gettime_us(clockid_t clock)
 	struct timespec ts = { 0 };
 	clock_gettime(clock, &ts);
 	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
+}
+
+static bool have_working_h264_encoder(void)
+{
+	static int cached_result;
+
+	if (cached_result) {
+		return cached_result == 1;
+	}
+
+	struct h264_encoder *encoder = h264_encoder_create(1920, 1080,
+			DRM_FORMAT_XRGB8888, 5);
+	cached_result = encoder ? 1 : -1;
+	h264_encoder_destroy(encoder);
+
+	nvnc_log(NVNC_LOG_DEBUG, "H.264 encoding is %s",
+			cached_result == 1 ? "available" : "unavailable");
+
+	return cached_result == 1;
 }
 
 static void client_close(struct nvnc_client* client)
@@ -1656,6 +1676,8 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		case RFB_ENCODING_OPEN_H264:
 			// h264 is useless for sw frames
 			if (fb->type != NVNC_FB_GBM_BO)
+				break;
+			if (!have_working_h264_encoder())
 				break;
 			return client->encodings[i];
 #endif

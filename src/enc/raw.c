@@ -208,6 +208,7 @@ static void raw_encoder_work_destroy(void* obj)
 	pixman_region_fini(&ctx->damage);
 	if (ctx->result)
 		rcbuf_unref(ctx->result);
+	encoder_unref(&ctx->parent->encoder);
 	free(ctx);
 }
 
@@ -226,6 +227,8 @@ static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 		free(ctx);
 		return -1;
 	}
+
+	encoder_ref(encoder);
 
 	ctx->parent = self;
 	ctx->fb = fb;

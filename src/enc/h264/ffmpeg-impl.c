@@ -166,7 +166,11 @@ static AVFrame* fb_to_avframe(struct nvnc_fb* fb)
 	frame->buf[0] = desc_ref;
 	frame->data[0] = (void*)desc_ref->data;
 
-	// TODO: Set colorspace?
+	// sRGB:
+	frame->colorspace = AVCOL_SPC_RGB;
+	frame->color_primaries = AVCOL_PRI_BT709;
+	frame->color_range = AVCOL_RANGE_JPEG;
+	frame->color_trc = AVCOL_TRC_IEC61966_2_1;
 
 	return frame;
 }
@@ -313,6 +317,12 @@ static int h264_encoder__init_codec_context(struct h264_encoder_ffmpeg* self,
 	 * baseline.
 	 */
 	c->profile = 578;
+
+	// Encode sRGB into the bitstream:
+	c->colorspace = AVCOL_SPC_RGB;
+	c->color_primaries = AVCOL_PRI_BT709;
+	c->color_range = AVCOL_RANGE_JPEG;
+	c->color_trc = AVCOL_TRC_IEC61966_2_1;
 
 	return 0;
 }

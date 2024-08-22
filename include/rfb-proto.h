@@ -74,6 +74,8 @@ enum rfb_encodings {
 	RFB_ENCODING_PTS = -1000,
 	RFB_ENCODING_NTP = -1001,
 	RFB_ENCODING_VMWARE_LED_STATE = 0x574d5668,
+	// 0xc0a1e5ce, greater than INT_MAX
+	RFB_ENCODING_EXTENDED_CLIPBOARD = -1063131698,
 };
 
 #define RFB_ENCODING_JPEG_HIGHQ -23
@@ -121,6 +123,24 @@ enum rfb_led_state {
 	RFB_LED_STATE_SCROLL_LOCK = 1 << 0,
 	RFB_LED_STATE_NUM_LOCK = 1 << 1,
 	RFB_LED_STATE_CAPS_LOCK = 1 << 2,
+};
+
+enum rfb_ext_clipboard_flags {
+	RFB_EXT_CLIPBOARD_FORMAT_TEXT = 1 << 0,
+	RFB_EXT_CLIPBOARD_FORMAT_RTF = 1 << 1,
+	RFB_EXT_CLIPBOARD_FORMAT_HTML = 1 << 2,
+	RFB_EXT_CLIPBOARD_FORMAT_DIB = 1 << 3,
+	RFB_EXT_CLIPBOARD_FORMAT_FILES = 1 << 4,
+	RFB_EXT_CLIPBOARD_CAPS = 1 << 24,
+	RFB_EXT_CLIPBOARD_ACTION_REQUEST = 1 << 25,
+	RFB_EXT_CLIPBOARD_ACTION_PEEK = 1 << 26,
+	RFB_EXT_CLIPBOARD_ACTION_NOTIFY = 1 << 27,
+	RFB_EXT_CLIPBOARD_ACTION_PROVIDE = 1 << 28,
+	RFB_EXT_CLIPBOARD_ACTION_ALL =
+		RFB_EXT_CLIPBOARD_ACTION_REQUEST |
+		RFB_EXT_CLIPBOARD_ACTION_PEEK |
+		RFB_EXT_CLIPBOARD_ACTION_NOTIFY |
+		RFB_EXT_CLIPBOARD_ACTION_PROVIDE,
 };
 
 struct rfb_security_types_msg {
@@ -191,6 +211,17 @@ struct rfb_client_pointer_event_msg {
 	uint8_t button_mask;
 	uint16_t x;
 	uint16_t y;
+} RFB_PACKED;
+
+struct rfb_ext_clipboard_msg {
+	uint8_t type;
+	uint8_t padding[3];
+	uint32_t length;
+	uint32_t flags;
+	union {
+		uint32_t max_unsolicited_sizes[0];
+		unsigned char zlib_stream[0];
+	};
 } RFB_PACKED;
 
 struct rfb_cut_text_msg {

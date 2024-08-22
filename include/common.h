@@ -39,6 +39,7 @@
 #define MAX_OUTGOING_FRAMES 4
 #define MSG_BUFFER_SIZE 4096
 #define MAX_CUT_TEXT_SIZE 10000000
+#define MAX_CLIENT_UNSOLICITED_TEXT_SIZE 20971520
 #define MAX_SECURITY_TYPES 32
 
 enum nvnc_client_state {
@@ -79,6 +80,8 @@ struct cut_text {
 	char* buffer;
 	size_t length;
 	size_t index;
+	bool is_zlib;
+	bool is_provide;
 };
 
 struct nvnc_client {
@@ -104,6 +107,8 @@ struct nvnc_client {
 	uint32_t known_width;
 	uint32_t known_height;
 	struct cut_text cut_text;
+	uint32_t ext_clipboard_caps;
+	uint32_t ext_clipboard_max_unsolicited_text_size;
 	bool is_ext_notified;
 	struct encoder* encoder;
 	struct encoder* zrle_encoder;
@@ -150,6 +155,7 @@ struct nvnc {
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
 	nvnc_cut_text_fn cut_text_fn;
+	struct cut_text ext_clipboard_provide_msg;
 	nvnc_desktop_layout_fn desktop_layout_fn;
 	struct nvnc_display* display;
 	struct {

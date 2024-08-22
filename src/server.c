@@ -51,6 +51,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <zlib.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -77,6 +78,7 @@
 
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
 static bool send_ext_support_frame(struct nvnc_client* client);
+static void send_ext_clipboard_caps(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		const struct nvnc_fb*);
 static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
@@ -558,6 +560,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
 		case RFB_ENCODING_QEMU_LED_STATE:
 		case RFB_ENCODING_VMWARE_LED_STATE:
+		case RFB_ENCODING_EXTENDED_CLIPBOARD:
 #ifdef ENABLE_EXPERIMENTAL
 		case RFB_ENCODING_PTS:
 		case RFB_ENCODING_NTP:
@@ -583,6 +586,9 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 	client->n_encodings = n;
 	client->formats_changed = true;
+
+	if (client_has_encoding(client, RFB_ENCODING_EXTENDED_CLIPBOARD))
+		send_ext_clipboard_caps(client);
 
 	return sizeof(*msg) + 4 * n_encodings;
 }
@@ -652,6 +658,7 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_QEMU_EXT_KEY_EVENT: return "qemu-extended-key-event";
 	case RFB_ENCODING_QEMU_LED_STATE: return "qemu-led-state";
 	case RFB_ENCODING_VMWARE_LED_STATE: return "vmware-led-state";
+	case RFB_ENCODING_EXTENDED_CLIPBOARD: return "extended-clipboard";
 	case RFB_ENCODING_PTS: return "pts";
 	case RFB_ENCODING_NTP: return "ntp";
 	}
@@ -944,31 +951,268 @@ static int on_client_pointer_event(struct nvnc_client* client)
 	return sizeof(*msg);
 }
 
-EXPORT
-void nvnc_send_cut_text(struct nvnc* server, const char* text, uint32_t len)
+static void send_ext_clipboard_caps(struct nvnc_client* client)
 {
-	struct rfb_cut_text_msg msg;
+	struct rfb_ext_clipboard_msg msg = {};
 
 	msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
-	msg.length = htonl(len);
+	msg.length = htonl(-8);
+	msg.flags = htonl(RFB_EXT_CLIPBOARD_CAPS |
+			RFB_EXT_CLIPBOARD_FORMAT_TEXT |
+			RFB_EXT_CLIPBOARD_ACTION_ALL);
 
-	struct nvnc_client* client;
-	LIST_FOREACH (client, &server->clients, link) {
-		stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
-		stream_write(client->net_stream, text, len, NULL, NULL);
-	}
+	/* discourage unsolicited provide messages, instead force a
+	 * client notify -> server request -> solicited client provide */
+	uint32_t max_unsolicited_text_size = 0;
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, &max_unsolicited_text_size,
+			sizeof(max_unsolicited_text_size), NULL, NULL);
 }
 
-static int on_client_cut_text(struct nvnc_client* client)
+static void send_ext_clipboard_request(struct nvnc_client* client)
 {
-	struct rfb_cut_text_msg* msg =
-	        (struct rfb_cut_text_msg*)(client->msg_buffer +
-	                                   client->buffer_index);
+	struct rfb_ext_clipboard_msg msg = {};
+
+	msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
+	msg.length = htonl(-4);
+	msg.flags = htonl(RFB_EXT_CLIPBOARD_ACTION_REQUEST |
+			RFB_EXT_CLIPBOARD_FORMAT_TEXT);
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+}
+
+static void send_ext_clipboard_notify(struct nvnc_client* client)
+{
+	struct rfb_ext_clipboard_msg msg = {};
+
+	msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
+	msg.length = htonl(-4);
+	uint32_t flags = RFB_EXT_CLIPBOARD_ACTION_NOTIFY;
+	if (client->server->ext_clipboard_provide_msg.buffer)
+		flags |= RFB_EXT_CLIPBOARD_FORMAT_TEXT;
+	msg.flags = htonl(flags);
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+}
+
+static void send_ext_clipboard_provide(struct nvnc_client* client)
+{
+	assert(client->server->ext_clipboard_provide_msg.buffer);
+
+	struct rfb_ext_clipboard_msg msg = {};
+
+	msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
+	msg.length = htonl(-(4 + client->server->ext_clipboard_provide_msg.length));
+	msg.flags = htonl(RFB_EXT_CLIPBOARD_ACTION_PROVIDE |
+			RFB_EXT_CLIPBOARD_FORMAT_TEXT);
+
+	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream,
+			client->server->ext_clipboard_provide_msg.buffer,
+			client->server->ext_clipboard_provide_msg.length,
+			NULL, NULL);
+}
+
+static char* crlf_to_lf(const char* src, size_t len)
+{
+	/* caller will read this as a null-terminated string */
+	char* lf_buf = malloc(len + 1);
+	if (!lf_buf)
+		return NULL;
+
+	const char* in = src;
+	size_t in_len = len;
+	char* out = lf_buf;
+	while (in_len > 0) {
+		if (*in != '\r') {
+			*out++ = *in++;
+			in_len--;
+			continue;
+		}
+
+		if ((in_len == 0) || (*(in + 1) != '\n'))
+			*out++ = '\n';
+
+		in++;
+		in_len--;
+	}
+	*out = 0;
+
+	return lf_buf;
+}
+
+static void process_client_ext_clipboard_provide(struct nvnc_client* client,
+		unsigned char* zlib_data, size_t zlib_len)
+{
+	int rc;
+
+	z_stream zs;
+	zs.zalloc = NULL;
+	zs.zfree = NULL;
+	zs.opaque = NULL;
+	zs.avail_in = 0;
+	zs.next_in = NULL;
+	if (inflateInit(&zs) != Z_OK)
+		return;
+
+	uint32_t inflate_len;
+
+	zs.avail_in = zlib_len;
+	zs.next_in = zlib_data;
+	zs.avail_out = 4;
+	zs.next_out = (unsigned char*)&inflate_len;
+	rc = inflate(&zs, Z_SYNC_FLUSH);
+	if (rc != Z_OK) {
+		nvnc_log(NVNC_LOG_WARNING, "Failed to inflate client's clipboard text: %p (ref %d)",
+				client, client->ref);
+		inflateEnd(&zs);
+		return;
+	}
+	inflate_len = ntohl(inflate_len);
+
+	if (inflate_len <= 1) {
+		nvnc_log(NVNC_LOG_DEBUG, "Client sent empty clipboard update: %p (ref %d)",
+				client, client->ref);
+		inflateEnd(&zs);
+		return;
+	}
+
+	unsigned char* inflate_buf = malloc(inflate_len);
+	if (!inflate_buf) {
+		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
+		inflateEnd(&zs);
+		return;
+	}
+
+	zs.avail_out = inflate_len;
+	zs.next_out = inflate_buf;
+	rc = inflate(&zs, Z_SYNC_FLUSH);
+	inflateEnd(&zs);
+	if (rc != Z_OK && rc != Z_STREAM_END) {
+		nvnc_log(NVNC_LOG_WARNING, "Failed to inflate client's clipboard text: %p (ref %d)",
+				client, client->ref);
+		free(inflate_buf);
+		return;
+	}
+
+	if (inflate_buf[inflate_len - 1]) {
+		nvnc_log(NVNC_LOG_WARNING, "Client sent badly formatted clipboard text: %p (ref %d)",
+				client, client->ref);
+		free(inflate_buf);
+		return;
+	}
+
+	char* converted_buf = crlf_to_lf((const char*)inflate_buf, inflate_len - 1);
+	free(inflate_buf);
+	if (!converted_buf) {
+		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
+		return;
+	}
+	size_t converted_len = strlen(converted_buf);
+
+	nvnc_cut_text_fn fn = client->server->cut_text_fn;
+	if (fn)
+		fn(client, converted_buf, converted_len);
+
+	free(converted_buf);
+}
+
+static int process_client_ext_clipboard(struct nvnc_client* client)
+{
+	struct rfb_ext_clipboard_msg* msg =
+		(struct rfb_ext_clipboard_msg*)(client->msg_buffer +
+					client->buffer_index);
 
 	size_t left_to_process = client->buffer_len - client->buffer_index;
 
 	if (left_to_process < sizeof(*msg))
 		return 0;
+
+	int32_t length = -(ntohl(msg->length));
+	length = length - 4; /* length starting from after flags */
+
+	uint32_t flags = ntohl(msg->flags);
+
+	/* make sure that there is space to read a correctly-sized caps message
+	 * right now */
+	if (flags & RFB_EXT_CLIPBOARD_CAPS)
+		if (left_to_process < sizeof(*msg) + MIN(16 * 4, length))
+			return 0;
+
+	int32_t max_length = MAX_CUT_TEXT_SIZE;
+
+	/* Messages greater than this size are unsupported */
+	if (length > max_length) {
+		nvnc_log(NVNC_LOG_ERROR, "Extended clipboard payload length (%d) is greater than max supported length (%d)",
+				length, max_length);
+		nvnc_client_close(client);
+		return 0;
+	}
+
+	size_t msg_size = sizeof(*msg) + length;
+
+	/* this is expected to be a provide message. if not, tell
+	 * process_big_cut_text to ignore it, to avoid unnecessarily attempting
+	 * to inflate garbage */
+	if (msg_size > left_to_process) {
+		assert(!client->cut_text.buffer);
+		client->cut_text.buffer = malloc(length);
+		if (!client->cut_text.buffer) {
+			nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
+			nvnc_client_close(client);
+			return 0;
+		}
+
+		size_t partial_size = left_to_process - sizeof(*msg);
+
+		memcpy(client->cut_text.buffer, msg->zlib_stream, partial_size);
+
+		client->cut_text.is_zlib = true;
+		client->cut_text.length = length;
+		client->cut_text.index = partial_size;
+
+		client->cut_text.is_provide = (flags & RFB_EXT_CLIPBOARD_ACTION_PROVIDE &&
+				!(flags & RFB_EXT_CLIPBOARD_CAPS));
+
+		return left_to_process;
+	}
+
+	if (flags & RFB_EXT_CLIPBOARD_CAPS) {
+		client->ext_clipboard_caps = flags;
+
+		/* we only care about text, which will always be
+		 * listed first */
+		if (length >= 4)
+			client->ext_clipboard_max_unsolicited_text_size =
+				ntohl(msg->max_unsolicited_sizes[0]);
+	} else if ((flags & RFB_EXT_CLIPBOARD_ACTION_REQUEST) &&
+			(flags & RFB_EXT_CLIPBOARD_FORMAT_TEXT) &&
+			(client->ext_clipboard_caps & RFB_EXT_CLIPBOARD_ACTION_PROVIDE) &&
+			(client->server->ext_clipboard_provide_msg.buffer)) {
+		send_ext_clipboard_provide(client);
+	} else if ((flags & RFB_EXT_CLIPBOARD_ACTION_PEEK) &&
+			(client->ext_clipboard_caps & RFB_EXT_CLIPBOARD_ACTION_NOTIFY)) {
+		send_ext_clipboard_notify(client);
+	} else if ((flags & RFB_EXT_CLIPBOARD_ACTION_NOTIFY) &&
+			(flags & RFB_EXT_CLIPBOARD_FORMAT_TEXT) &&
+			(client->ext_clipboard_caps & RFB_EXT_CLIPBOARD_ACTION_REQUEST)) {
+		send_ext_clipboard_request(client);
+	} else if ((flags & RFB_EXT_CLIPBOARD_ACTION_PROVIDE) &&
+			(flags & RFB_EXT_CLIPBOARD_FORMAT_TEXT)) {
+		process_client_ext_clipboard_provide(client, msg->zlib_stream, length);
+	}
+
+	return msg_size;
+}
+
+static int process_client_cut_text(struct nvnc_client* client)
+{
+	struct rfb_cut_text_msg* msg =
+		(struct rfb_cut_text_msg*)(client->msg_buffer +
+					   client->buffer_index);
+
+	size_t left_to_process = client->buffer_len - client->buffer_index;
 
 	uint32_t length = ntohl(msg->length);
 	uint32_t max_length = MAX_CUT_TEXT_SIZE;
@@ -1004,10 +1248,30 @@ static int on_client_cut_text(struct nvnc_client* client)
 
 	memcpy(client->cut_text.buffer, msg->text, partial_size);
 
+	client->cut_text.is_zlib = false;
+	client->cut_text.is_provide = false;
 	client->cut_text.length = length;
 	client->cut_text.index = partial_size;
 
 	return left_to_process;
+}
+
+static int on_client_cut_text(struct nvnc_client* client)
+{
+	struct rfb_cut_text_msg* msg =
+		(struct rfb_cut_text_msg*)(client->msg_buffer +
+					   client->buffer_index);
+
+	size_t left_to_process = client->buffer_len - client->buffer_index;
+
+	if (left_to_process < sizeof(*msg))
+		return 0;
+
+	if (client_has_encoding(client, RFB_ENCODING_EXTENDED_CLIPBOARD) &&
+			((int32_t)ntohl(msg->length) < 0))
+		return process_client_ext_clipboard(client);
+
+	return process_client_cut_text(client);
 }
 
 static void process_big_cut_text(struct nvnc_client* client)
@@ -1039,12 +1303,114 @@ static void process_big_cut_text(struct nvnc_client* client)
 	if (client->cut_text.index != client->cut_text.length)
 		return;
 
-	nvnc_cut_text_fn fn = client->server->cut_text_fn;
-	if (fn)
-		fn(client, client->cut_text.buffer, client->cut_text.length);
+	if (client->cut_text.is_zlib) {
+		if (client->cut_text.is_provide)
+			process_client_ext_clipboard_provide(client,
+					(unsigned char*)client->cut_text.buffer,
+					client->cut_text.length);
+	} else {
+		nvnc_cut_text_fn fn = client->server->cut_text_fn;
+		if (fn)
+			fn(client, client->cut_text.buffer,
+					client->cut_text.length);
+	}
 
 	free(client->cut_text.buffer);
 	client->cut_text.buffer = NULL;
+}
+
+static void ext_clipboard_save_provide_msg(struct nvnc* server, const char* text,
+		uint32_t len)
+{
+	if (server->ext_clipboard_provide_msg.buffer || !len) {
+		free(server->ext_clipboard_provide_msg.buffer);
+		server->ext_clipboard_provide_msg.buffer = NULL;
+	}
+
+	if (!len)
+		return;
+
+	/* requires null terminator */
+	size_t provide_msg_len = 4 + len + 1;
+	unsigned char* provide_msg_buf = malloc(provide_msg_len);
+	if (!provide_msg_buf) {
+		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
+		return;
+	}
+
+	uint32_t nlen = htonl(len);
+	memcpy(provide_msg_buf, &nlen, 4);
+	memcpy(provide_msg_buf + 4, text, len);
+	provide_msg_buf[provide_msg_len - 1] = 0;
+
+	server->ext_clipboard_provide_msg.length = compressBound(provide_msg_len);
+	server->ext_clipboard_provide_msg.buffer = malloc(
+			server->ext_clipboard_provide_msg.length);
+	if (!server->ext_clipboard_provide_msg.buffer) {
+		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
+		return;
+	}
+
+	int rc;
+	rc = compress((unsigned char*)server->ext_clipboard_provide_msg.buffer,
+			&server->ext_clipboard_provide_msg.length,
+			provide_msg_buf, provide_msg_len);
+
+	free(provide_msg_buf);
+
+	if (rc != Z_OK) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to compress extended clipboard payload");
+		free(server->ext_clipboard_provide_msg.buffer);
+		server->ext_clipboard_provide_msg.buffer = NULL;
+	}
+}
+
+static void send_cut_text_to_client(struct nvnc_client* client,
+		const char* text, uint32_t len)
+{
+       struct rfb_cut_text_msg msg = {};
+
+       msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
+       msg.length = htonl(len);
+
+       stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+       stream_write(client->net_stream, text, len, NULL, NULL);
+}
+
+EXPORT
+void nvnc_send_cut_text(struct nvnc* server, const char* text, uint32_t len)
+{
+	struct nvnc_client* client;
+
+	bool ext_clipboard_in_use = false;
+	LIST_FOREACH (client, &server->clients, link) {
+		if (client_has_encoding(client, RFB_ENCODING_EXTENDED_CLIPBOARD)) {
+			ext_clipboard_in_use = true;
+			break;
+		}
+	}
+
+	if (ext_clipboard_in_use) {
+		ext_clipboard_save_provide_msg(server, text, len);
+	} else if (server->ext_clipboard_provide_msg.buffer) {
+		free(server->ext_clipboard_provide_msg.buffer);
+		server->ext_clipboard_provide_msg.buffer = NULL;
+	}
+
+	LIST_FOREACH (client, &server->clients, link) {
+		if (client_has_encoding(client, RFB_ENCODING_EXTENDED_CLIPBOARD)) {
+			if (!server->ext_clipboard_provide_msg.buffer)
+				continue;
+
+			if (client->ext_clipboard_caps & RFB_EXT_CLIPBOARD_ACTION_PROVIDE &&
+					len <= client->ext_clipboard_max_unsolicited_text_size)
+				send_ext_clipboard_provide(client);
+			else if (client->ext_clipboard_caps & RFB_EXT_CLIPBOARD_ACTION_NOTIFY)
+				send_ext_clipboard_notify(client);
+		} else {
+			send_cut_text_to_client(client, text, len);
+		}
+	}
 }
 
 static enum rfb_resize_status check_desktop_layout(struct nvnc_client* client,
@@ -1332,6 +1698,15 @@ static void on_connection(void* obj)
 	client->server = server;
 	client->quality = 10; /* default to lossless */
 	client->led_state = -1; /* trigger sending of initial state */
+
+	/* default extended clipboard capabilities */
+	client->ext_clipboard_caps =
+		RFB_EXT_CLIPBOARD_FORMAT_TEXT |
+		RFB_EXT_CLIPBOARD_ACTION_REQUEST |
+		RFB_EXT_CLIPBOARD_ACTION_NOTIFY |
+		RFB_EXT_CLIPBOARD_ACTION_PROVIDE;
+	client->ext_clipboard_max_unsolicited_text_size =
+		MAX_CLIENT_UNSOLICITED_TEXT_SIZE;
 
 	int fd = accept(server->fd, NULL, 0);
 	if (fd < 0) {
@@ -1638,6 +2013,8 @@ void nvnc_close(struct nvnc* self)
 		gnutls_global_deinit();
 	}
 #endif
+
+	free(self->ext_clipboard_provide_msg.buffer);
 
 	aml_unref(self->poll_handle);
 	free(self);

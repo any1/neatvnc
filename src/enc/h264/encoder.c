@@ -49,7 +49,8 @@ struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
 
 void h264_encoder_destroy(struct h264_encoder* self)
 {
-	self->impl->destroy(self);
+	if (self)
+		self->impl->destroy(self);
 }
 
 void h264_encoder_set_packet_handler_fn(struct h264_encoder* self,

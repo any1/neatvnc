@@ -570,6 +570,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_QEMU_LED_STATE:
 		case RFB_ENCODING_VMWARE_LED_STATE:
 		case RFB_ENCODING_EXTENDED_CLIPBOARD:
+		case RFB_ENCODING_CONTINUOUSUPDATES:
 #ifdef ENABLE_EXPERIMENTAL
 		case RFB_ENCODING_PTS:
 		case RFB_ENCODING_NTP:
@@ -581,12 +582,6 @@ static int on_client_set_encodings(struct nvnc_client* client)
 			;
 #endif
 			break;
-		case RFB_ENCODING_CONTINUOUSUPDATES:
-			client->encodings[n++] = encoding;
-			if (!client->is_continuous_updates_notified) {
-				nvnc_send_end_of_continuous_updates(client);
-				client->is_continuous_updates_notified = true;
-			}
 		}
 
 		if (RFB_ENCODING_JPEG_LOWQ <= encoding &&
@@ -602,6 +597,12 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 	client->n_encodings = n;
 	client->formats_changed = true;
+
+	if (!client->is_continuous_updates_notified &&
+			client_has_encoding(client, RFB_ENCODING_CONTINUOUSUPDATES)) {
+		nvnc_send_end_of_continuous_updates(client);
+		client->is_continuous_updates_notified = true;
+	}
 
 	if (client_has_encoding(client, RFB_ENCODING_EXTENDED_CLIPBOARD))
 		send_ext_clipboard_caps(client);

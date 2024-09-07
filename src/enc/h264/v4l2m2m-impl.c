@@ -699,6 +699,7 @@ static struct h264_encoder* h264_encoder_v4l2m2m_create(uint32_t width,
 failure:
 	if (self->fd >= 0)
 		close(self->fd);
+	free(self);
 	return NULL;
 }
 

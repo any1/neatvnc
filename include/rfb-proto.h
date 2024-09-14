@@ -50,6 +50,7 @@ enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT = 6,
 	RFB_CLIENT_TO_SERVER_ENABLE_CONTINUOUS_UPDATES = 150,
 	RFB_CLIENT_TO_SERVER_NTP = 160,
+	RFB_CLIENT_TO_SERVER_FENCE = 248,
 	RFB_CLIENT_TO_SERVER_SET_DESKTOP_SIZE = 251,
 	RFB_CLIENT_TO_SERVER_QEMU = 255,
 };
@@ -72,6 +73,7 @@ enum rfb_encodings {
 	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
 	RFB_ENCODING_QEMU_LED_STATE = -261,
 	RFB_ENCODING_EXTENDEDDESKTOPSIZE = -308,
+	RFB_ENCODING_FENCE = -312,
 	RFB_ENCODING_CONTINUOUSUPDATES = -313,
 	RFB_ENCODING_PTS = -1000,
 	RFB_ENCODING_NTP = -1001,
@@ -90,6 +92,7 @@ enum rfb_server_to_client_msg_type {
 	RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT = 3,
 	RFB_SERVER_TO_CLIENT_END_OF_CONTINUOUS_UPDATES = 150,
 	RFB_SERVER_TO_CLIENT_NTP = 160,
+	RFB_SERVER_TO_CLIENT_FENCE = 248,
 };
 
 enum rfb_vencrypt_subtype {
@@ -144,6 +147,15 @@ enum rfb_ext_clipboard_flags {
 		RFB_EXT_CLIPBOARD_ACTION_PEEK |
 		RFB_EXT_CLIPBOARD_ACTION_NOTIFY |
 		RFB_EXT_CLIPBOARD_ACTION_PROVIDE,
+};
+
+enum rfb_fence_flags {
+	RFB_FENCE_BLOCK_BEFORE = 1 << 0,
+	RFB_FENCE_BLOCK_AFTER = 1 << 1,
+	RFB_FENCE_SYNC_NEXT = 1 << 2,
+	RFB_FENCE_REQUEST = 1 << 31,
+	RFB_FENCE_MASK = RFB_FENCE_BLOCK_BEFORE | RFB_FENCE_BLOCK_AFTER |
+		RFB_FENCE_SYNC_NEXT,
 };
 
 struct rfb_security_types_msg {
@@ -333,4 +345,12 @@ struct rfb_set_colour_map_entries_msg {
 	uint16_t first_colour;
 	uint16_t n_colours;
 	struct rfb_colour_map_entry colours[0];
+} RFB_PACKED;
+
+struct rfb_fence_msg {
+	uint8_t type;
+	uint8_t padding[3];
+	uint32_t flags;
+	uint8_t length;
+	uint8_t payload[0];
 } RFB_PACKED;

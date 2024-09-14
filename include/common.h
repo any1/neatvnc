@@ -122,6 +122,14 @@ struct nvnc_client {
 	bool formats_changed;
 	enum nvnc_keyboard_led_state led_state;
 	enum nvnc_keyboard_led_state pending_led_state;
+	bool is_blocked_by_fence;
+	bool must_block_after_next_message;
+	struct {
+		int n_pending_requests;
+		enum rfb_fence_flags flags;
+		uint8_t payload[64];
+		size_t length;
+	} pending_fence;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

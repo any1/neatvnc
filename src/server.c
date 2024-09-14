@@ -89,6 +89,7 @@ static void sockaddr_to_string(char* dst, size_t sz,
 		const struct sockaddr* addr);
 static const char* encoding_to_string(enum rfb_encodings encoding);
 static bool client_send_led_state(struct nvnc_client* client);
+static void process_pending_fence(struct nvnc_client* client);
 
 #if defined(PROJECT_VERSION)
 EXPORT const char nvnc_version[] = PROJECT_VERSION;
@@ -528,6 +529,22 @@ static void nvnc_send_end_of_continuous_updates(struct nvnc_client* client)
 	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
 }
 
+static void send_fence(struct nvnc_client* client, uint32_t flags,
+		const void* payload, size_t length)
+{
+	assert(length <= 64);
+	const uint8_t buffer[sizeof(struct rfb_fence_msg) + 64] = {};
+	struct rfb_fence_msg *head = (struct rfb_fence_msg*)buffer;
+
+	head->type = RFB_SERVER_TO_CLIENT_FENCE;
+	head->flags = htonl(flags);
+	head->length = length;
+	memcpy(head->payload, payload, length);
+
+	stream_write(client->net_stream, buffer, sizeof(*head) + length, NULL,
+			NULL);
+}
+
 static int on_client_set_encodings(struct nvnc_client* client)
 {
 	struct rfb_client_set_encodings_msg* msg =
@@ -563,6 +580,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_VMWARE_LED_STATE:
 		case RFB_ENCODING_EXTENDED_CLIPBOARD:
 		case RFB_ENCODING_CONTINUOUSUPDATES:
+		case RFB_ENCODING_FENCE:
 #ifdef ENABLE_EXPERIMENTAL
 		case RFB_ENCODING_PTS:
 		case RFB_ENCODING_NTP:
@@ -598,6 +616,9 @@ static int on_client_set_encodings(struct nvnc_client* client)
 
 	if (client_has_encoding(client, RFB_ENCODING_EXTENDED_CLIPBOARD))
 		send_ext_clipboard_caps(client);
+
+	if (client_has_encoding(client, RFB_ENCODING_FENCE))
+		send_fence(client, 0, NULL, 0);
 
 	return sizeof(*msg) + 4 * n_encodings;
 }
@@ -671,6 +692,7 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_PTS: return "pts";
 	case RFB_ENCODING_NTP: return "ntp";
 	case RFB_ENCODING_CONTINUOUSUPDATES: return "continuous-updates";
+	case RFB_ENCODING_FENCE: return "fence";
 	}
 	return "UNKNOWN";
 }
@@ -732,6 +754,15 @@ static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
 	return true;
 }
 
+static int decrement_pending_requests(struct nvnc_client* client)
+{
+	assert(!client->is_updating);
+	if (client->continuous_updates_enabled)
+		return 1;
+	process_pending_fence(client);
+	return --client->n_pending_requests;
+}
+
 static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -761,8 +792,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	    || fb->height != client->known_height) {
 		send_desktop_resize(client, fb);
 
-		if (!client->continuous_updates_enabled &&
-		    --client->n_pending_requests <= 0)
+		if (decrement_pending_requests(client) <= 0)
 			return;
 	}
 
@@ -770,8 +800,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		client->is_ext_notified = true;
 
 		if (send_ext_support_frame(client)) {
-			if (!client->continuous_updates_enabled &&
-			    --client->n_pending_requests <= 0)
+			if (decrement_pending_requests(client) <= 0)
 				return;
 		}
 	}
@@ -780,13 +809,12 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			&& client_has_encoding(client, RFB_ENCODING_CURSOR)) {
 		send_cursor_update(client);
 
-		if (!client->continuous_updates_enabled &&
-		    --client->n_pending_requests <= 0)
+		if (decrement_pending_requests(client) <= 0)
 			return;
 	}
 
 	if (client_send_led_state(client)) {
-		if (--client->n_pending_requests <= 0)
+		if (decrement_pending_requests(client) <= 0)
 			return;
 	}
 
@@ -1619,6 +1647,79 @@ static int on_client_ntp(struct nvnc_client* client)
 	return sizeof(msg);
 }
 
+static bool on_fence_request(struct nvnc_client* client,
+		enum rfb_fence_flags flags, const void* payload, size_t length)
+{
+	flags &= RFB_FENCE_MASK;
+
+	// If a fence is already pending, we can't process this fence request.
+	// This is what we'll want to do anyway if BLOCK_AFTER is set.
+	// TODO: Queue pending fences?
+	if (client->n_pending_requests > 0) {
+		client->is_blocked_by_fence = true;
+		return false;
+	}
+
+	if ((flags & RFB_FENCE_BLOCK_BEFORE) &&
+			client->n_pending_requests + client->is_updating > 0) {
+		client->pending_fence.n_pending_requests =
+			client->n_pending_requests + client->is_updating;
+	} else if ((flags & RFB_FENCE_SYNC_NEXT) && client->is_updating) {
+		client->pending_fence.n_pending_requests = 1;
+		client->must_block_after_next_message =
+			!!(flags & RFB_FENCE_BLOCK_AFTER);
+	}
+
+	if (client->pending_fence.n_pending_requests == 0) {
+		send_fence(client, flags, payload, length);
+	} else {
+		client->is_blocked_by_fence =
+			flags == (RFB_FENCE_BLOCK_BEFORE | RFB_FENCE_BLOCK_AFTER);
+		client->pending_fence.flags = flags;
+		client->pending_fence.length = length;
+		memcpy(client->pending_fence.payload, payload, length);
+	}
+
+	return true;
+}
+
+static void on_fence_response(struct nvnc_client* client,
+		enum rfb_fence_flags flags, const void* payload, size_t length)
+{
+	// Nothing to do here for now
+}
+
+static int on_client_fence(struct nvnc_client* client)
+{
+	struct rfb_fence_msg *msg = (struct rfb_fence_msg*)(client->msg_buffer +
+			client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(msg))
+		return 0;
+
+	uint8_t length = msg->length;
+	if (client->buffer_len - client->buffer_index < sizeof(msg) + length)
+		return 0;
+
+	if (length > 64) {
+		nvnc_log(NVNC_LOG_WARNING,
+				"Client sent too long fence message. Closing.");
+		nvnc_client_close(client);
+		return 0;
+	}
+
+	enum rfb_fence_flags flags = ntohl(msg->flags);
+
+	if (flags & RFB_FENCE_REQUEST) {
+		if (!on_fence_request(client, flags, msg->payload, length))
+			return 0;
+	} else {
+		on_fence_response(client, flags, msg->payload, length);
+	}
+
+	return sizeof(*msg) + length;
+}
+
 static int on_client_message(struct nvnc_client* client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
@@ -1648,6 +1749,8 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_set_desktop_size_event(client);
 	case RFB_CLIENT_TO_SERVER_NTP:
 		return on_client_ntp(client);
+	case RFB_CLIENT_TO_SERVER_FENCE:
+		return on_client_fence(client);
 	}
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p",
@@ -1728,13 +1831,16 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	client->buffer_len += n_read;
 
-	while (1) {
+	while (!client->is_blocked_by_fence) {
+		client->is_blocked_by_fence =
+			client->must_block_after_next_message;
+		client->must_block_after_next_message = false;
+
 		int rc = try_read_client_message(client);
 		if (rc == 0)
 			break;
 
 		client->buffer_index += rc;
-
 	}
 
 	assert(client->buffer_index <= client->buffer_len);
@@ -2086,6 +2192,25 @@ void nvnc_close(struct nvnc* self)
 	free(self);
 }
 
+static void process_pending_fence(struct nvnc_client* client)
+{
+	if (client->pending_fence.n_pending_requests == 0) {
+		assert(!client->is_blocked_by_fence);
+		return;
+	}
+
+	if (--client->pending_fence.n_pending_requests != 0)
+		return;
+
+	send_fence(client, client->pending_fence.flags,
+			client->pending_fence.payload,
+			client->pending_fence.length);
+	memset(&client->pending_fence, 0, sizeof(client->pending_fence));
+
+	client->is_blocked_by_fence = false;
+	on_client_event(client->net_stream, STREAM_EVENT_READ);
+}
+
 static void complete_fb_update(struct nvnc_client* client)
 {
 	if (!client->is_updating)
@@ -2142,7 +2267,8 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		goto complete;
 
-	if (client->formats_changed) {
+	if (client->formats_changed &&
+			!client_has_encoding(client, RFB_ENCODING_FENCE)) {
 		/* Client has requested new pixel format or encoding in the
 		 * meantime, so it probably won't know what to do with this
 		 * frame. Pending requests get incremented because this one is
@@ -2170,6 +2296,8 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 	if (stream_send(client->net_stream, payload,
 			on_write_frame_done, client) < 0)
 		goto complete;
+
+	process_pending_fence(client);
 
 	DTRACE_PROBE2(neatvnc, send_fb_done, client, pts);
 	return;

@@ -43,6 +43,7 @@ int stream_tcp_close(struct stream* self)
 		return -1;
 
 	self->state = STREAM_STATE_CLOSED;
+	self->cork = true;
 
 	while (!TAILQ_EMPTY(&self->send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
@@ -80,6 +81,7 @@ static int stream_tcp__flush(struct stream* self)
 			if (req->payload)
 				rcbuf_unref(req->payload);
 			struct rcbuf* payload  = req->exec(self, req->userdata);
+			assert(payload);
 			req->payload = payload;
 		}
 
@@ -115,6 +117,9 @@ static int stream_tcp__flush(struct stream* self)
 
 	ssize_t bytes_left = bytes_sent;
 
+	// Don't flush while flushing
+	self->cork = true;
+
 	struct stream_req* tmp;
 	TAILQ_FOREACH_SAFE(req, &self->send_queue, link, tmp) {
 		bytes_left -= req->payload->size;
@@ -138,6 +143,8 @@ static int stream_tcp__flush(struct stream* self)
 		if (bytes_left <= 0)
 			break;
 	}
+
+	self->cork = false;
 
 	if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
 		stream__poll_r(self);

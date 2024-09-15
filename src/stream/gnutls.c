@@ -80,6 +80,12 @@ static void stream_gnutls_destroy(struct stream* self)
 
 static int stream_gnutls__flush(struct stream* base)
 {
+	if (base->cork)
+		return 0;
+
+	// Don't flush while flushing
+	base->cork = true;
+
 	struct stream_gnutls* self = (struct stream_gnutls*)base;
 	while (!TAILQ_EMPTY(&self->base.send_queue)) {
 		assert(self->base.state != STREAM_STATE_CLOSED);
@@ -116,6 +122,8 @@ static int stream_gnutls__flush(struct stream* base)
 		TAILQ_REMOVE(&self->base.send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_DONE);
 	}
+
+	base->cork = false;
 
 	if (TAILQ_EMPTY(&base->send_queue) && base->state != STREAM_STATE_CLOSED)
 		stream__poll_r(base);

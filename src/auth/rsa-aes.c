@@ -96,6 +96,8 @@ static int on_rsa_aes_public_key(struct nvnc_client* client)
 		crypto_rsa_pub_key_import(modulus, exponent, byte_length);
 	assert(client->rsa.pub);
 
+	update_min_rtt(client);
+
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CHALLENGE;
 	rsa_aes_send_challenge(client, client->rsa.pub);
 
@@ -194,6 +196,8 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	free(server_modulus);
 	free(client_modulus);
 
+	update_min_rtt(client);
+
 	stream_write(client->net_stream, server_hash,
 			client_rsa_aes_hash_len(client), NULL, NULL);
 
@@ -252,6 +256,8 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 		return 0;
 	}
 
+	update_min_rtt(client);
+
 	// TODO: Read this from config
 	uint8_t subtype = RFB_RSA_AES_CRED_SUBTYPE_USER_AND_PASS;
 	stream_write(client->net_stream, &subtype, 1, NULL, NULL);
@@ -285,6 +291,8 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 	username[username_len] = '\0';
 	memcpy(password, (const char*)(msg + 2 + username_len), password_len);
 	password[password_len] = '\0';
+
+	update_min_rtt(client);
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
 		security_handshake_ok(client, username);

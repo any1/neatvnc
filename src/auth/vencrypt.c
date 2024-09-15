@@ -61,6 +61,8 @@ static int on_vencrypt_version_message(struct nvnc_client* client)
 	struct rfb_vencrypt_subtypes_msg result = { .n = 1, };
 	result.types[0] = htonl(RFB_VENCRYPT_X509_PLAIN);
 
+	update_min_rtt(client);
+
 	stream_write(client->net_stream, &result, sizeof(result), NULL, NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_SUBTYPE;
@@ -82,6 +84,8 @@ static int on_vencrypt_subtype_message(struct nvnc_client* client)
 		send_byte_and_close(client, 0);
 		return sizeof(*msg);
 	}
+
+	update_min_rtt(client);
 
 	send_byte(client, 1);
 
@@ -120,6 +124,8 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 
 	username[MIN(ulen, sizeof(username) - 1)] = '\0';
 	password[MIN(plen, sizeof(password) - 1)] = '\0';
+
+	update_min_rtt(client);
 
 	if (server->auth_fn(username, password, server->auth_ud)) {
 		security_handshake_ok(client, username);

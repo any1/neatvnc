@@ -96,6 +96,8 @@ int apple_dh_handle_response(struct nvnc_client* client)
 	username[127] = '\0';
 	crypto_cipher_del(cipher);
 
+	update_min_rtt(client);
+
 	if (server->auth_fn(username, password, server->auth_ud)) {
 		security_handshake_ok(client, username);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;

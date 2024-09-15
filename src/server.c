@@ -279,6 +279,16 @@ static bool is_allowed_security_type(const struct nvnc* server, uint8_t type)
 	return false;
 }
 
+void update_min_rtt(struct nvnc_client* client)
+{
+	int32_t now = gettime_us(CLOCK_MONOTONIC);
+	int32_t diff = now - client->last_ping_time;
+	client->last_ping_time = now;
+
+	if (diff < client->min_rtt)
+		client->min_rtt = diff;
+}
+
 static int on_version_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -305,6 +315,8 @@ static int on_version_message(struct nvnc_client* client)
 		security->types[i] = server->security_types[i];
 	}
 
+	update_min_rtt(client);
+
 	stream_write(client->net_stream, security, sizeof(*security) +
 			security->n, NULL, NULL);
 
@@ -324,6 +336,8 @@ static int on_security_message(struct nvnc_client* client)
 		security_handshake_failed(client, NULL, "Illegal security type");
 		return sizeof(type);
 	}
+
+	update_min_rtt(client);
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
@@ -440,11 +454,16 @@ static int on_init_message(struct nvnc_client* client)
 	if (!shared_flag)
 		disconnect_all_other_clients(client);
 
+	update_min_rtt(client);
+
 	send_server_init_message(client);
 
 	nvnc_client_fn fn = client->server->new_client_fn;
 	if (fn)
 		fn(client);
+
+	nvnc_log(NVNC_LOG_INFO, "Client %p initialised. MIN-RTT during handshake was %"PRId32" ms",
+			client, client->min_rtt / 1000);
 
 	client->state = VNC_CLIENT_STATE_READY;
 	return sizeof(shared_flag);
@@ -1862,6 +1881,7 @@ static void on_connection(void* obj)
 	client->server = server;
 	client->quality = 10; /* default to lossless */
 	client->led_state = -1; /* trigger sending of initial state */
+	client->min_rtt = INT32_MAX;
 
 	/* default extended clipboard capabilities */
 	client->ext_clipboard_caps =
@@ -1909,6 +1929,7 @@ static void on_connection(void* obj)
 		goto payload_failure;
 	}
 
+	client->last_ping_time = gettime_us(CLOCK_MONOTONIC);
 	stream_send(client->net_stream, payload, NULL, NULL);
 
 	LIST_INSERT_HEAD(&server->clients, client, link);

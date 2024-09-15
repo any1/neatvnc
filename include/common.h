@@ -130,6 +130,8 @@ struct nvnc_client {
 		uint8_t payload[64];
 		size_t length;
 	} pending_fence;
+	int32_t last_ping_time;
+	int32_t min_rtt;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;
@@ -200,3 +202,4 @@ struct nvnc {
 void nvnc__damage_region(struct nvnc* self,
                          const struct pixman_region16* damage);
 void close_after_write(void* userdata, enum stream_req_status status);
+void update_min_rtt(struct nvnc_client* client);

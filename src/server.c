@@ -73,6 +73,7 @@
 #endif
 
 #define DEFAULT_NAME "Neat VNC"
+#define EXTRA_DELAY_MAX 33333 // µs
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -564,6 +565,18 @@ static void send_fence(struct nvnc_client* client, uint32_t flags,
 			NULL);
 }
 
+static void send_ping(struct nvnc_client* client)
+{
+	if (!client_has_encoding(client, RFB_ENCODING_FENCE))
+		return;
+
+	uint32_t now = gettime_us(CLOCK_MONOTONIC);
+	uint32_t now_be = htonl(now);
+
+	send_fence(client, RFB_FENCE_REQUEST | RFB_FENCE_BLOCK_BEFORE,
+			&now_be, sizeof(now_be));
+}
+
 static int on_client_set_encodings(struct nvnc_client* client)
 {
 	struct rfb_client_set_encodings_msg* msg =
@@ -773,6 +786,16 @@ static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
 	return true;
 }
 
+// This is the time it would have taken to present the frame had network latency
+// been zero.
+static int32_t estimate_extra_delay(const struct nvnc_client* client)
+{
+	if (client->presentation_rtt == -1)
+		return 0;
+
+	return client->presentation_rtt - client->min_rtt;
+}
+
 static int decrement_pending_requests(struct nvnc_client* client)
 {
 	assert(!client->is_updating);
@@ -855,6 +878,15 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			return;
 		}
 		pixman_region_fini(&damage);
+	}
+
+	// TODO: Incorporate latency jitter so this doesn't trigger sporadically
+	// TODO: Debounce?
+	int32_t extra_delay = estimate_extra_delay(client);
+	if (extra_delay > EXTRA_DELAY_MAX) {
+		nvnc_log(NVNC_LOG_DEBUG, "Client is too far behind; dropping frame");
+		send_ping(client);
+		return;
 	}
 
 	if (!ensure_encoder(client, fb))
@@ -1705,7 +1737,26 @@ static bool on_fence_request(struct nvnc_client* client,
 static void on_fence_response(struct nvnc_client* client,
 		enum rfb_fence_flags flags, const void* payload, size_t length)
 {
-	// Nothing to do here for now
+	// We're only using this for pings
+
+	uint32_t departure_time_be;
+	memcpy(&departure_time_be, payload, sizeof(departure_time_be));
+	int32_t departure_time = ntohl(departure_time_be);
+
+	int32_t now = gettime_us(CLOCK_MONOTONIC);
+	int32_t rtt = now - departure_time;
+	if (rtt < 0) {
+		nvnc_log(NVNC_LOG_WARNING, "Got negative RTT on ping response");
+		return;
+	}
+
+	if (rtt < client->min_rtt)
+		client->min_rtt = rtt;
+
+	client->presentation_rtt = rtt;
+
+	nvnc_trace("Last frame's extra latency was: %" PRIu32 " ms",
+			estimate_extra_delay(client) / 1000);
 }
 
 static int on_client_fence(struct nvnc_client* client)
@@ -1882,6 +1933,7 @@ static void on_connection(void* obj)
 	client->quality = 10; /* default to lossless */
 	client->led_state = -1; /* trigger sending of initial state */
 	client->min_rtt = INT32_MAX;
+	client->presentation_rtt = -1;
 
 	/* default extended clipboard capabilities */
 	client->ext_clipboard_caps =
@@ -2317,6 +2369,8 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 	if (stream_send(client->net_stream, payload,
 			on_write_frame_done, client) < 0)
 		goto complete;
+
+	send_ping(client);
 
 	process_pending_fence(client);
 

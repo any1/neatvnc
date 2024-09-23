@@ -443,6 +443,7 @@ static void on_tight_zs_work_done(void* obj)
 	struct tight_encoder* self = ctx->encoder;
 
 	if (--self->n_jobs == 0) {
+		nvnc_fb_release(self->fb);
 		nvnc_fb_unref(self->fb);
 		schedule_tight_finish(self);
 	}
@@ -612,8 +613,10 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	assert(self->n_rects > 0);
 
 	nvnc_fb_ref(self->fb);
+	nvnc_fb_hold(self->fb);
 
 	if (tight_schedule_encoding_jobs(self) < 0) {
+		nvnc_fb_release(self->fb);
 		nvnc_fb_unref(self->fb);
 		vec_destroy(&self->dst);
 		return -1;

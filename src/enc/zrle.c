@@ -368,6 +368,7 @@ static void zrle_encoder_on_done(void* obj)
 	assert(self->current_result);
 
 	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
+	nvnc_fb_release(self->current_fb);
 	nvnc_fb_unref(self->current_fb);
 	self->current_fb = NULL;
 
@@ -444,6 +445,7 @@ static int zrle_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 
 	self->current_fb = fb;
 	nvnc_fb_ref(self->current_fb);
+	nvnc_fb_hold(self->current_fb);
 	pixman_region_copy(&self->current_damage, damage);
 
 	encoder_ref(&self->encoder);
@@ -454,6 +456,7 @@ static int zrle_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 		aml_unref(self->work);
 		self->work = NULL;
 		pixman_region_clear(&self->current_damage);
+		nvnc_fb_release(self->current_fb);
 		nvnc_fb_unref(self->current_fb);
 		self->current_fb = NULL;
 	}

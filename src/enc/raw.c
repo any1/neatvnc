@@ -204,6 +204,7 @@ static void raw_encoder_set_output_format(struct encoder* encoder,
 static void raw_encoder_work_destroy(void* obj)
 {
 	struct raw_encoder_work* ctx = obj;
+	nvnc_fb_release(ctx->fb);
 	nvnc_fb_unref(ctx->fb);
 	pixman_region_fini(&ctx->damage);
 	if (ctx->result)
@@ -237,6 +238,7 @@ static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	ctx->x_pos = self->encoder.x_pos;
 	ctx->y_pos = self->encoder.y_pos;
 	nvnc_fb_ref(ctx->fb);
+	nvnc_fb_hold(ctx->fb);
 	pixman_region_copy(&ctx->damage, damage);
 
 	int rc = aml_start(aml_get_default(), self->work);

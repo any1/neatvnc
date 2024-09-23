@@ -163,6 +163,7 @@ static void client_close(struct nvnc_client* client)
 			!(client->encoder->impl->flags &
 					ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
 		client->encoder->on_done = NULL;
+		client->encoder->userdata = NULL;
 	}
 	encoder_unref(client->encoder);
 	encoder_unref(client->zrle_encoder);
@@ -697,6 +698,7 @@ static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
 		server->n_damage_clients -= !(client->encoder->impl->flags &
 				ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
 		client->encoder->on_done = NULL;
+		client->encoder->userdata = NULL;
 	}
 	encoder_unref(client->encoder);
 
@@ -832,8 +834,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	nvnc_fb_hold(fb);
 	nvnc_fb_ref(fb);
 
-	client_ref(client);
-
 	encoder_set_quality(client->encoder, client->quality);
 	encoder_set_output_format(client->encoder, &client->pixfmt);
 
@@ -848,7 +848,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			--client->n_pending_requests;
 	} else {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
-		client_unref(client);
 		client->is_updating = false;
 		client->formats_changed = false;
 		assert(client->current_fb);
@@ -2202,7 +2201,6 @@ static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,
 	client->encoder->on_done = NULL;
 	client->encoder->userdata = NULL;
 	finish_fb_update(client, result, encoder->n_rects, pts);
-	client_unref(client);
 }
 
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)

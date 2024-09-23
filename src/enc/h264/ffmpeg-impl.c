@@ -462,7 +462,6 @@ static void h264_encoder__on_work_done(void* handle)
 	DTRACE_PROBE1(neatvnc, h264_encode_frame_end, pts);
 
 	if (self->please_destroy) {
-		vec_destroy(&self->current_packet);
 		h264_encoder_destroy(&self->base);
 		return;
 	}

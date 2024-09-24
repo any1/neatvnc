@@ -146,11 +146,6 @@ static void client_close(struct nvnc_client* client)
 	if (fn)
 		fn(client);
 
-	if (client->current_fb) {
-		nvnc_fb_release(client->current_fb);
-		nvnc_fb_unref(client->current_fb);
-	}
-
 #ifdef HAVE_CRYPTO
 	crypto_key_del(client->apple_dh_secret);
 	crypto_rsa_pub_key_del(client->rsa.pub);
@@ -830,9 +825,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	client->is_updating = true;
 	client->formats_changed = false;
-	client->current_fb = fb;
-	nvnc_fb_hold(fb);
-	nvnc_fb_ref(fb);
 
 	encoder_set_quality(client->encoder, client->quality);
 	encoder_set_output_format(client->encoder, &client->pixfmt);
@@ -850,10 +842,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
 		client->is_updating = false;
 		client->formats_changed = false;
-		assert(client->current_fb);
-		nvnc_fb_release(client->current_fb);
-		nvnc_fb_unref(client->current_fb);
-		client->current_fb = NULL;
 	}
 
 	pixman_region_fini(&damage);
@@ -2066,8 +2054,8 @@ void nvnc_close(struct nvnc* self)
 	if (self->display)
 		nvnc_display_unref(self->display);
 
-	if (self->cursor.buffer)
-		nvnc_fb_unref(self->cursor.buffer);
+	nvnc_fb_release(self->cursor.buffer);
+	nvnc_fb_unref(self->cursor.buffer);
 
 	struct nvnc_client* tmp;
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
@@ -2100,10 +2088,6 @@ static void complete_fb_update(struct nvnc_client* client)
 	if (!client->is_updating)
 		return;
 	client->is_updating = false;
-	assert(client->current_fb);
-	nvnc_fb_release(client->current_fb);
-	nvnc_fb_unref(client->current_fb);
-	client->current_fb = NULL;
 	process_fb_update_requests(client);
 	client_unref(client);
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
@@ -2556,10 +2540,8 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
 		bool is_damaged)
 {
-	if (self->cursor.buffer) {
-		nvnc_fb_release(self->cursor.buffer);
-		nvnc_fb_unref(self->cursor.buffer);
-	}
+	nvnc_fb_release(self->cursor.buffer);
+	nvnc_fb_unref(self->cursor.buffer);
 
 	self->cursor.buffer = fb;
 

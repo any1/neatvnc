@@ -99,7 +99,6 @@ struct nvnc_client {
 	struct pixman_region16 damage;
 	int n_pending_requests;
 	bool is_updating;
-	struct nvnc_fb* current_fb;
 	nvnc_client_fn cleanup_fn;
 	size_t buffer_index;
 	size_t buffer_len;

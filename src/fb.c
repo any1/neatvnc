@@ -205,7 +205,7 @@ void nvnc_fb_ref(struct nvnc_fb* fb)
 EXPORT
 void nvnc_fb_unref(struct nvnc_fb* fb)
 {
-	if (--fb->ref == 0)
+	if (fb && --fb->ref == 0)
 		nvnc__fb_free(fb);
 }
 
@@ -235,6 +235,9 @@ void nvnc_fb_hold(struct nvnc_fb* fb)
 
 void nvnc_fb_release(struct nvnc_fb* fb)
 {
+	if (!fb)
+		return;
+
 	if (--fb->hold_count != 0)
 		return;
 

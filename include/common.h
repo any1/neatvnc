@@ -147,6 +147,7 @@ enum nvnc__socket_type {
 
 struct nvnc {
 	struct nvnc_common common;
+	bool is_closing;
 	int fd;
 	enum nvnc__socket_type socket_type;
 	struct aml_handler* poll_handle;

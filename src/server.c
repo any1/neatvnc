@@ -139,6 +139,16 @@ static void client_close(struct nvnc_client* client)
 
 	stream_close(client->net_stream);
 
+	if (client->server->is_closing) {
+		 /* Letting the encoder finish is the simplest way to free its
+		  * in-flight resources.
+		  */
+		while (client->is_updating) {
+			aml_poll(aml_get_default(), -1);
+			aml_dispatch(aml_get_default());
+		}
+	}
+
 	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
 	if (cleanup)
 		cleanup(client->common.userdata);
@@ -2030,7 +2040,7 @@ static void unlink_fd_path(int fd)
 EXPORT
 void nvnc_close(struct nvnc* self)
 {
-	struct nvnc_client* client;
+	self->is_closing = true;
 
 	nvnc_cleanup_fn cleanup = self->common.cleanup_fn;
 	if (cleanup)
@@ -2042,9 +2052,14 @@ void nvnc_close(struct nvnc* self)
 	nvnc_fb_release(self->cursor.buffer);
 	nvnc_fb_unref(self->cursor.buffer);
 
-	struct nvnc_client* tmp;
-	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
-		client_close(client);
+	// The stream is closed first to stop all communication and to make sure
+	// that encoding of new frames does not start.
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link)
+		stream_close(client->net_stream);
+
+	while (!LIST_EMPTY(&self->clients))
+		client_close(LIST_FIRST(&self->clients));
 
 	aml_stop(aml_get_default(), self->poll_handle);
 	unlink_fd_path(self->fd);

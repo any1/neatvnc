@@ -135,8 +135,9 @@ static bool have_working_h264_encoder(void)
 
 static void client_close(struct nvnc_client* client)
 {
-	nvnc_log(NVNC_LOG_INFO, "Closing client connection %p: ref %d", client,
-			client->ref);
+	nvnc_log(NVNC_LOG_INFO, "Closing client connection %p", client);
+
+	stream_close(client->net_stream);
 
 	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
 	if (cleanup)
@@ -168,22 +169,9 @@ static void client_close(struct nvnc_client* client)
 	free(client);
 }
 
-static inline void client_unref(struct nvnc_client* client)
-{
-	assert(client->ref > 0);
-
-	if (--client->ref == 0)
-		client_close(client);
-}
-
-static inline void client_ref(struct nvnc_client* client)
-{
-	++client->ref;
-}
-
 static void do_deferred_client_close(void *obj)
 {
-	client_unref(obj);
+	client_close(obj);
 }
 
 static void stop_self(void* obj)
@@ -202,8 +190,7 @@ static void defer_client_close(struct nvnc_client* client)
 void close_after_write(void* userdata, enum stream_req_status status)
 {
 	struct nvnc_client* client = userdata;
-	nvnc_log(NVNC_LOG_DEBUG, "close_after_write(%p): ref %d", client,
-			client->ref);
+	nvnc_log(NVNC_LOG_DEBUG, "close_after_write(%p)", client);
 	stream_close(client->net_stream);
 
 	/* This is a rather hacky way of making sure that the client object
@@ -374,9 +361,8 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 
 	LIST_FOREACH_SAFE (node, &client->server->clients, link, tmp)
 		if (node != client) {
-			nvnc_log(NVNC_LOG_DEBUG,
-					"disconnect other client %p (ref %d)",
-					node, node->ref);
+			nvnc_log(NVNC_LOG_DEBUG, "disconnect other client %p",
+					node);
 			nvnc_client_close(node);
 		}
 
@@ -740,10 +726,10 @@ static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
 
-	if (!server->display || !server->display->buffer)
+	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		return;
 
-	if (client->net_stream->state == STREAM_STATE_CLOSED)
+	if (!server->display || !server->display->buffer)
 		return;
 
 	if (client->is_updating)
@@ -956,8 +942,8 @@ static int on_client_qemu_event(struct nvnc_client* client)
 		return on_client_qemu_key_event(client);
 	}
 
-	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p (ref %d)",
-			client, client->ref);
+	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p",
+			client);
 	nvnc_client_close(client);
 	return 0;
 }
@@ -1097,16 +1083,16 @@ static void process_client_ext_clipboard_provide(struct nvnc_client* client,
 	zs.next_out = (unsigned char*)&inflate_len;
 	rc = inflate(&zs, Z_SYNC_FLUSH);
 	if (rc != Z_OK) {
-		nvnc_log(NVNC_LOG_WARNING, "Failed to inflate client's clipboard text: %p (ref %d)",
-				client, client->ref);
+		nvnc_log(NVNC_LOG_WARNING, "Failed to inflate client's clipboard text: %p",
+				client);
 		inflateEnd(&zs);
 		return;
 	}
 	inflate_len = ntohl(inflate_len);
 
 	if (inflate_len <= 1) {
-		nvnc_log(NVNC_LOG_DEBUG, "Client sent empty clipboard update: %p (ref %d)",
-				client, client->ref);
+		nvnc_log(NVNC_LOG_DEBUG, "Client sent empty clipboard update: %p",
+				client);
 		inflateEnd(&zs);
 		return;
 	}
@@ -1123,15 +1109,15 @@ static void process_client_ext_clipboard_provide(struct nvnc_client* client,
 	rc = inflate(&zs, Z_SYNC_FLUSH);
 	inflateEnd(&zs);
 	if (rc != Z_OK && rc != Z_STREAM_END) {
-		nvnc_log(NVNC_LOG_WARNING, "Failed to inflate client's clipboard text: %p (ref %d)",
-				client, client->ref);
+		nvnc_log(NVNC_LOG_WARNING, "Failed to inflate client's clipboard text: %p",
+				client);
 		free(inflate_buf);
 		return;
 	}
 
 	if (inflate_buf[inflate_len - 1]) {
-		nvnc_log(NVNC_LOG_WARNING, "Client sent badly formatted clipboard text: %p (ref %d)",
-				client, client->ref);
+		nvnc_log(NVNC_LOG_WARNING, "Client sent badly formatted clipboard text: %p",
+				client);
 		free(inflate_buf);
 		return;
 	}
@@ -1351,8 +1337,8 @@ static void process_big_cut_text(struct nvnc_client* client)
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
-			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
-					client, client->ref);
+			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p",
+					client);
 			nvnc_client_close(client);
 		}
 
@@ -1654,8 +1640,8 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_ntp(client);
 	}
 
-	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p (ref %d)",
-			client, client->ref);
+	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p",
+			client);
 	nvnc_client_close(client);
 	return 0;
 }
@@ -1701,7 +1687,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	assert(client->net_stream && client->net_stream == stream);
 
 	if (event == STREAM_EVENT_REMOTE_CLOSED) {
-		nvnc_log(NVNC_LOG_INFO, "Client %p (%d) hung up", client, client->ref);
+		nvnc_log(NVNC_LOG_INFO, "Client %p hung up", client);
 		defer_client_close(client);
 		return;
 	}
@@ -1722,8 +1708,8 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	if (n_read < 0) {
 		if (errno != EAGAIN) {
-			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p (ref %d)",
-					client, client->ref);
+			nvnc_log(NVNC_LOG_INFO, "Client connection error: %p",
+					client);
 			nvnc_client_close(client);
 		}
 
@@ -1757,7 +1743,6 @@ static void on_connection(void* obj)
 	if (!client)
 		return;
 
-	client->ref = 1;
 	client->server = server;
 	client->quality = 10; /* default to lossless */
 	client->led_state = -1; /* trigger sending of initial state */
@@ -1820,8 +1805,8 @@ static void on_connection(void* obj)
 	nvnc_client_get_address(client, (struct sockaddr*)&addr, &addrlen);
 	sockaddr_to_string(ip_address, sizeof(ip_address),
 			(struct sockaddr*)&addr);
-	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p (ref %d)",
-			ip_address, client, client->ref);
+	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p",
+			ip_address, client);
 
 	return;
 
@@ -2059,7 +2044,7 @@ void nvnc_close(struct nvnc* self)
 
 	struct nvnc_client* tmp;
 	LIST_FOREACH_SAFE (client, &self->clients, link, tmp)
-		client_unref(client);
+		client_close(client);
 
 	aml_stop(aml_get_default(), self->poll_handle);
 	unlink_fd_path(self->fd);
@@ -2089,7 +2074,6 @@ static void complete_fb_update(struct nvnc_client* client)
 		return;
 	client->is_updating = false;
 	process_fb_update_requests(client);
-	client_unref(client);
 	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 }
 
@@ -2137,8 +2121,6 @@ static bool client_has_encoding(const struct nvnc_client* client,
 static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 		int n_rects, uint64_t pts)
 {
-	client_ref(client);
-
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		goto complete;
 
@@ -2393,8 +2375,7 @@ struct nvnc_client* nvnc_client_next(struct nvnc_client* client)
 EXPORT
 void nvnc_client_close(struct nvnc_client* client)
 {
-	stream_close(client->net_stream);
-	client_unref(client);
+	client_close(client);
 }
 
 EXPORT

@@ -86,7 +86,6 @@ struct cut_text {
 
 struct nvnc_client {
 	struct nvnc_common common;
-	int ref;
 	struct stream* net_stream;
 	char username[256];
 	struct nvnc* server;

@@ -2062,7 +2062,10 @@ void nvnc_close(struct nvnc* self)
 		client_close(LIST_FIRST(&self->clients));
 
 	aml_stop(aml_get_default(), self->poll_handle);
-	unlink_fd_path(self->fd);
+	// Do not unlink an externally managed fd.
+	if(self->socket_type != NVNC__SOCKET_FROM_FD) {
+		unlink_fd_path(self->fd);
+	}
 	close(self->fd);
 
 #ifdef HAVE_CRYPTO

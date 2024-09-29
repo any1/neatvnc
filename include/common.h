@@ -70,6 +70,7 @@ struct nvnc_display;
 struct crypto_key;
 struct crypto_rsa_pub_key;
 struct crypto_rsa_priv_key;
+struct bwe;
 
 struct nvnc_common {
 	void* userdata;
@@ -133,6 +134,7 @@ struct nvnc_client {
 	int32_t last_ping_time;
 	int32_t min_rtt;
 	int32_t presentation_rtt;
+	struct bwe* bwe;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

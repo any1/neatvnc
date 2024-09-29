@@ -98,6 +98,7 @@ sources = [
 	'src/cursor.c',
 	'src/logging.c',
 	'src/base64.c',
+	'src/bandwidth.c',
 ]
 
 dependencies = [

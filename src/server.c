@@ -32,6 +32,7 @@
 #include "cursor.h"
 #include "logging.h"
 #include "auth/auth.h"
+#include "bandwidth.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,6 +159,8 @@ static void client_close(struct nvnc_client* client)
 	nvnc_client_fn fn = client->cleanup_fn;
 	if (fn)
 		fn(client);
+
+	bwe_destroy(client->bwe);
 
 #ifdef HAVE_CRYPTO
 	crypto_key_del(client->apple_dh_secret);
@@ -286,8 +289,10 @@ void update_min_rtt(struct nvnc_client* client)
 	int32_t diff = now - client->last_ping_time;
 	client->last_ping_time = now;
 
-	if (diff < client->min_rtt)
+	if (diff < client->min_rtt) {
 		client->min_rtt = diff;
+		bwe_update_rtt_min(client->bwe, diff);
+	}
 }
 
 static int on_version_message(struct nvnc_client* client)
@@ -565,16 +570,20 @@ static void send_fence(struct nvnc_client* client, uint32_t flags,
 			NULL);
 }
 
-static void send_ping(struct nvnc_client* client)
+static void send_ping(struct nvnc_client* client, uint32_t prev_frame_size)
 {
 	if (!client_has_encoding(client, RFB_ENCODING_FENCE))
 		return;
 
 	uint32_t now = gettime_us(CLOCK_MONOTONIC);
-	uint32_t now_be = htonl(now);
+
+	uint32_t payload[] = {
+		htonl(now),
+		htonl(prev_frame_size),
+	};
 
 	send_fence(client, RFB_FENCE_REQUEST | RFB_FENCE_BLOCK_BEFORE,
-			&now_be, sizeof(now_be));
+			payload, sizeof(payload));
 }
 
 static int on_client_set_encodings(struct nvnc_client* client)
@@ -885,7 +894,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	int32_t extra_delay = estimate_extra_delay(client);
 	if (extra_delay > EXTRA_DELAY_MAX) {
 		nvnc_log(NVNC_LOG_DEBUG, "Client is too far behind; dropping frame");
-		send_ping(client);
+		send_ping(client, 0);
 		return;
 	}
 
@@ -1739,9 +1748,16 @@ static void on_fence_response(struct nvnc_client* client,
 {
 	// We're only using this for pings
 
+	const uint32_t *payload_u32 = payload;
+
 	uint32_t departure_time_be;
-	memcpy(&departure_time_be, payload, sizeof(departure_time_be));
+	uint32_t frame_size_be;
+
+	memcpy(&departure_time_be, &payload_u32[0], sizeof(departure_time_be));
+	memcpy(&frame_size_be, &payload_u32[1], sizeof(frame_size_be));
+
 	int32_t departure_time = ntohl(departure_time_be);
+	uint32_t frame_size = ntohl(frame_size_be);
 
 	int32_t now = gettime_us(CLOCK_MONOTONIC);
 	int32_t rtt = now - departure_time;
@@ -1750,13 +1766,25 @@ static void on_fence_response(struct nvnc_client* client,
 		return;
 	}
 
-	if (rtt < client->min_rtt)
+	if (rtt < client->min_rtt) {
 		client->min_rtt = rtt;
+		bwe_update_rtt_min(client->bwe, rtt);
+	}
+
+	struct bwe_sample sample = {
+		.bytes = frame_size + sizeof(struct rfb_fence_msg) + length,
+		.departure_time = departure_time,
+		.arrival_time = now,
+	};
+	bwe_feed(client->bwe, &sample);
 
 	client->presentation_rtt = rtt;
 
 	nvnc_trace("Last frame's extra latency was: %" PRIu32 " ms",
 			estimate_extra_delay(client) / 1000);
+
+	nvnc_trace("Bandwidth estimate: %.3f Mb/s\n",
+			bwe_get_estimate(client->bwe) * 8e-6);
 }
 
 static int on_client_fence(struct nvnc_client* client)
@@ -1934,6 +1962,7 @@ static void on_connection(void* obj)
 	client->led_state = -1; /* trigger sending of initial state */
 	client->min_rtt = INT32_MAX;
 	client->presentation_rtt = -1;
+	client->bwe = bwe_create(INT32_MAX);
 
 	/* default extended clipboard capabilities */
 	client->ext_clipboard_caps =
@@ -2370,7 +2399,7 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 			on_write_frame_done, client) < 0)
 		goto complete;
 
-	send_ping(client);
+	send_ping(client, payload->size);
 
 	process_pending_fence(client);
 

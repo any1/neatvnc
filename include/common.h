@@ -133,8 +133,8 @@ struct nvnc_client {
 	} pending_fence;
 	int32_t last_ping_time;
 	int32_t min_rtt;
-	int32_t presentation_rtt;
 	struct bwe* bwe;
+	int32_t inflight_bytes;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

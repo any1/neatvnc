@@ -53,6 +53,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <zlib.h>
+#include <tgmath.h>
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -74,7 +75,6 @@
 #endif
 
 #define DEFAULT_NAME "Neat VNC"
-#define EXTRA_DELAY_MAX 33333 // µs
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -582,6 +582,8 @@ static void send_ping(struct nvnc_client* client, uint32_t prev_frame_size)
 		htonl(prev_frame_size),
 	};
 
+	client->inflight_bytes += prev_frame_size;
+
 	send_fence(client, RFB_FENCE_REQUEST | RFB_FENCE_BLOCK_BEFORE,
 			payload, sizeof(payload));
 }
@@ -795,16 +797,6 @@ static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
 	return true;
 }
 
-// This is the time it would have taken to present the frame had network latency
-// been zero.
-static int32_t estimate_extra_delay(const struct nvnc_client* client)
-{
-	if (client->presentation_rtt == -1)
-		return 0;
-
-	return client->presentation_rtt - client->min_rtt;
-}
-
 static int decrement_pending_requests(struct nvnc_client* client)
 {
 	assert(!client->is_updating);
@@ -889,13 +881,18 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		pixman_region_fini(&damage);
 	}
 
-	// TODO: Incorporate latency jitter so this doesn't trigger sporadically
-	// TODO: Debounce?
-	int32_t extra_delay = estimate_extra_delay(client);
-	if (extra_delay > EXTRA_DELAY_MAX) {
-		nvnc_log(NVNC_LOG_DEBUG, "Client is too far behind; dropping frame");
-		send_ping(client, 0);
-		return;
+	int bandwidth = bwe_get_estimate(client->bwe);
+	if (bandwidth != 0) {
+		double max_delay = 33.333e-3;
+		int max_inflight = round(max_delay + 1e-6 *
+				client->min_rtt * bandwidth);
+
+		// If there is already more data inflight than the link can
+		// handle, let's not put more load on it:
+		if (client->inflight_bytes > max_inflight) {
+			nvnc_log(NVNC_LOG_DEBUG, "Exceeded bandwidth limit. Dropping frame.");
+			return;
+		}
 	}
 
 	if (!ensure_encoder(client, fb))
@@ -1759,6 +1756,9 @@ static void on_fence_response(struct nvnc_client* client,
 	int32_t departure_time = ntohl(departure_time_be);
 	uint32_t frame_size = ntohl(frame_size_be);
 
+	if (frame_size == 0)
+		return;
+
 	int32_t now = gettime_us(CLOCK_MONOTONIC);
 	int32_t rtt = now - departure_time;
 	if (rtt < 0) {
@@ -1778,13 +1778,12 @@ static void on_fence_response(struct nvnc_client* client,
 	};
 	bwe_feed(client->bwe, &sample);
 
-	client->presentation_rtt = rtt;
-
-	nvnc_trace("Last frame's extra latency was: %" PRIu32 " ms",
-			estimate_extra_delay(client) / 1000);
+	client->inflight_bytes -= frame_size;
 
 	nvnc_trace("Bandwidth estimate: %.3f Mb/s\n",
 			bwe_get_estimate(client->bwe) * 8e-6);
+
+	process_fb_update_requests(client);
 }
 
 static int on_client_fence(struct nvnc_client* client)
@@ -1961,7 +1960,6 @@ static void on_connection(void* obj)
 	client->quality = 10; /* default to lossless */
 	client->led_state = -1; /* trigger sending of initial state */
 	client->min_rtt = INT32_MAX;
-	client->presentation_rtt = -1;
 	client->bwe = bwe_create(INT32_MAX);
 
 	/* default extended clipboard capabilities */

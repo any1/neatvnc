@@ -2094,11 +2094,6 @@ static int bind_address_tcp(const char* name, int port)
 			goto failure;
 		}
 
-		int sndbuf = 65536;
-		if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(int)) < 0) {
-			nvnc_log(NVNC_LOG_DEBUG, "Failed to set SO_SNDBUF: %m");
-		}
-
 		if (bind(fd, p->ai_addr, p->ai_addrlen) == 0) {
 			nvnc_log(NVNC_LOG_DEBUG, "Successfully bound to address");
 			break;

@@ -561,7 +561,7 @@ static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
 		goto codec_context_failure;
 
 	self->codec_ctx->hw_frames_ctx =
-		av_buffer_ref(self->filter_out->inputs[0]->hw_frames_ctx);
+		av_buffer_ref(av_buffersink_get_hw_frames_ctx(self->filter_out));
 
 	AVDictionary *opts = NULL;
 	av_dict_set_int(&opts, "async_depth", 1, 0);

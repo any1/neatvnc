@@ -58,7 +58,6 @@ struct h264_encoder_ffmpeg {
 	uint32_t format;
 
 	AVRational timebase;
-	AVRational sample_aspect_ratio;
 	enum AVPixelFormat av_pixel_format;
 
 	/* type: AVHWDeviceContext */
@@ -222,7 +221,7 @@ static int h264_encoder__init_buffersrc(struct h264_encoder_ffmpeg* self)
 	params->format = AV_PIX_FMT_DRM_PRIME;
 	params->width = self->width;
 	params->height = self->height;
-	params->sample_aspect_ratio = self->sample_aspect_ratio;
+	params->sample_aspect_ratio = (AVRational){1, 1};
 	params->time_base = self->timebase;
 	params->hw_frames_ctx = self->hw_frames_ctx;
 	params->color_space = AVCOL_SPC_RGB;
@@ -311,7 +310,7 @@ static int h264_encoder__init_codec_context(struct h264_encoder_ffmpeg* self,
 	c->width = self->width;
 	c->height = self->height;
 	c->time_base = self->timebase;
-	c->sample_aspect_ratio = self->sample_aspect_ratio;
+	c->sample_aspect_ratio = (AVRational){1, 1};
 	c->pix_fmt = AV_PIX_FMT_VAAPI;
 	c->gop_size = INT32_MAX; /* We'll select key frames manually */
 	c->max_b_frames = 0; /* B-frames are bad for latency */
@@ -544,7 +543,6 @@ static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
 	self->height = height;
 	self->format = format;
 	self->timebase = (AVRational){1, 1000000};
-	self->sample_aspect_ratio = (AVRational){1, 1};
 	self->av_pixel_format = drm_to_av_pixel_format(format);
 	if (self->av_pixel_format == AV_PIX_FMT_NONE)
 		goto pix_fmt_failure;

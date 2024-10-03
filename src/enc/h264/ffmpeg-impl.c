@@ -320,7 +320,7 @@ static int h264_encoder__init_codec_context(struct h264_encoder_ffmpeg* self,
 	 */
 	c->profile = 578;
 
-	// Encode sRGB into the bitstream:
+	// Encode BT.709 into the bitstream:
 	c->colorspace = AVCOL_SPC_BT709;
 	c->color_primaries = AVCOL_PRI_BT709;
 	c->color_range = AVCOL_RANGE_MPEG;

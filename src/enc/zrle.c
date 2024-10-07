@@ -247,7 +247,8 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 	if (!tile)
 		goto failure;
 
-	if (vec_init(&in, 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH) < 0)
+	if (vec_init(&in, 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH +
+				16 * 3) < 0)
 		goto failure;
 
 	r = encode_rect_head(out, RFB_ENCODING_ZRLE, x_pos + x, y_pos + y,

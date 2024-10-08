@@ -191,9 +191,15 @@ static void zrle_encode_tile(struct vec* dst,
 	}
 
 	if (palette_size > 1) {
-		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt, length,
-				palette, palette_size);
-		return;
+		int len_before = dst->len;
+		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt,
+				length, palette, palette_size);
+
+		if (dst->len - len_before <= 1 + bytes_per_cpixel * length)
+			return;
+
+		// If a packed tile is bigger, we don't want to use it.
+		dst->len = len_before;
 	}
 
 	vec_fast_append_8(dst, 0);

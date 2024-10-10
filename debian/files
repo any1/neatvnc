@@ -1,0 +1,4 @@
+libneatvnc-dev_20211011-1_amd64.deb libdevel optional
+libneatvnc0-dbgsym_20211011-1_amd64.deb debug optional automatic=yes
+libneatvnc0_20211011-1_amd64.deb libs optional
+libneatvnc_20211011-1_amd64.buildinfo libs optional

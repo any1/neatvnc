@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -676,4 +676,91 @@ void make_rgb332_pal8_map(struct rfb_set_colour_map_entries_msg* msg)
 		msg->colours[i].g = htons(round(65535.0 / 7.0 * ((i >> 2) & 7)));
 		msg->colours[i].b = htons(round(65535.0 / 3.0 * (i & 3)));
 	}
+}
+
+static int get_format_depth(uint32_t format)
+{
+	struct rfb_pixel_format rfbfmt;
+	if (rfb_pixfmt_from_fourcc(&rfbfmt, format) < 0)
+		return 0;
+	return rfbfmt.depth;
+}
+
+/*
+ *     ^  score
+ *     |
+ * 1.0 +.....,
+ *     |     |\
+ *     |     | \
+ *     |     |  \
+ *     |     |   \
+ *     |    /.    .
+ *     |   / .    .
+ *     |  /  .    .
+ *     | /   .    .
+ *     |/    .    .
+ *     +-----+----+---> depth
+ *            \    `- max_depth
+ *             `- target_depth
+ */
+static double rate_format_by_depth(uint32_t format, int target_depth)
+{
+	int depth = get_format_depth(format);
+
+	const double max_depth = 30;
+
+	if (depth >= target_depth) {
+		return (target_depth + max_depth - depth) / max_depth;
+	}
+
+	return depth / max_depth;
+}
+
+static bool format_has_alpha(uint32_t format)
+{
+	switch (format) {
+	case DRM_FORMAT_RGBA1010102:
+	case DRM_FORMAT_BGRA1010102:
+	case DRM_FORMAT_ARGB2101010:
+	case DRM_FORMAT_ABGR2101010:
+	case DRM_FORMAT_RGBA8888:
+	case DRM_FORMAT_BGRA8888:
+	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_RGBA4444:
+	case DRM_FORMAT_BGRA4444:
+	case DRM_FORMAT_ARGB4444:
+	case DRM_FORMAT_ABGR4444:
+		return true;
+	}
+	return false;
+}
+
+double rate_pixel_format(uint32_t format, uint64_t modifier,
+		enum format_rating_flags flags, int target_depth)
+{
+	double depth_rating = rate_format_by_depth(format, target_depth);
+	if (depth_rating == 0)
+		return 0;
+
+	double linear_rating = modifier == DRM_FORMAT_MOD_LINEAR;
+
+	double alpha_rating;
+	if (flags & FORMAT_RATING_NEED_ALPHA) {
+		alpha_rating = format_has_alpha(format);
+		if (alpha_rating == 0)
+			return 0;
+	} else {
+		alpha_rating = !format_has_alpha(format);
+	}
+
+	const double depth_weight = 100;
+	const double linear_weight = (flags & FORMAT_RATING_PREFER_LINEAR) ? 10 : 0;
+	const double alpha_weight = 1;
+
+	const double total_weight = depth_weight + linear_weight + alpha_weight;
+
+	return (depth_weight * depth_rating
+	     + linear_weight * linear_rating
+	     + alpha_weight * alpha_rating) / total_weight;
 }

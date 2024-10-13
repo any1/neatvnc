@@ -2829,3 +2829,44 @@ int nvnc_set_rsa_creds(struct nvnc* self, const char* path)
 #endif
 	return -1;
 }
+
+static uint32_t find_highest_client_depth(const struct nvnc* self)
+{
+	int max_depth = 0;
+
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link)
+		if (max_depth > client->pixfmt.depth)
+			max_depth = client->pixfmt.depth;
+
+	return max_depth;
+}
+
+// TODO: Give linear a higher rating if we have a v4l2m2m based encoder
+// TODO: Disable v4l2m2m based encoders while the format is not linear
+// TODO: Notify when rating criteria change
+
+EXPORT
+double nvnc_rate_pixel_format(const struct nvnc* self,
+		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier)
+{
+	if (fb_type == NVNC_FB_SIMPLE && modifier) {
+		nvnc_log(NVNC_LOG_ERROR, "modifier should be 0 for simple buffers");
+		return 0;
+	}
+	int max_depth = find_highest_client_depth(self);
+	return rate_pixel_format(format, modifier, 0, max_depth);
+}
+
+EXPORT
+double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
+		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier)
+{
+	if (fb_type == NVNC_FB_SIMPLE && modifier) {
+		nvnc_log(NVNC_LOG_ERROR, "modifier should be 0 for simple buffers");
+		return 0;
+	}
+	int max_depth = find_highest_client_depth(self);
+	return rate_pixel_format(format, modifier, FORMAT_RATING_NEED_ALPHA,
+			max_depth);
+}

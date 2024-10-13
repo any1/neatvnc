@@ -253,3 +253,8 @@ void nvnc_set_log_fn(nvnc_log_fn);
 void nvnc_set_log_fn_thread_local(nvnc_log_fn fn);
 void nvnc_set_log_level(enum nvnc_log_level);
 void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
+
+double nvnc_rate_pixel_format(const struct nvnc* self,
+		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
+double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
+		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);

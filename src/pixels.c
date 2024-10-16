@@ -738,6 +738,17 @@ static bool format_has_alpha(uint32_t format)
 	return false;
 }
 
+/* The client does not always report accurate depth.
+ */
+int rfb_pixfmt_depth(const struct rfb_pixel_format *fmt)
+{
+	unsigned int r = fmt->red_max;
+	unsigned int g = fmt->green_max;
+	unsigned int b = fmt->blue_max;
+
+	return POPCOUNT(r) + POPCOUNT(g) + POPCOUNT(b);
+}
+
 double rate_pixel_format(uint32_t format, uint64_t modifier,
 		enum format_rating_flags flags, int target_depth)
 {

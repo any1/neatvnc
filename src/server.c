@@ -2835,9 +2835,11 @@ static uint32_t find_highest_client_depth(const struct nvnc* self)
 	int max_depth = 0;
 
 	struct nvnc_client* client;
-	LIST_FOREACH(client, &self->clients, link)
-		if (max_depth > client->pixfmt.depth)
-			max_depth = client->pixfmt.depth;
+	LIST_FOREACH(client, &self->clients, link) {
+		int depth = rfb_pixfmt_depth(&client->pixfmt);
+		if (max_depth > depth)
+			max_depth = depth;
+	}
 
 	return max_depth;
 }

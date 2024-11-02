@@ -233,8 +233,8 @@ static int tight_apply_damage(struct tight_encoder* self,
 			struct pixman_box16 box = {
 				.x1 = x * TSL,
 				.y1 = y * TSL,
-				.x2 = ((x + 1) * TSL) - 1,
-				.y2 = ((y + 1) * TSL) - 1,
+				.x2 = (x + 1) * TSL,
+				.y2 = (y + 1) * TSL,
 			};
 
 			pixman_region_overlap_t overlap

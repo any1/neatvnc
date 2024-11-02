@@ -224,8 +224,10 @@ static int h264_encoder__init_buffersrc(struct h264_encoder_ffmpeg* self)
 	params->sample_aspect_ratio = (AVRational){1, 1};
 	params->time_base = self->timebase;
 	params->hw_frames_ctx = self->hw_frames_ctx;
+#if LIBAVFILTER_VERSION_INT >= AV_VERSION_INT(9, 16, 100)
 	params->color_space = AVCOL_SPC_RGB;
 	params->color_range = AVCOL_RANGE_JPEG;
+#endif
 
 	rc = av_buffersrc_parameters_set(self->filter_in, params);
 	assert(rc == 0);

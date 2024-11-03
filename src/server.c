@@ -663,7 +663,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		send_ext_clipboard_caps(client);
 
 	if (client_has_encoding(client, RFB_ENCODING_FENCE))
-		send_fence(client, 0, NULL, 0);
+		send_ping(client, 0);
 
 	return sizeof(*msg) + 4 * n_encodings;
 }

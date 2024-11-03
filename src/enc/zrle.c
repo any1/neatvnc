@@ -46,7 +46,7 @@ struct zrle_encoder {
 	struct nvnc_fb* current_fb;
 	struct pixman_region16 current_damage;
 
-	struct rcbuf *current_result;
+	struct encoded_frame *current_result;
 
 	z_stream zs;
 
@@ -364,7 +364,12 @@ static void zrle_encoder_do_work(void* obj)
 			&src_fmt, &self->current_damage);
 	assert(rc == 0);
 
-	self->current_result = rcbuf_new(dst.data, dst.len);
+	uint16_t width = nvnc_fb_get_width(fb);
+	uint16_t height = nvnc_fb_get_height(fb);
+	uint64_t pts = nvnc_fb_get_pts(fb);
+
+	self->current_result = encoded_frame_new(dst.data, dst.len,
+			self->encoder.n_rects, width, height, pts);
 	assert(self->current_result);
 }
 
@@ -374,22 +379,21 @@ static void zrle_encoder_on_done(void* obj)
 
 	assert(self->current_result);
 
-	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
 	nvnc_fb_release(self->current_fb);
 	nvnc_fb_unref(self->current_fb);
 	self->current_fb = NULL;
 
 	pixman_region_clear(&self->current_damage);
 
-	struct rcbuf* result = self->current_result;
+	struct encoded_frame* result = self->current_result;
 	self->current_result = NULL;
 
 	aml_unref(self->work);
 	self->work = NULL;
 
-	encoder_finish_frame(&self->encoder, result, pts);
+	encoder_finish_frame(&self->encoder, result);
 
-	rcbuf_unref(result);
+	encoded_frame_unref(result);
 	encoder_unref(&self->encoder);
 }
 
@@ -427,7 +431,7 @@ static void zrle_encoder_destroy(struct encoder* encoder)
 	if (self->work)
 		aml_unref(self->work);
 	if (self->current_result)
-		rcbuf_unref(self->current_result);
+		encoded_frame_unref(self->current_result);
 	free(self);
 }
 

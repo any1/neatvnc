@@ -16,6 +16,7 @@
 #pragma once
 
 #include "rfb-proto.h"
+#include "rcbuf.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -23,7 +24,6 @@
 struct encoder;
 struct nvnc_fb;
 struct pixman_region16;
-struct rcbuf;
 
 enum encoder_impl_flags {
 	ENCODER_IMPL_FLAG_NONE = 0,
@@ -47,6 +47,14 @@ struct encoder_impl {
 	void (*request_key_frame)(struct encoder*);
 };
 
+struct encoded_frame {
+	struct rcbuf buf;
+	int n_rects;
+	uint32_t width;
+	uint32_t height;
+	uint64_t pts;
+};
+
 struct encoder {
 	struct encoder_impl* impl;
 
@@ -57,7 +65,7 @@ struct encoder {
 
 	int n_rects;
 
-	void (*on_done)(struct encoder*, struct rcbuf* result, uint64_t pts);
+	void (*on_done)(struct encoder*, struct encoded_frame* result);
 	void* userdata;
 };
 
@@ -82,5 +90,14 @@ int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
 
 void encoder_request_key_frame(struct encoder* self);
 
-void encoder_finish_frame(struct encoder* self, struct rcbuf* result,
-		uint64_t pts);
+void encoder_finish_frame(struct encoder* self, struct encoded_frame* result);
+
+static inline void encoded_frame_ref(struct encoded_frame* self)
+{
+	rcbuf_ref(&self->buf);
+}
+
+static inline void encoded_frame_unref(struct encoded_frame* self)
+{
+	rcbuf_unref(&self->buf);
+}

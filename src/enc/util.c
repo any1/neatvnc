@@ -14,10 +14,12 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "enc/encoder.h"
 #include "enc/util.h"
 #include "rfb-proto.h"
 #include "vec.h"
 
+#include <stdlib.h>
 #include <arpa/inet.h>
 #include <stdint.h>
 #include <pixman.h>
@@ -59,4 +61,23 @@ uint32_t calculate_region_area(struct pixman_region16* region)
 	}
 
 	return area;
+}
+
+struct encoded_frame* encoded_frame_new(void* payload, size_t size, int n_rects,
+		uint16_t width, uint16_t height, uint64_t pts)
+{
+	struct encoded_frame* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	self->buf.ref = 1;
+	self->buf.size = size;
+	self->buf.payload = payload;
+
+	self->n_rects = n_rects;
+	self->width = width;
+	self->height = height;
+	self->pts = pts;
+
+	return self;
 }

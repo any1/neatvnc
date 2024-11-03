@@ -124,9 +124,8 @@ void encoder_request_key_frame(struct encoder* self)
 		return self->impl->request_key_frame(self);
 }
 
-void encoder_finish_frame(struct encoder* self, struct rcbuf* result,
-		uint64_t pts)
+void encoder_finish_frame(struct encoder* self, struct encoded_frame* result)
 {
 	if (self->on_done)
-		self->on_done(self, result, pts);
+		self->on_done(self, result);
 }

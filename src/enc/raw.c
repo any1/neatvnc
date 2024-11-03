@@ -42,7 +42,7 @@ struct raw_encoder_work {
 	struct pixman_region16 damage;
 	int n_rects;
 	uint16_t x_pos, y_pos;
-	struct rcbuf *result;
+	struct encoded_frame *result;
 };
 
 struct encoder_impl encoder_impl_raw;
@@ -153,7 +153,13 @@ static void raw_encoder_do_work(void* obj)
 			&ctx->damage);
 	assert(rc == 0);
 
-	ctx->result = rcbuf_new(dst.data, dst.len);
+
+	uint16_t width = nvnc_fb_get_width(ctx->fb);
+	uint16_t height = nvnc_fb_get_height(ctx->fb);
+	uint64_t pts = nvnc_fb_get_pts(ctx->fb);
+
+	ctx->result = encoded_frame_new(dst.data, dst.len, ctx->n_rects,
+			width, height, pts);
 	assert(ctx->result);
 }
 
@@ -169,8 +175,7 @@ static void raw_encoder_on_done(void* obj)
 	aml_unref(self->work);
 	self->work = NULL;
 
-	uint64_t pts = nvnc_fb_get_pts(ctx->fb);
-	encoder_finish_frame(&self->encoder, ctx->result, pts);
+	encoder_finish_frame(&self->encoder, ctx->result);
 }
 
 struct encoder* raw_encoder_new(void)
@@ -208,7 +213,7 @@ static void raw_encoder_work_destroy(void* obj)
 	nvnc_fb_unref(ctx->fb);
 	pixman_region_fini(&ctx->damage);
 	if (ctx->result)
-		rcbuf_unref(ctx->result);
+		encoded_frame_unref(ctx->result);
 	encoder_unref(&ctx->parent->encoder);
 	free(ctx);
 }

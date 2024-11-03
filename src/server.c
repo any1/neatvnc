@@ -83,7 +83,7 @@ static bool send_ext_support_frame(struct nvnc_client* client);
 static void send_ext_clipboard_caps(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		const struct nvnc_fb*);
-static void on_encode_frame_done(struct encoder*, struct rcbuf*, uint64_t pts);
+static void on_encode_frame_done(struct encoder*, struct encoded_frame*);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
 static void process_fb_update_requests(struct nvnc_client* client);
@@ -2356,8 +2356,8 @@ static bool client_has_encoding(const struct nvnc_client* client,
 	return false;
 }
 
-static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
-		int n_rects, uint64_t pts)
+static void finish_fb_update(struct nvnc_client* client,
+		struct encoded_frame* frame)
 {
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		goto complete;
@@ -2375,24 +2375,24 @@ static void finish_fb_update(struct nvnc_client* client, struct rcbuf* payload,
 	}
 
 	DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
-	n_rects += will_send_pts(client, pts) ? 1 : 0;
+	frame->n_rects += will_send_pts(client, frame->pts) ? 1 : 0;
 	struct rfb_server_fb_update_msg update_msg = {
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(n_rects),
+		.n_rects = htons(frame->n_rects),
 	};
 	if (stream_write(client->net_stream, &update_msg,
 			sizeof(update_msg), NULL, NULL) < 0)
 		goto complete;
 
-	if (send_pts_rect(client, pts) < 0)
+	if (send_pts_rect(client, frame->pts) < 0)
 		goto complete;
 
-	rcbuf_ref(payload);
-	if (stream_send(client->net_stream, payload,
-			on_write_frame_done, client) < 0)
+	encoded_frame_ref(frame);
+	if (stream_send(client->net_stream, &frame->buf, on_write_frame_done,
+				client) < 0)
 		goto complete;
 
-	send_ping(client, payload->size);
+	send_ping(client, frame->buf.size);
 
 	process_pending_fence(client);
 
@@ -2403,13 +2403,13 @@ complete:
 	complete_fb_update(client);
 }
 
-static void on_encode_frame_done(struct encoder* encoder, struct rcbuf* result,
-		uint64_t pts)
+static void on_encode_frame_done(struct encoder* encoder,
+		struct encoded_frame* result)
 {
 	struct nvnc_client* client = encoder->userdata;
 	client->encoder->on_done = NULL;
 	client->encoder->userdata = NULL;
-	finish_fb_update(client, result, encoder->n_rects, pts);
+	finish_fb_update(client, result);
 }
 
 static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)

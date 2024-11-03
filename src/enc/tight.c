@@ -515,15 +515,17 @@ static void on_tight_finished(void* obj)
 {
 	struct tight_encoder* self = aml_get_userdata(obj);
 
-	struct rcbuf* result = rcbuf_new(self->dst.data, self->dst.len);
+	struct encoded_frame* result;
+	result = encoded_frame_new(self->dst.data, self->dst.len, self->n_rects,
+			self->width, self->height, self->pts);
 	assert(result);
 
 	self->encoder.n_rects = self->n_rects;
 
-	encoder_finish_frame(&self->encoder, result, self->pts);
+	encoder_finish_frame(&self->encoder, result);
 
 	self->pts = NVNC_NO_PTS;
-	rcbuf_unref(result);
+	encoded_frame_unref(result);
 	encoder_unref(&self->encoder);
 }
 

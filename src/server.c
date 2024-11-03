@@ -1561,7 +1561,7 @@ static enum rfb_resize_status check_desktop_layout(struct nvnc_client* client,
 {
 	struct nvnc* server = client->server;
 	struct nvnc_desktop_layout* layout;
-	enum rfb_resize_status status = RFB_RESIZE_STATUS_SUCCESS;
+	enum rfb_resize_status status = RFB_RESIZE_STATUS_REQUEST_FORWARDED;
 
 	layout = malloc(sizeof(*layout) +
 			n_screens * sizeof(*layout->display_layouts));

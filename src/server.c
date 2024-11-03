@@ -78,7 +78,9 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb);
+static int send_desktop_resize_rect(struct nvnc_client* client, uint16_t width,
+		uint16_t height);
+static bool client_supports_resizing(const struct nvnc_client* client);
 static bool send_ext_support_frame(struct nvnc_client* client);
 static void send_ext_clipboard_caps(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
@@ -829,14 +831,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (!client->has_pixfmt) {
 		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
 		client->has_pixfmt = true;
-	}
-
-	if (fb->width != client->known_width
-	    || fb->height != client->known_height) {
-		send_desktop_resize(client, fb);
-
-		if (decrement_pending_requests(client) <= 0)
-			return;
 	}
 
 	if (!client->is_ext_notified) {
@@ -1599,32 +1593,30 @@ out:
 	return status;
 }
 
-static void send_extended_desktop_size(struct nvnc_client* client,
+static void send_extended_desktop_size_rect(struct nvnc_client* client,
+		uint16_t width, uint16_t height,
 		enum rfb_resize_initiator initiator,
 		enum rfb_resize_status status)
 {
-	struct rfb_server_fb_update_msg head = {
-		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(1),
-	};
+	nvnc_log(NVNC_LOG_DEBUG, "Sending extended desktop resize rect: %"PRIu16"x%"PRIu16,
+			width, height);
 
 	struct rfb_server_fb_rect rect = {
 		.encoding = htonl(RFB_ENCODING_EXTENDEDDESKTOPSIZE),
 		.x = htons(initiator),
 		.y = htons(status),
-		.width = htons(client->known_width),
-		.height = htons(client->known_height),
+		.width = htons(width),
+		.height = htons(height),
 	};
 
 	uint8_t number_of_screens = 1;
 	uint8_t buf[4] = { number_of_screens };
 
 	struct rfb_screen screen = {
-		.width = htons(client->known_width),
-		.height = htons(client->known_height),
+		.width = htons(width),
+		.height = htons(height),
 	};
 
-	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
 	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
 	stream_write(client->net_stream, &buf, sizeof(buf), NULL, NULL);
 	stream_write(client->net_stream, &screen, sizeof(screen), NULL, NULL);
@@ -1648,7 +1640,17 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 	status = check_desktop_layout(client, width, height,
 			msg->number_of_screens, msg->screens);
 
-	send_extended_desktop_size(client, RFB_RESIZE_INITIATOR_THIS_CLIENT,
+	nvnc_log(NVNC_LOG_DEBUG, "Client requested resize to %"PRIu16"x%"PRIu16", result: %d",
+			width, height, status);
+
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
+
+	send_extended_desktop_size_rect(client, width, height,
+			RFB_RESIZE_INITIATOR_THIS_CLIENT,
 			status);
 
 	return sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen);
@@ -2376,12 +2378,29 @@ static void finish_fb_update(struct nvnc_client* client,
 
 	DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
 	frame->n_rects += will_send_pts(client, frame->pts) ? 1 : 0;
+
+	bool is_resized = client->known_width != frame->width ||
+		client->known_height != frame->height;
+
+	if (is_resized) {
+		frame->n_rects += 1;
+
+		if (!client_supports_resizing(client)) {
+			nvnc_log(NVNC_LOG_ERROR, "Display has been resized but client does not support resizing.  Closing.");
+			client_close(client);
+		}
+	}
+
 	struct rfb_server_fb_update_msg update_msg = {
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
 		.n_rects = htons(frame->n_rects),
 	};
 	if (stream_write(client->net_stream, &update_msg,
 			sizeof(update_msg), NULL, NULL) < 0)
+		goto complete;
+
+	if (is_resized && send_desktop_resize_rect(client, frame->width,
+				frame->height) < 0)
 		goto complete;
 
 	if (send_pts_rect(client, frame->pts) < 0)
@@ -2412,43 +2431,34 @@ static void on_encode_frame_done(struct encoder* encoder,
 	finish_fb_update(client, result);
 }
 
-static int send_desktop_resize(struct nvnc_client* client, struct nvnc_fb* fb)
+static bool client_supports_resizing(const struct nvnc_client* client)
 {
-	if (!client_has_encoding(client, RFB_ENCODING_DESKTOPSIZE) &&
-	    !client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE)) {
-		nvnc_log(NVNC_LOG_ERROR, "Client does not support desktop resizing. Closing connection...");
-		nvnc_client_close(client);
-		return -1;
-	}
+	return client_has_encoding(client, RFB_ENCODING_DESKTOPSIZE) ||
+		client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE);
+}
 
-	client->known_width = fb->width;
-	client->known_height = fb->height;
-
-	if (client->encoder)
-		encoder_resize(client->encoder, fb->width, fb->height);
+static int send_desktop_resize_rect(struct nvnc_client* client, uint16_t width,
+		uint16_t height)
+{
+	client->known_width = width;
+	client->known_height = height;
 
 	pixman_region_union_rect(&client->damage, &client->damage, 0, 0,
-			fb->width, fb->height);
+			width, height);
 
 	if (client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE)) {
-		send_extended_desktop_size(client,
+		send_extended_desktop_size_rect(client, width, height,
 				RFB_RESIZE_INITIATOR_SERVER,
 				RFB_RESIZE_STATUS_SUCCESS);
 		return 0;
 	}
 
-	struct rfb_server_fb_update_msg head = {
-		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
-		.n_rects = htons(1),
-	};
-
 	struct rfb_server_fb_rect rect = {
 		.encoding = htonl(RFB_ENCODING_DESKTOPSIZE),
-		.width = htons(fb->width),
-		.height = htons(fb->height),
+		.width = htons(width),
+		.height = htons(height),
 	};
 
-	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
 	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
 	return 0;
 }

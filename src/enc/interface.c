@@ -103,14 +103,6 @@ void encoder_set_quality(struct encoder* self, int value)
 		self->impl->set_quality(self, value);
 }
 
-int encoder_resize(struct encoder* self, uint16_t width, uint16_t height)
-{
-	if (self->impl->resize)
-		return self->impl->resize(self, width, height);
-
-	return 0;
-}
-
 int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {

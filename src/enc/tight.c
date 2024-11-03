@@ -169,6 +169,9 @@ failure:
 static int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 		uint32_t height)
 {
+	if (self->width == width && self->height == height)
+		return 0;
+
 	self->width = width;
 	self->height = height;
 
@@ -580,18 +583,14 @@ static void tight_encoder_set_quality(struct encoder* encoder, int value)
 	self->quality = value;
 }
 
-static int tight_encoder_resize_wrapper(struct encoder* encoder, uint16_t width,
-		uint16_t height)
-{
-	struct tight_encoder* self = tight_encoder(encoder);
-	return tight_encoder_resize(self, width, height);
-}
-
 static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 		struct pixman_region16* damage)
 {
 	struct tight_encoder* self = tight_encoder(encoder);
 	int rc;
+
+	if (tight_encoder_resize(self, fb->width, fb->height))
+		return -1;
 
 	self->encoder.n_rects = 0;
 
@@ -631,6 +630,5 @@ struct encoder_impl encoder_impl_tight = {
 	.destroy = tight_encoder_destroy_wrapper,
 	.set_output_format = tight_encoder_set_output_format,
 	.set_quality = tight_encoder_set_quality,
-	.resize = tight_encoder_resize_wrapper,
 	.encode = tight_encoder_encode,
 };

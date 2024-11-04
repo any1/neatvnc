@@ -170,8 +170,6 @@ static void raw_encoder_on_done(void* obj)
 
 	assert(ctx->result);
 
-	self->encoder.n_rects = ctx->n_rects;
-
 	aml_unref(self->work);
 	self->work = NULL;
 

@@ -47,6 +47,7 @@ struct zrle_encoder {
 	struct pixman_region16 current_damage;
 
 	struct encoded_frame *current_result;
+	int n_rects;
 
 	z_stream zs;
 
@@ -310,7 +311,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 {
 	int rc = -1;
 
-	self->encoder.n_rects = 0;
+	self->n_rects = 0;
 
 	int n_rects = 0;
 	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
@@ -335,7 +336,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 			return -1;
 	}
 
-	self->encoder.n_rects = n_rects;
+	self->n_rects = n_rects;
 	return 0;
 }
 
@@ -369,7 +370,7 @@ static void zrle_encoder_do_work(void* obj)
 	uint64_t pts = nvnc_fb_get_pts(fb);
 
 	self->current_result = encoded_frame_new(dst.data, dst.len,
-			self->encoder.n_rects, width, height, pts);
+			self->n_rects, width, height, pts);
 	assert(self->current_result);
 }
 

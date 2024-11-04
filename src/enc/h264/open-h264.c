@@ -207,11 +207,11 @@ static struct encoded_frame* open_h264_pull(struct encoder* enc)
 	header->length = htonl(payload_size);
 	header->flags = htonl(flags);
 
-	enc->n_rects = 1;
+	int n_rects = 1;
 
 	struct encoded_frame* payload;
 	payload = encoded_frame_new(self->pending.data, self->pending.len,
-			enc->n_rects, self->width, self->height, pts);
+			n_rects, self->width, self->height, pts);
 
 	open_h264_init_pending(self);
 	return payload;

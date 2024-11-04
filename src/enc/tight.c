@@ -523,8 +523,6 @@ static void on_tight_finished(void* obj)
 			self->width, self->height, self->pts);
 	assert(result);
 
-	self->encoder.n_rects = self->n_rects;
-
 	encoder_finish_frame(&self->encoder, result);
 
 	self->pts = NVNC_NO_PTS;
@@ -591,8 +589,6 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 
 	if (tight_encoder_resize(self, fb->width, fb->height))
 		return -1;
-
-	self->encoder.n_rects = 0;
 
 	rc = rfb_pixfmt_from_fourcc(&self->sfmt, nvnc_fb_get_fourcc_format(fb));
 	assert(rc == 0);

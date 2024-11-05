@@ -1398,6 +1398,9 @@ static int on_client_enable_continuous_updates(struct nvnc_client* client)
 		client->continuous_updates.y = ntohs(msg->y);
 		client->continuous_updates.width = ntohs(msg->width);
 		client->continuous_updates.height = ntohs(msg->height);
+
+		/* If there are any pending messages left, make sure they are processed */
+		process_fb_update_requests(client);
 	} else {
 		client->continuous_updates.x = 0;
 		client->continuous_updates.y = 0;

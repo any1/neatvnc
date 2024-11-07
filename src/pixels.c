@@ -16,6 +16,7 @@
 
 #include "rfb-proto.h"
 #include "pixels.h"
+
 #include <stdlib.h>
 #include <assert.h>
 #include <libdrm/drm_fourcc.h>
@@ -749,11 +750,44 @@ int rfb_pixfmt_depth(const struct rfb_pixel_format *fmt)
 	return POPCOUNT(r) + POPCOUNT(g) + POPCOUNT(b);
 }
 
+// All AMD modifiers except DCC are allowed
+static bool amd_format_modifier_is_allowed(uint64_t modifier)
+{
+	return !AMD_FMT_MOD_GET(DCC, modifier) &&
+		!AMD_FMT_MOD_GET(DCC_RETILE, modifier);
+}
+
+static const uint64_t format_modifier_allow_list[] = {
+	DRM_FORMAT_MOD_LINEAR,
+
+	// Intel:
+	I915_FORMAT_MOD_X_TILED,
+	I915_FORMAT_MOD_Y_TILED,
+	I915_FORMAT_MOD_Yf_TILED,
+	// I915_FORMAT_MOD_4_TILED might work but is untested
+};
+
+static bool format_modifier_is_allowed(uint64_t modifier)
+{
+	if (fourcc_mod_is_vendor(modifier, AMD))
+		return amd_format_modifier_is_allowed(modifier);
+
+	for (size_t i = 0; i < sizeof(format_modifier_allow_list) /
+			sizeof(format_modifier_allow_list[0]); ++i)
+		if (modifier == format_modifier_allow_list[i])
+			return true;
+
+	return false;
+}
+
 double rate_pixel_format(uint32_t format, uint64_t modifier,
 		enum format_rating_flags flags, int target_depth)
 {
 	double depth_rating = rate_format_by_depth(format, target_depth);
 	if (depth_rating == 0)
+		return 0;
+
+	if (!format_modifier_is_allowed(modifier))
 		return 0;
 
 	double linear_rating = modifier == DRM_FORMAT_MOD_LINEAR;

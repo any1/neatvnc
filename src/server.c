@@ -808,6 +808,28 @@ static int decrement_pending_requests(struct nvnc_client* client)
 	return --client->n_pending_requests;
 }
 
+static bool client_has_damage(const struct nvnc_client* client)
+{
+	if (!pixman_region_not_empty(&client->damage))
+		return false;
+
+	/* Skip continuous updates without damage inside specified rectangle */
+	if (!client->continuous_updates_enabled)
+		return true;
+
+	struct pixman_region16 damage;
+	pixman_region_init(&damage);
+	pixman_region_intersect_rect(&damage, &client->damage,
+			client->continuous_updates.x,
+			client->continuous_updates.y,
+			client->continuous_updates.width,
+			client->continuous_updates.height);
+	bool result = pixman_region_not_empty(&damage);
+	pixman_region_fini(&damage);
+
+	return result;
+}
+
 static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -855,25 +877,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			return;
 	}
 
-	if (!pixman_region_not_empty(&client->damage))
+	if (!client_has_damage(client))
 		return;
-
-	/* Skip continuous updates without damage inside specified rectangle */
-	if (client->continuous_updates_enabled) {
-		struct pixman_region16 damage;
-
-		pixman_region_init(&damage);
-		pixman_region_intersect_rect(&damage, &client->damage,
-				client->continuous_updates.x,
-				client->continuous_updates.y,
-				client->continuous_updates.width,
-				client->continuous_updates.height);
-		if (!pixman_region_not_empty(&damage)) {
-			pixman_region_fini(&damage);
-			return;
-		}
-		pixman_region_fini(&damage);
-	}
 
 	int bandwidth = bwe_get_estimate(client->bwe);
 	if (bandwidth != 0) {

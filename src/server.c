@@ -863,7 +863,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		struct pixman_region16 damage;
 
 		pixman_region_init(&damage);
-		pixman_region_union_rect(&damage, &client->damage,
+		pixman_region_intersect_rect(&damage, &client->damage,
 				client->continuous_updates.x,
 				client->continuous_updates.y,
 				client->continuous_updates.width,

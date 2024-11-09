@@ -707,6 +707,8 @@ static int get_format_depth(uint32_t format)
 static double rate_format_by_depth(uint32_t format, int target_depth)
 {
 	int depth = get_format_depth(format);
+	if (depth == 0)
+		return 0;
 
 	const double max_depth = 30;
 
@@ -804,6 +806,8 @@ double rate_pixel_format(uint32_t format, uint64_t modifier,
 	const double alpha_weight = 1;
 
 	const double total_weight = depth_weight + linear_weight + alpha_weight;
+	if (total_weight == 0)
+		return 0;
 
 	return (depth_weight * depth_rating
 	     + linear_weight * linear_rating

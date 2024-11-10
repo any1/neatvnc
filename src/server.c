@@ -824,7 +824,11 @@ static int decrement_pending_requests(struct nvnc_client* client)
 	return --client->n_pending_requests;
 }
 
-static bool client_has_damage(const struct nvnc_client* client)
+/* TODO: This should be const but older versions of pixman do not use const for
+ * regions. This has been fixed, but Ubuntu is slow on the uptake as usual,
+ * so this will remain non-const for now.
+ */
+static bool client_has_damage(struct nvnc_client* client)
 {
 	if (!pixman_region_not_empty(&client->damage))
 		return false;

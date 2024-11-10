@@ -2729,7 +2729,7 @@ void nvnc_set_name(struct nvnc* self, const char* name)
 EXPORT
 bool nvnc_has_auth(void)
 {
-#ifdef ENABLE_TLS
+#if defined(ENABLE_TLS) || defined(HAVE_CRYPTO)
 	return true;
 #else
 	return false;
@@ -2784,7 +2784,7 @@ EXPORT
 int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 		nvnc_auth_fn auth_fn, void* userdata)
 {
-#ifdef HAVE_CRYPTO
+#if defined(ENABLE_TLS) || defined(HAVE_CRYPTO)
 	self->auth_flags = flags;
 	self->auth_fn = auth_fn;
 	self->auth_ud = userdata;

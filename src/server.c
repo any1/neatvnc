@@ -138,21 +138,37 @@ static bool have_working_h264_encoder(void)
 	return cached_result == 1;
 }
 
+static void client_drain_encoder(struct nvnc_client* client)
+{
+	 /* Letting the encoder finish is the simplest way to free its
+	  * in-flight resources.
+	  */
+	int64_t timeout = 1000000; // µs
+	int64_t remaining = timeout;
+	int64_t start_time = gettime_us(CLOCK_MONOTONIC);
+
+	while (client->is_updating) {
+		aml_poll(aml_get_default(), remaining);
+		aml_dispatch(aml_get_default());
+
+		int64_t now = gettime_us(CLOCK_MONOTONIC);
+		int64_t dt = now - start_time;
+		remaining = timeout - dt;
+		if (remaining <= 0) {
+			nvnc_log(NVNC_LOG_PANIC, "Encoder stalled while closing");
+			break;
+		}
+	}
+}
+
 static void client_close(struct nvnc_client* client)
 {
 	nvnc_log(NVNC_LOG_INFO, "Closing client connection %p", client);
 
 	stream_close(client->net_stream);
 
-	if (client->server->is_closing) {
-		 /* Letting the encoder finish is the simplest way to free its
-		  * in-flight resources.
-		  */
-		while (client->is_updating) {
-			aml_poll(aml_get_default(), -1);
-			aml_dispatch(aml_get_default());
-		}
-	}
+	if (client->server->is_closing)
+		client_drain_encoder(client);
 
 	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
 	if (cleanup)

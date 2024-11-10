@@ -309,7 +309,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 		struct nvnc_fb* src, const struct rfb_pixel_format* src_fmt,
 		struct pixman_region16* region)
 {
-	int rc = -1;
+	int rc __attribute__((unused)) = -1;
 
 	self->n_rects = 0;
 
@@ -343,7 +343,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 static void zrle_encoder_do_work(void* obj)
 {
 	struct zrle_encoder* self = aml_get_userdata(obj);
-	int rc;
+	int rc __attribute__((unused));
 
 	struct nvnc_fb* fb = self->current_fb;
 	assert(fb);

@@ -129,7 +129,7 @@ static int raw_encode_frame(struct raw_encoder_work* ctx, struct vec* dst,
 static void raw_encoder_do_work(void* obj)
 {
 	struct raw_encoder_work* ctx = aml_get_userdata(obj);
-	int rc;
+	int rc __attribute__((unused));
 
 	struct nvnc_fb* fb = ctx->fb;
 	assert(fb);

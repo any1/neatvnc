@@ -500,7 +500,7 @@ static int find_render_node(char *node, size_t maxlen) {
 		if (!(dev->available_nodes & (1 << DRM_NODE_RENDER)))
 			continue;
 
-		strncpy(node, dev->nodes[DRM_NODE_RENDER], maxlen);
+		strncpy(node, dev->nodes[DRM_NODE_RENDER], maxlen - 1);
 		node[maxlen - 1] = '\0';
 		r = 0;
 		break;
@@ -622,7 +622,7 @@ static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
 	// TODO: Add transform filter
 	assert(fb->transform == NVNC_TRANSFORM_NORMAL);
 
-	int rc = fb_queue_enqueue(&self->fb_queue, fb);
+	int rc __attribute__((unused)) = fb_queue_enqueue(&self->fb_queue, fb);
 	assert(rc == 0); // TODO
 
 	nvnc_fb_hold(fb);

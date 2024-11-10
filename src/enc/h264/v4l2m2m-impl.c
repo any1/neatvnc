@@ -319,7 +319,8 @@ static int alloc_dst_buffers(struct h264_encoder_v4l2m2m* self)
 static void enqueue_dst_buffers(struct h264_encoder_v4l2m2m* self)
 {
 	for (unsigned int i = 0; i < ARRAY_LENGTH(self->dst_bufs); ++i) {
-		int rc = v4l2_qbuf(self->fd, &self->dst_bufs[i].buffer);
+		int rc __attribute__((unused));
+		rc = v4l2_qbuf(self->fd, &self->dst_bufs[i].buffer);
 		assert(rc >= 0);
 	}
 }

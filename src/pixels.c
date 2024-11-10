@@ -27,6 +27,16 @@
 #define XSTR(s) STR(s)
 #define STR(s) #s
 
+#ifndef fourcc_mod_get_vendor
+#define fourcc_mod_get_vendor(modifier) \
+	(((modifier) >> 56) & 0xff)
+#endif
+
+#ifndef fourcc_mod_is_vendor
+#define fourcc_mod_is_vendor(modifier, vendor) \
+	(fourcc_mod_get_vendor(modifier) == DRM_FORMAT_MOD_VENDOR_## vendor)
+#endif
+
 static void pixel32_to_cpixel(uint8_t* restrict dst,
 		const struct rfb_pixel_format* dst_fmt,
 		const uint32_t* restrict src,

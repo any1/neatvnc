@@ -439,6 +439,18 @@ static void send_server_init_message(struct nvnc_client* client)
 	uint16_t height = nvnc_fb_get_height(display->buffer);
 	uint32_t fourcc = nvnc_fb_get_fourcc_format(display->buffer);
 
+	if (rfb_pixfmt_from_fourcc(&client->pixfmt, fourcc) < 0) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to convert buffer format to RFB pixel format");
+		goto close;
+	}
+
+	/* According to rfc6143, bpp must be 8, 16 or 32, but we can handle 24
+	 * internally, so we just nudge 24 to 32 before reporting the pixel
+	 * format to the client.
+	 */
+	if (client->pixfmt.bits_per_pixel == 24)
+		client->pixfmt.bits_per_pixel = 32;
+
 	struct rfb_server_init_msg* msg = calloc(1, size);
 	if (!msg)
 		goto close;
@@ -448,16 +460,7 @@ static void send_server_init_message(struct nvnc_client* client)
 	msg->name_length = htonl(name_len);
 	memcpy(msg->name_string, server->name, name_len);
 
-	int rc = rfb_pixfmt_from_fourcc(&msg->pixel_format, fourcc);
-	if (rc < 0)
-		goto pixfmt_failure;
-
-	/* According to rfc6143, bpp must be 8, 16 or 32, but we can handle 24
-	 * internally, so we just nudge 24 to 32 before reporting the pixel
-	 * format to the client.
-	 */
-	if (msg->pixel_format.bits_per_pixel == 24)
-		msg->pixel_format.bits_per_pixel = 32;
+	memcpy(&msg->pixel_format, &client->pixfmt, sizeof(msg->pixel_format));
 
 	msg->pixel_format.red_max = htons(msg->pixel_format.red_max);
 	msg->pixel_format.green_max = htons(msg->pixel_format.green_max);
@@ -470,8 +473,6 @@ static void send_server_init_message(struct nvnc_client* client)
 	client->known_height = height;
 	return;
 
-pixfmt_failure:
-	free(msg);
 close:
 	nvnc_client_close(client);
 }
@@ -547,7 +548,6 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 		cook_pixel_map(client);
 	}
 
-	client->has_pixfmt = true;
 	client->formats_changed = true;
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client %p chose pixel format: %s", client,
@@ -876,11 +876,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	struct nvnc_fb* fb = client->server->display->buffer;
 	assert(fb);
-
-	if (!client->has_pixfmt) {
-		rfb_pixfmt_from_fourcc(&client->pixfmt, fb->fourcc_format);
-		client->has_pixfmt = true;
-	}
 
 	if (!client->is_ext_notified) {
 		client->is_ext_notified = true;

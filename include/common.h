@@ -91,7 +91,6 @@ struct nvnc_client {
 	char username[256];
 	struct nvnc* server;
 	enum nvnc_client_state state;
-	bool has_pixfmt;
 	struct rfb_pixel_format pixfmt;
 	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
 	size_t n_encodings;

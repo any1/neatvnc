@@ -452,6 +452,13 @@ static void send_server_init_message(struct nvnc_client* client)
 	if (rc < 0)
 		goto pixfmt_failure;
 
+	/* According to rfc6143, bpp must be 8, 16 or 32, but we can handle 24
+	 * internally, so we just nudge 24 to 32 before reporting the pixel
+	 * format to the client.
+	 */
+	if (msg->pixel_format.bits_per_pixel == 24)
+		msg->pixel_format.bits_per_pixel = 32;
+
 	msg->pixel_format.red_max = htons(msg->pixel_format.red_max);
 	msg->pixel_format.green_max = htons(msg->pixel_format.green_max);
 	msg->pixel_format.blue_max = htons(msg->pixel_format.blue_max);

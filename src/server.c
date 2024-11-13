@@ -2859,11 +2859,11 @@ static uint32_t find_highest_client_depth(const struct nvnc* self)
 	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link) {
 		int depth = rfb_pixfmt_depth(&client->pixfmt);
-		if (max_depth > depth)
+		if (depth > max_depth)
 			max_depth = depth;
 	}
 
-	return max_depth;
+	return max_depth != 0 ? max_depth : 24;
 }
 
 // TODO: Give linear a higher rating if we have a v4l2m2m based encoder

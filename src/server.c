@@ -1509,9 +1509,8 @@ static void ext_clipboard_save_provide_msg(struct nvnc* server, const char* text
 	memcpy(provide_msg_buf + 4, text, len);
 	provide_msg_buf[provide_msg_len - 1] = 0;
 
-	server->ext_clipboard_provide_msg.length = compressBound(provide_msg_len);
-	server->ext_clipboard_provide_msg.buffer = malloc(
-			server->ext_clipboard_provide_msg.length);
+	unsigned long length = compressBound(provide_msg_len);
+	server->ext_clipboard_provide_msg.buffer = malloc(length);
 	if (!server->ext_clipboard_provide_msg.buffer) {
 		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
 		return;
@@ -1519,8 +1518,8 @@ static void ext_clipboard_save_provide_msg(struct nvnc* server, const char* text
 
 	int rc;
 	rc = compress((unsigned char*)server->ext_clipboard_provide_msg.buffer,
-			&server->ext_clipboard_provide_msg.length,
-			provide_msg_buf, provide_msg_len);
+			&length, provide_msg_buf, provide_msg_len);
+	server->ext_clipboard_provide_msg.length = length;
 
 	free(provide_msg_buf);
 

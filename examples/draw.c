@@ -340,7 +340,7 @@ int main(int argc, char* argv[])
 
 	aml_run(aml);
 
-	nvnc_close(server);
+	nvnc_del(server);
 	nvnc_display_unref(draw.display);
 	nvnc_fb_pool_unref(draw.fb_pool);
 	pixman_image_unref(draw.whiteboard);

@@ -1981,7 +1981,9 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 static void on_connection(void* obj)
 {
-	struct nvnc* server = aml_get_userdata(obj);
+	struct aml_handler* poll_handle = obj;
+	struct nvnc__socket* socket = aml_get_userdata(poll_handle);
+	struct nvnc* server = socket->parent;
 
 	struct nvnc_client* client = calloc(1, sizeof(*client));
 	if (!client)
@@ -2002,7 +2004,7 @@ static void on_connection(void* obj)
 	client->ext_clipboard_max_unsolicited_text_size =
 		MAX_CLIENT_UNSOLICITED_TEXT_SIZE;
 
-	int fd = accept(server->fd, NULL, 0);
+	int fd = accept(socket->fd, NULL, 0);
 	if (fd < 0) {
 		nvnc_log(NVNC_LOG_WARNING, "Failed to accept a connection");
 		goto accept_failure;
@@ -2012,7 +2014,7 @@ static void on_connection(void* obj)
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 
 #ifdef ENABLE_WEBSOCKET
-	if (server->socket_type == NVNC__SOCKET_WEBSOCKET)
+	if (socket->type == NVNC_STREAM_WEBSOCKET)
 	{
 		client->net_stream = stream_ws_new(fd, on_client_event, client);
 	}
@@ -2182,44 +2184,60 @@ static int bind_address(const char* name, uint16_t port,
 	return -1;
 }
 
+static struct nvnc__socket* nvnc__listen(struct nvnc* self, int fd,
+		enum nvnc_stream_type type)
+{
+	struct nvnc__socket* socket = calloc(1, sizeof(*self));
+	if (!socket)
+		return NULL;
+
+	if (listen(fd, 16) < 0)
+		goto failure;
+
+	socket->parent = self;
+	socket->type = type;
+	socket->fd = fd;
+	socket->is_external = true;
+
+	socket->poll_handle = aml_handler_new(fd, on_connection, socket, NULL);
+	if (!socket->poll_handle) {
+		goto failure;
+	}
+
+	aml_start(aml_get_default(), socket->poll_handle);
+
+	LIST_INSERT_HEAD(&self->sockets, socket, link);
+	return socket;
+
+failure:
+	free(socket);
+	return NULL;
+}
+
 static struct nvnc* open_common(const char* address, uint16_t port,
 		int fd, enum nvnc__socket_type type)
 {
-	nvnc__log_init();
-
-	aml_require_workers(aml_get_default(), -1);
-
-	struct nvnc* self = calloc(1, sizeof(*self));
+	struct nvnc* self = nvnc_new();
 	if (!self)
 		return NULL;
 
-	self->socket_type = type;
-
-	strcpy(self->name, DEFAULT_NAME);
-
-	LIST_INIT(&self->clients);
-
-	self->fd = bind_address(address, port, fd, type);
-	if (self->fd < 0)
+	int bound_fd = bind_address(address, port, fd, type);
+	if (bound_fd < 0)
 		goto bind_failure;
 
-	if (listen(self->fd, 16) < 0)
+	enum nvnc_stream_type stream_type = type == NVNC__SOCKET_WEBSOCKET ?
+		NVNC_STREAM_WEBSOCKET : NVNC_STREAM_NORMAL;
+
+	struct nvnc__socket* socket = nvnc__listen(self, bound_fd, stream_type);
+	if (!socket)
 		goto listen_failure;
 
-	self->poll_handle = aml_handler_new(self->fd, on_connection, self, NULL);
-	if (!self->poll_handle)
-		goto handle_failure;
-
-	if (aml_start(aml_get_default(), self->poll_handle) < 0)
-		goto poll_start_failure;
+	socket->is_external = type == NVNC__SOCKET_FROM_FD;
 
 	return self;
 
-poll_start_failure:
-	aml_unref(self->poll_handle);
-handle_failure:
 listen_failure:
-	close(self->fd);
+	close(bound_fd);
 	if (type == NVNC__SOCKET_UNIX) {
 		unlink(address);
 	}
@@ -2227,6 +2245,31 @@ bind_failure:
 	free(self);
 
 	return NULL;
+}
+
+EXPORT
+struct nvnc* nvnc_new(void)
+{
+	nvnc__log_init();
+	aml_require_workers(aml_get_default(), -1);
+
+	struct nvnc* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	strcpy(self->name, DEFAULT_NAME);
+
+	LIST_INIT(&self->sockets);
+	LIST_INIT(&self->clients);
+
+	return self;
+}
+
+EXPORT
+int nvnc_listen(struct nvnc* self, int fd, enum nvnc_stream_type type)
+{
+	struct nvnc__socket* socket = nvnc__listen(self, fd, type);
+	return socket ? 0 : -1;
 }
 
 EXPORT
@@ -2270,7 +2313,7 @@ static void unlink_fd_path(int fd)
 }
 
 EXPORT
-void nvnc_close(struct nvnc* self)
+void nvnc_del(struct nvnc* self)
 {
 	self->is_closing = true;
 
@@ -2293,12 +2336,20 @@ void nvnc_close(struct nvnc* self)
 	while (!LIST_EMPTY(&self->clients))
 		client_close(LIST_FIRST(&self->clients));
 
-	aml_stop(aml_get_default(), self->poll_handle);
-	// Do not unlink an externally managed fd.
-	if(self->socket_type != NVNC__SOCKET_FROM_FD) {
-		unlink_fd_path(self->fd);
+	while (!LIST_EMPTY(&self->sockets)) {
+		struct nvnc__socket* socket = LIST_FIRST(&self->sockets);
+		LIST_REMOVE(socket, link);
+
+		aml_stop(aml_get_default(), socket->poll_handle);
+		aml_unref(socket->poll_handle);
+
+		if (!socket->is_external) {
+			unlink_fd_path(socket->fd);
+		}
+		close(socket->fd);
+
+		free(socket);
 	}
-	close(self->fd);
 
 #ifdef HAVE_CRYPTO
 	crypto_rsa_priv_key_del(self->rsa_priv);
@@ -2314,8 +2365,13 @@ void nvnc_close(struct nvnc* self)
 
 	free(self->ext_clipboard_provide_msg.buffer);
 
-	aml_unref(self->poll_handle);
 	free(self);
+}
+
+EXPORT
+void nvnc_close(struct nvnc* self)
+{
+	nvnc_del(self);
 }
 
 static void process_pending_fence(struct nvnc_client* client)

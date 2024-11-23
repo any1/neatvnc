@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 
 	aml_run(aml);
 
-	nvnc_close(server);
+	nvnc_del(server);
 	nvnc_display_unref(display);
 	nvnc_fb_unref(fb);
 	aml_unref(aml);

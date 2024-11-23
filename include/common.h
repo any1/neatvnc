@@ -157,12 +157,21 @@ enum nvnc__socket_type {
 	NVNC__SOCKET_FROM_FD,
 };
 
+struct nvnc__socket {
+	struct nvnc* parent;
+	enum nvnc_stream_type type;
+	bool is_external;
+	int fd;
+	struct aml_handler* poll_handle;
+	LIST_ENTRY(nvnc__socket) link;
+};
+
+LIST_HEAD(nvnc__socket_list, nvnc__socket);
+
 struct nvnc {
 	struct nvnc_common common;
 	bool is_closing;
-	int fd;
-	enum nvnc__socket_type socket_type;
-	struct aml_handler* poll_handle;
+	struct nvnc__socket_list sockets;
 	struct nvnc_client_list clients;
 	char name[256];
 	void* userdata;

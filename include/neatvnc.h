@@ -74,6 +74,11 @@ enum nvnc_fb_type {
 	NVNC_FB_GBM_BO,
 };
 
+enum nvnc_stream_type {
+	NVNC_STREAM_NORMAL = 0,
+	NVNC_STREAM_WEBSOCKET,
+};
+
 /* This is the same as wl_output_transform */
 enum nvnc_transform {
 	NVNC_TRANSFORM_NORMAL = 0,
@@ -135,11 +140,18 @@ typedef bool (*nvnc_desktop_layout_fn)(
 
 extern const char nvnc_version[];
 
+struct nvnc* nvnc_new(void);
+void nvnc_del(struct nvnc* self);
+
+int nvnc_listen(struct nvnc* self, int fd, enum nvnc_stream_type type);
+
 struct nvnc* nvnc_open(const char* addr, uint16_t port);
 struct nvnc* nvnc_open_unix(const char *addr);
 struct nvnc* nvnc_open_websocket(const char* addr, uint16_t port);
 struct nvnc* nvnc_open_from_fd(int fd);
-void nvnc_close(struct nvnc* self);
+
+void nvnc_close(struct nvnc* self)
+	__attribute__((deprecated("replaced with nvnc_del")));
 
 void nvnc_add_display(struct nvnc*, struct nvnc_display*);
 void nvnc_remove_display(struct nvnc*, struct nvnc_display*);

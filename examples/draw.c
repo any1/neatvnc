@@ -310,8 +310,11 @@ int main(int argc, char* argv[])
 			draw.width);
 	assert(draw.fb_pool);
 
-	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
+	struct nvnc* server = nvnc_new();
 	assert(server);
+
+	int rc = nvnc_listen_tcp(server, "127.0.0.1", 5900, NVNC_STREAM_NORMAL);
+	assert(rc == 0);
 
 	draw.display = nvnc_display_new(0, 0);
 	assert(draw.display);

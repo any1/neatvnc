@@ -47,8 +47,11 @@ int main(int argc, char* argv[])
 	struct aml* aml = aml_new();
 	aml_set_default(aml);
 
-	struct nvnc* server = nvnc_open("127.0.0.1", 5900);
+	struct nvnc* server = nvnc_new();
 	assert(server);
+
+	int rc = nvnc_listen_tcp(server, "127.0.0.1", 5900, NVNC_STREAM_NORMAL);
+	assert(rc == 0);
 
 	struct nvnc_display* display = nvnc_display_new(0, 0);
 	assert(display);

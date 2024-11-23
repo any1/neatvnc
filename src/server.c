@@ -2166,24 +2166,6 @@ static int bind_address_unix(const char* name)
 	return fd;
 }
 
-static int bind_address(const char* name, uint16_t port,
-		int fd, enum nvnc__socket_type type)
-{
-	switch (type) {
-	case NVNC__SOCKET_TCP:
-	case NVNC__SOCKET_WEBSOCKET:
-		return bind_address_tcp(name, port);
-	case NVNC__SOCKET_UNIX:
-		return bind_address_unix(name);
-	case NVNC__SOCKET_FROM_FD:
-		// nothing to bind
-		return fd;
-	}
-
-	nvnc_log(NVNC_LOG_PANIC, "Unknown socket address type");
-	return -1;
-}
-
 static struct nvnc__socket* nvnc__listen(struct nvnc* self, int fd,
 		enum nvnc_stream_type type)
 {
@@ -2214,39 +2196,6 @@ failure:
 	return NULL;
 }
 
-static struct nvnc* open_common(const char* address, uint16_t port,
-		int fd, enum nvnc__socket_type type)
-{
-	struct nvnc* self = nvnc_new();
-	if (!self)
-		return NULL;
-
-	int bound_fd = bind_address(address, port, fd, type);
-	if (bound_fd < 0)
-		goto bind_failure;
-
-	enum nvnc_stream_type stream_type = type == NVNC__SOCKET_WEBSOCKET ?
-		NVNC_STREAM_WEBSOCKET : NVNC_STREAM_NORMAL;
-
-	struct nvnc__socket* socket = nvnc__listen(self, bound_fd, stream_type);
-	if (!socket)
-		goto listen_failure;
-
-	socket->is_external = type == NVNC__SOCKET_FROM_FD;
-
-	return self;
-
-listen_failure:
-	close(bound_fd);
-	if (type == NVNC__SOCKET_UNIX) {
-		unlink(address);
-	}
-bind_failure:
-	free(self);
-
-	return NULL;
-}
-
 EXPORT
 struct nvnc* nvnc_new(void)
 {
@@ -2273,16 +2222,76 @@ int nvnc_listen(struct nvnc* self, int fd, enum nvnc_stream_type type)
 }
 
 EXPORT
+int nvnc_listen_tcp(struct nvnc* self, const char* addr, uint16_t port,
+		enum nvnc_stream_type type)
+{
+	int fd = bind_address_tcp(addr, port);
+	if (fd < 0)
+		return -1;
+
+	struct nvnc__socket* socket = nvnc__listen(self, fd, type);
+	if (!socket) {
+		close(fd);
+		return -1;
+	}
+
+	socket->is_external = false;
+	return 0;
+}
+
+EXPORT
+int nvnc_listen_unix(struct nvnc* self, const char* path,
+		enum nvnc_stream_type type)
+{
+	int fd = bind_address_unix(path);
+	if (fd < 0)
+		return -1;
+
+	struct nvnc__socket* socket = nvnc__listen(self, fd, type);
+	if (!socket)
+		goto failure;
+
+	socket->is_external = false;
+	return 0;
+
+failure:
+	if (type == NVNC_STREAM_WEBSOCKET) {
+		unlink(path);
+	}
+	close(fd);
+
+	return -1;
+}
+
+EXPORT
 struct nvnc* nvnc_open(const char* address, uint16_t port)
 {
-	return open_common(address, port, -1, NVNC__SOCKET_TCP);
+	struct nvnc* self = nvnc_new();
+	if (!self)
+		return NULL;
+
+	if (nvnc_listen_tcp(self, address, port, NVNC_STREAM_NORMAL) < 0) {
+		nvnc_del(self);
+		return NULL;
+	}
+
+	return self;
 }
 
 EXPORT
 struct nvnc* nvnc_open_websocket(const char *address, uint16_t port)
 {
 #ifdef ENABLE_WEBSOCKET
-	return open_common(address, port, -1, NVNC__SOCKET_WEBSOCKET);
+	struct nvnc* self = nvnc_new();
+	if (!self)
+		return NULL;
+
+	if (nvnc_listen_tcp(self, address, port, NVNC_STREAM_WEBSOCKET) < 0) {
+		nvnc_del(self);
+		return NULL;
+	}
+
+	return self;
 #else
 	return NULL;
 #endif
@@ -2291,13 +2300,31 @@ struct nvnc* nvnc_open_websocket(const char *address, uint16_t port)
 EXPORT
 struct nvnc* nvnc_open_unix(const char* address)
 {
-	return open_common(address, 0, -1, NVNC__SOCKET_UNIX);
+	struct nvnc* self = nvnc_new();
+	if (!self)
+		return NULL;
+
+	if (nvnc_listen_unix(self, address, NVNC_STREAM_NORMAL) < 0) {
+		nvnc_del(self);
+		return NULL;
+	}
+
+	return self;
 }
 
 EXPORT
 struct nvnc* nvnc_open_from_fd(int fd)
 {
-	return open_common(NULL, 0, fd, NVNC__SOCKET_FROM_FD);
+	struct nvnc* self = nvnc_new();
+	if (!self)
+		return NULL;
+
+	if (nvnc_listen(self, fd, NVNC_STREAM_NORMAL) < 0) {
+		nvnc_del(self);
+		return NULL;
+	}
+
+	return self;
 }
 
 static void unlink_fd_path(int fd)

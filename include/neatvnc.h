@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -48,6 +48,8 @@
 #else
 #define nvnc_trace(...)
 #endif
+
+#define NVNC_DEPRECATED(msg) __attribute__((deprecated(msg)))
 
 struct nvnc;
 struct nvnc_client;
@@ -145,13 +147,25 @@ void nvnc_del(struct nvnc* self);
 
 int nvnc_listen(struct nvnc* self, int fd, enum nvnc_stream_type type);
 
+int nvnc_listen_tcp(struct nvnc* self, const char* addr, uint16_t port,
+		enum nvnc_stream_type type);
+int nvnc_listen_unix(struct nvnc* self, const char* path,
+		enum nvnc_stream_type type);
+
+NVNC_DEPRECATED("use nvnc_listen_tcp")
 struct nvnc* nvnc_open(const char* addr, uint16_t port);
+
+NVNC_DEPRECATED("use nvnc_listen_unix")
 struct nvnc* nvnc_open_unix(const char *addr);
+
+NVNC_DEPRECATED("use nvnc_listen_tcp")
 struct nvnc* nvnc_open_websocket(const char* addr, uint16_t port);
+
+NVNC_DEPRECATED("use nvnc_listen")
 struct nvnc* nvnc_open_from_fd(int fd);
 
-void nvnc_close(struct nvnc* self)
-	__attribute__((deprecated("replaced with nvnc_del")));
+NVNC_DEPRECATED("use nvnc_del")
+void nvnc_close(struct nvnc* self);
 
 void nvnc_add_display(struct nvnc*, struct nvnc_display*);
 void nvnc_remove_display(struct nvnc*, struct nvnc_display*);
@@ -270,3 +284,5 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
 		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
+
+#undef NVNC_DEPRECATED

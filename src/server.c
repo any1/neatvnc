@@ -937,6 +937,12 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	DTRACE_PROBE2(neatvnc, process_fb_update_requests__encode,
 			client, fb->pts);
 
+	/* Damage is clamped here in case the client requested an out of bounds
+	 * region.
+	 */
+	pixman_region_intersect_rect(&damage, &damage, 0, 0, fb->width,
+			fb->height);
+
 	if (encoder_encode(client->encoder, fb, &damage) >= 0) {
 		if (client->n_pending_requests > 0)
 			--client->n_pending_requests;

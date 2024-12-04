@@ -565,7 +565,7 @@ static void encodings_to_string_list(char* dst, size_t len,
 		off += snprintf(dst, len, "%s",
 				encoding_to_string(encodings[0]));
 
-	for (size_t i = 1; i < n; ++i)
+	for (size_t i = 1; i < n && off < len; ++i)
 		off += snprintf(dst + off, len - off, ",%s",
 				encoding_to_string(encodings[i]));
 }

@@ -619,6 +619,9 @@ static int on_client_set_encodings(struct nvnc_client* client)
 	        (struct rfb_client_set_encodings_msg*)(client->msg_buffer +
 	                                               client->buffer_index);
 
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
 	size_t n_encodings = ntohs(msg->n_encodings);
 	size_t n = 0;
 

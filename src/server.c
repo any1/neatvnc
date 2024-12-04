@@ -1669,6 +1669,10 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 	msg = (struct rfb_client_set_desktop_size_event_msg*)
 	      (client->msg_buffer + client->buffer_index);
 
+	if (client->buffer_len - client->buffer_index 
+			< sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen))
+		return 0;
+
 	width = ntohs(msg->width);
 	height = ntohs(msg->height);
 

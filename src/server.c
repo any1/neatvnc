@@ -1984,7 +1984,8 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 		client->buffer_index += rc;
 	}
 
-	assert(client->buffer_index <= client->buffer_len);
+	if (client->buffer_index > client->buffer_len)
+		nvnc_log(NVNC_LOG_PANIC, "Read-buffer index has grown out of bounds");
 
 	client->buffer_len -= client->buffer_index;
 	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,

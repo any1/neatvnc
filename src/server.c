@@ -1662,25 +1662,24 @@ static void send_extended_desktop_size_rect(struct nvnc_client* client,
 
 static int on_client_set_desktop_size_event(struct nvnc_client* client)
 {
-	struct rfb_client_set_desktop_size_event_msg* msg;
-	enum rfb_resize_status status;
-	uint16_t width, height;
+	struct rfb_client_set_desktop_size_event_msg* msg =
+		(struct rfb_client_set_desktop_size_event_msg*)
+		(client->msg_buffer + client->buffer_index);
 
 	if (client->buffer_len - client->buffer_index < sizeof(*msg))
 		return 0;
 
-	msg = (struct rfb_client_set_desktop_size_event_msg*)
-	      (client->msg_buffer + client->buffer_index);
+	uint8_t n_screens = msg->number_of_screens;
 
-	if (client->buffer_len - client->buffer_index 
-			< sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen))
+	if (client->buffer_len - client->buffer_index < sizeof(*msg) +
+			n_screens * sizeof(struct rfb_screen))
 		return 0;
 
-	width = ntohs(msg->width);
-	height = ntohs(msg->height);
+	uint16_t width = ntohs(msg->width);
+	uint16_t height = ntohs(msg->height);
 
-	status = check_desktop_layout(client, width, height,
-			msg->number_of_screens, msg->screens);
+	enum rfb_resize_status status = check_desktop_layout(client, width,
+			height, n_screens, msg->screens);
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client requested resize to %"PRIu16"x%"PRIu16", result: %d",
 			width, height, status);
@@ -1695,7 +1694,7 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 			RFB_RESIZE_INITIATOR_THIS_CLIENT,
 			status);
 
-	return sizeof(*msg) + msg->number_of_screens * sizeof(struct rfb_screen);
+	return sizeof(*msg) + n_screens * sizeof(struct rfb_screen);
 }
 
 static void update_ntp_stats(struct nvnc_client* client,

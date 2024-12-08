@@ -1296,7 +1296,7 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 
 	size_t msg_size = sizeof(*msg) + length;
 
-	/* this is expected to be a provide message. if not, tell
+	/* this is expected to be a text provide message. if not, tell
 	 * process_big_cut_text to ignore it, to avoid unnecessarily attempting
 	 * to inflate garbage */
 	if (msg_size > left_to_process) {
@@ -1316,7 +1316,8 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 		client->cut_text.length = length;
 		client->cut_text.index = partial_size;
 
-		client->cut_text.is_provide = (flags & RFB_EXT_CLIPBOARD_ACTION_PROVIDE &&
+		client->cut_text.is_text_provide = (flags & RFB_EXT_CLIPBOARD_ACTION_PROVIDE &&
+				flags & RFB_EXT_CLIPBOARD_FORMAT_TEXT &&
 				!(flags & RFB_EXT_CLIPBOARD_CAPS));
 
 		return left_to_process;
@@ -1393,7 +1394,7 @@ static int process_client_cut_text(struct nvnc_client* client)
 	memcpy(client->cut_text.buffer, msg->text, partial_size);
 
 	client->cut_text.is_zlib = false;
-	client->cut_text.is_provide = false;
+	client->cut_text.is_text_provide = false;
 	client->cut_text.length = length;
 	client->cut_text.index = partial_size;
 
@@ -1479,7 +1480,7 @@ static void process_big_cut_text(struct nvnc_client* client)
 		return;
 
 	if (client->cut_text.is_zlib) {
-		if (client->cut_text.is_provide)
+		if (client->cut_text.is_text_provide)
 			process_client_ext_clipboard_provide(client,
 					(unsigned char*)client->cut_text.buffer,
 					client->cut_text.length);

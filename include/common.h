@@ -82,7 +82,7 @@ struct cut_text {
 	size_t length;
 	size_t index;
 	bool is_zlib;
-	bool is_provide;
+	bool is_text_provide;
 };
 
 struct nvnc_client {

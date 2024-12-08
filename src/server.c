@@ -1523,6 +1523,7 @@ static void ext_clipboard_save_provide_msg(struct nvnc* server, const char* text
 	server->ext_clipboard_provide_msg.buffer = malloc(length);
 	if (!server->ext_clipboard_provide_msg.buffer) {
 		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
+		free(provide_msg_buf);
 		return;
 	}
 

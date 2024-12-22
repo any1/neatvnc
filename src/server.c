@@ -651,6 +651,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_VMWARE_LED_STATE:
 		case RFB_ENCODING_EXTENDED_CLIPBOARD:
 		case RFB_ENCODING_CONTINUOUSUPDATES:
+		case RFB_ENCODING_EXT_MOUSE_BUTTONS:
 		case RFB_ENCODING_FENCE:
 #ifdef ENABLE_EXPERIMENTAL
 		case RFB_ENCODING_PTS:
@@ -764,6 +765,7 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_NTP: return "ntp";
 	case RFB_ENCODING_CONTINUOUSUPDATES: return "continuous-updates";
 	case RFB_ENCODING_FENCE: return "fence";
+	case RFB_ENCODING_EXT_MOUSE_BUTTONS: return "extended-mouse-buttons";
 	}
 	return "UNKNOWN";
 }
@@ -1085,6 +1087,20 @@ static int on_client_pointer_event(struct nvnc_client* client)
 		return 0;
 
 	int button_mask = msg->button_mask;
+	int message_size = sizeof(*msg);
+
+	if (client->has_ext_mouse_buttons && (button_mask & 0x80)) {
+		struct rfb_ext_client_pointer_event_msg* ext_msg =
+			(struct rfb_ext_client_pointer_event_msg*)msg;
+
+		if (client->buffer_len - client->buffer_index < sizeof(*ext_msg))
+			return 0;
+
+		button_mask &= 0x7f;
+		button_mask |= ext_msg->ext_button_mask << 7;
+		message_size = sizeof(*ext_msg);
+	}
+
 	uint16_t x = ntohs(msg->x);
 	uint16_t y = ntohs(msg->y);
 
@@ -1092,7 +1108,7 @@ static int on_client_pointer_event(struct nvnc_client* client)
 	if (fn)
 		fn(client, x, y, button_mask);
 
-	return sizeof(*msg);
+	return message_size;
 }
 
 static void send_ext_clipboard_caps(struct nvnc_client* client)
@@ -2595,7 +2611,9 @@ static bool send_ext_support_frame(struct nvnc_client* client)
 	int has_qemu_ext =
 		client_has_encoding(client, RFB_ENCODING_QEMU_EXT_KEY_EVENT);
 	int has_ntp = client_has_encoding(client, RFB_ENCODING_NTP);
-	int n_rects = has_qemu_ext + has_ntp;
+	int has_ext_mouse_buttons =
+		client_has_encoding(client, RFB_ENCODING_EXT_MOUSE_BUTTONS);
+	int n_rects = has_qemu_ext + has_ntp + has_ext_mouse_buttons;
 	if (n_rects == 0)
 		return false;
 
@@ -2617,6 +2635,14 @@ static bool send_ext_support_frame(struct nvnc_client* client)
 			.encoding = htonl(RFB_ENCODING_NTP),
 		};
 		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	}
+
+	if (has_ext_mouse_buttons) {
+		struct rfb_server_fb_rect rect = {
+			.encoding = htonl(RFB_ENCODING_EXT_MOUSE_BUTTONS),
+		};
+		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+		client->has_ext_mouse_buttons = true;
 	}
 
 	return true;

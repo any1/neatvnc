@@ -75,6 +75,7 @@ enum rfb_encodings {
 	RFB_ENCODING_EXTENDEDDESKTOPSIZE = -308,
 	RFB_ENCODING_FENCE = -312,
 	RFB_ENCODING_CONTINUOUSUPDATES = -313,
+	RFB_ENCODING_EXT_MOUSE_BUTTONS = -316,
 	RFB_ENCODING_PTS = -1000,
 	RFB_ENCODING_NTP = -1001,
 	RFB_ENCODING_VMWARE_LED_STATE = 0x574d5668,
@@ -226,6 +227,14 @@ struct rfb_client_pointer_event_msg {
 	uint8_t button_mask;
 	uint16_t x;
 	uint16_t y;
+} RFB_PACKED;
+
+struct rfb_ext_client_pointer_event_msg {
+	uint8_t type;
+	uint8_t button_mask;
+	uint16_t x;
+	uint16_t y;
+	uint8_t ext_button_mask;
 } RFB_PACKED;
 
 struct rfb_ext_clipboard_msg {

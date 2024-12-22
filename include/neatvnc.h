@@ -68,6 +68,8 @@ enum nvnc_button_mask {
 	NVNC_SCROLL_DOWN = 1 << 4,
 	NVNC_SCROLL_LEFT = 1 << 5,
 	NVNC_SCROLL_RIGHT = 1 << 6,
+	NVNC_BUTTON_BACK = 1 << 7,
+	NVNC_BUTTON_FORWARD = 1 << 8,
 };
 
 enum nvnc_fb_type {

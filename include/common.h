@@ -134,6 +134,7 @@ struct nvnc_client {
 	int32_t min_rtt;
 	struct bwe* bwe;
 	int32_t inflight_bytes;
+	bool has_ext_mouse_buttons;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

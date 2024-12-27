@@ -27,6 +27,17 @@
 #include <pixman.h>
 #include <time.h>
 #include <inttypes.h>
+#include <math.h>
+
+struct value_count {
+	uint32_t value;
+	uint32_t count;
+};
+
+struct pair_count {
+	uint64_t pair;
+	uint32_t count;
+};
 
 static struct encoded_frame* encoded_frame;
 
@@ -44,6 +55,105 @@ static void memcpy_unoptimized(void* dst, const void* src, size_t len)
 	memcpy(dst, src, len);
 }
 #pragma GCC pop_options
+
+static int compare_u32(const void* pa, const void* pb) {
+	uint32_t a = *(const uint32_t*)pa;
+	uint32_t b = *(const uint32_t*)pb;
+	return a < b ? -1 : a > b;
+}
+
+static int compare_u64(const void* pa, const void* pb) {
+	uint64_t a = *(const uint64_t*)pa;
+	uint64_t b = *(const uint64_t*)pb;
+	return a < b ? -1 : a > b;
+}
+
+static double calc_first_order_entropy(const uint32_t* data, size_t length,
+		int* n_unique_colours)
+{
+	if (length == 0)
+		return 0.0;
+
+	uint32_t* data_copy = malloc(length * sizeof(data_copy[0]));
+	assert(data_copy);
+	memcpy(data_copy, data, length * sizeof(data_copy[0]));
+	qsort(data_copy, length, sizeof(data_copy[0]), compare_u32);
+
+	struct value_count* value_counts = malloc(length * sizeof(value_counts[0]));
+	assert(value_counts);
+
+	value_counts[0].value = data_copy[0];
+	value_counts[0].count = 1;
+	size_t value_count_length = 1;
+
+	for (size_t i = 1; i < length; i++) {
+		if (value_counts[value_count_length - 1].value == data_copy[i]) {
+			value_counts[value_count_length - 1].count++;
+		} else {
+			value_counts[value_count_length].value = data_copy[i];
+			value_counts[value_count_length].count = 1;
+			value_count_length++;
+		}
+	}
+
+	double entropy = 0.0;
+	for (size_t i = 0; i < value_count_length; i++) {
+		double p = (double)value_counts[i].count / length;
+		entropy -= p * log2(p);
+	}
+
+	free(value_counts);
+	free(data_copy);
+
+	if (n_unique_colours)
+		*n_unique_colours = value_count_length;
+
+	return entropy;
+}
+
+static double calc_second_order_entropy(const uint32_t* data, size_t length)
+{
+	if (length < 2)
+		return 0.0;
+
+	size_t n_pairs = length - 1;
+
+	uint64_t* pairs = malloc(n_pairs * sizeof(pairs[0]));
+	assert(pairs);
+
+	for (size_t i = 0; i < n_pairs; i++)
+		pairs[i] = ((uint64_t)data[i] << 32) | data[i + 1];
+
+	qsort(pairs, length - 1, sizeof(pairs[0]), compare_u64);
+
+	struct pair_count* pair_counts = malloc(n_pairs * sizeof(pair_counts[0]));
+	assert(pair_counts);
+
+	pair_counts[0].pair = pairs[0];
+	pair_counts[0].count = 1;
+	size_t pair_count_length = 1;
+
+	for (size_t i = 1; i < n_pairs; i++) {
+		if (pair_counts[pair_count_length - 1].pair == pairs[i]) {
+			pair_counts[pair_count_length - 1].count++;
+		} else {
+			pair_counts[pair_count_length].pair = pairs[i];
+			pair_counts[pair_count_length].count = 1;
+			pair_count_length++;
+		}
+	}
+
+	double entropy = 0.0;
+	for (size_t i = 0; i < pair_count_length; i++) {
+		double p = (double)pair_counts[i].count / (length - 1);
+		entropy -= p * log2(p);
+	}
+
+	free(pairs);
+	free(pair_counts);
+
+	return entropy;
+}
 
 struct nvnc_fb* read_png_file(const char *filename);
 
@@ -74,7 +184,6 @@ static int run_benchmark(const char *image)
 	pixman_region_init(&region);
 
 	pixman_region_union_rect(&region, &region, 0, 0, width, height);
-
 
 	struct encoder* enc = encoder_new(RFB_ENCODING_ZRLE, width, height);
 	assert(enc);
@@ -113,6 +222,21 @@ static int run_benchmark(const char *image)
 
 	double reduction = (orig_size - compressed_size) / orig_size;
 	printf("Size reduction: %.1f %%\n", reduction * 100.0);
+
+	int n_unique_colours;
+	double entropy = calc_first_order_entropy(addr, orig_size / 4,
+			&n_unique_colours);
+	double entropy_reduction = 1.0 - entropy / 32.0;
+	printf("Theoretical first order entropy coding reduction: %.1f %%. (%.1f bits / 32)\n",
+			entropy_reduction * 100.0, entropy);
+
+	double second_entropy = calc_second_order_entropy(addr, orig_size / 4);
+	// A symbol pair is 64 bits long
+	double second_reduction = 1.0 - second_entropy / 64.0;
+	printf("Theoretical second order entropy coding reduction: %.1f %%. (%.1f bits / 64)\n",
+			second_reduction * 100.0, second_entropy);
+
+	printf("Number of unique colours: %d\n", n_unique_colours);
 
 	encoder_unref(enc);
 

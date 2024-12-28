@@ -1,10 +1,11 @@
 libpng = dependency('libpng', required: false)
 
+configure_file(
+	output: 'config.h',
+	configuration: config,
+)
+
 if libpng.found()
-	configure_file(
-		output: 'config.h',
-		configuration: config,
-	)
 
 	executable(
 		'zrle-bench',
@@ -41,3 +42,18 @@ if libpng.found()
 		],
 	)
 endif
+
+executable(
+	'parallel-deflate',
+	[
+		'parallel-deflate-bench.c',
+		'../src/parallel-deflate.c',
+		'../src/vec.c',
+	],
+	dependencies: [
+		neatvnc_dep,
+		aml,
+		zlib,
+		libm,
+	],
+)

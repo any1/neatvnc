@@ -283,16 +283,17 @@ int main(int argc, char *argv[])
 
 	char *image = argv[1];
 
-	if (image)
-		return run_benchmark(image) < 0 ? 1 : 0;
-
 	struct aml* aml = aml_new();
 	aml_set_default(aml);
 
 	aml_require_workers(aml, -1);
 
-	rc |= run_benchmark("test-images/tv-test-card.png") < 0 ? 1 : 0;
-	rc |= run_benchmark("test-images/mandrill.png") < 0 ? 1 : 0;
+	if (image) {
+		rc = run_benchmark(image) < 0 ? 1 : 0;
+	} else {
+		rc |= run_benchmark("test-images/tv-test-card.png") < 0 ? 1 : 0;
+		rc |= run_benchmark("test-images/mandrill.png") < 0 ? 1 : 0;
+	}
 
 	aml_unref(aml);
 

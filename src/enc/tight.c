@@ -374,7 +374,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	int32_t xoff = x * bpp;
 	uint8_t* img = addr + xoff + y * byte_stride;
 
-	enum TJSAMP subsampling = (quality == 9) ? TJSAMP_444 : TJSAMP_420;
+	enum TJSAMP subsampling = (self->quality == 9) ? TJSAMP_444 : TJSAMP_420;
 
 	int rc = -1;
 	rc = tjCompress2(handle, img, width, byte_stride, height, tjfmt, &buffer,

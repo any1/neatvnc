@@ -2200,7 +2200,7 @@ static int bind_address_unix(const char* name)
 static struct nvnc__socket* nvnc__listen(struct nvnc* self, int fd,
 		enum nvnc_stream_type type)
 {
-	struct nvnc__socket* socket = calloc(1, sizeof(*self));
+	struct nvnc__socket* socket = calloc(1, sizeof(*socket));
 	if (!socket)
 		return NULL;
 

@@ -35,7 +35,7 @@ static void nvnc_display__on_resampler_done(struct nvnc_fb* fb,
 
 	DTRACE_PROBE2(neatvnc, nvnc_display__on_resampler_done, self, fb->pts);
 
-	if (self->buffer) {
+	if (self->buffer && self->buffer != fb) {
 		nvnc_fb_release(self->buffer);
 		nvnc_fb_unref(self->buffer);
 	}

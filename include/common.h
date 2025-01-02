@@ -41,11 +41,14 @@
 #define MAX_CUT_TEXT_SIZE 10000000
 #define MAX_CLIENT_UNSOLICITED_TEXT_SIZE 20971520
 #define MAX_SECURITY_TYPES 32
+#define MAX_CHALLENGESIZE 32
 
 enum nvnc_client_state {
 	VNC_CLIENT_STATE_ERROR = -1,
 	VNC_CLIENT_STATE_WAITING_FOR_VERSION = 0,
 	VNC_CLIENT_STATE_WAITING_FOR_SECURITY,
+	VNC_CLIENT_STATE_WAITING_FOR_CHALLENGE,
+
 #ifdef ENABLE_TLS
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_VERSION,
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_SUBTYPE,
@@ -135,6 +138,19 @@ struct nvnc_client {
 	struct bwe* bwe;
 	int32_t inflight_bytes;
 
+	struct {
+		size_t challenge_len;
+		uint8_t challenge[MAX_CHALLENGESIZE];
+	} vnc_auth;
+
+	struct vncAuthData
+	{
+		char* password;
+		bool authEnabled;
+		bool VNCmode;
+	};
+	struct vncAuthData* auth;
+
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;
 
@@ -142,7 +158,7 @@ struct nvnc_client {
 		enum crypto_hash_type hash_type;
 		enum crypto_cipher_type cipher_type;
 		size_t challenge_len;
-		uint8_t challenge[32];
+		uint8_t challenge[MAX_CHALLENGESIZE];
 		struct crypto_rsa_pub_key* pub;
 	} rsa;
 #endif
@@ -170,6 +186,7 @@ struct nvnc {
 	nvnc_key_fn key_code_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
+	nvnc_on_encoder_fn on_encode_fn;
 	nvnc_client_fn new_client_fn;
 	nvnc_cut_text_fn cut_text_fn;
 	struct cut_text ext_clipboard_provide_msg;
@@ -185,6 +202,7 @@ struct nvnc {
 	enum nvnc_auth_flags auth_flags;
 	nvnc_auth_fn auth_fn;
 	void* auth_ud;
+	nvnc_notifyserverReady_fn notify_fn;
 
 #ifdef ENABLE_TLS
 	gnutls_certificate_credentials_t tls_creds;

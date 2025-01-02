@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <sys/param.h>
 #include <stdatomic.h>
-
+#include <pthread.h>
 #include "config.h"
 
 #ifdef HAVE_GBM
@@ -40,7 +40,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
 	if (!fb)
 		return NULL;
-
+	pthread_mutex_init(&fb->lock, NULL);
 	uint32_t bpp = pixel_size_from_fourcc(fourcc_format);
 
 	fb->type = NVNC_FB_SIMPLE;
@@ -172,7 +172,7 @@ uint64_t nvnc_fb_get_pts(const struct nvnc_fb* fb)
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
-	if (cleanup)
+	if (cleanup && fb->common.userdata)
 		cleanup(fb->common.userdata);
 
 	nvnc_fb_unmap(fb);
@@ -192,21 +192,41 @@ static void nvnc__fb_free(struct nvnc_fb* fb)
 #endif
 			break;
 		}
-
+	pthread_mutex_destroy(&fb->lock);
 	free(fb);
+}
+
+EXPORT
+int nvnc_ref_count(struct nvnc_fb *fb)
+{
+	if (!fb)
+		return -1;
+	pthread_mutex_lock(&fb->lock);
+	int ref_count = fb->ref;		 // Read the reference count
+	pthread_mutex_unlock(&fb->lock);
+
+	return ref_count;
 }
 
 EXPORT
 void nvnc_fb_ref(struct nvnc_fb* fb)
 {
+	if (!fb)
+		return;
+	pthread_mutex_lock(&fb->lock);
 	fb->ref++;
+	pthread_mutex_unlock(&fb->lock);
 }
 
 EXPORT
 void nvnc_fb_unref(struct nvnc_fb* fb)
 {
+	if (!fb)
+		return;
+	pthread_mutex_lock(&fb->lock); // Lock the mutex before modifying ref
 	if (fb && --fb->ref == 0)
 		nvnc__fb_free(fb);
+	pthread_mutex_unlock(&fb->lock); // Unlock the mutex
 }
 
 EXPORT
@@ -230,7 +250,11 @@ void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts)
 
 void nvnc_fb_hold(struct nvnc_fb* fb)
 {
+	if (!fb)
+		return;
+	pthread_mutex_lock(&fb->lock); // Lock the mutex before modifying hold_count
 	fb->hold_count++;
+	pthread_mutex_unlock(&fb->lock); // Unlock the mutex
 }
 
 void nvnc_fb_release(struct nvnc_fb* fb)

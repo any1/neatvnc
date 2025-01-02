@@ -31,6 +31,7 @@ struct nvnc_fb {
 	enum nvnc_fb_type type;
 	int ref;
 	int hold_count;
+	pthread_mutex_t lock;
 	nvnc_fb_release_fn on_release;
 	void* release_context;
 	bool is_external;
@@ -53,3 +54,4 @@ void nvnc_fb_hold(struct nvnc_fb* fb);
 void nvnc_fb_release(struct nvnc_fb* fb);
 int nvnc_fb_map(struct nvnc_fb* fb);
 void nvnc_fb_unmap(struct nvnc_fb* fb);
+int nvnc_ref_count(struct nvnc_fb *fb);

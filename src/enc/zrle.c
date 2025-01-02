@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2024 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,6 +22,7 @@
 #include "enc/util.h"
 #include "enc/encoder.h"
 #include "rcbuf.h"
+#include "parallel-deflate.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -29,7 +30,6 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <pixman.h>
-#include <zlib.h>
 #include <aml.h>
 
 #define TILE_LENGTH 64
@@ -46,11 +46,10 @@ struct zrle_encoder {
 	struct nvnc_fb* current_fb;
 	struct pixman_region16 current_damage;
 
-	struct encoded_frame *current_result;
+	struct encoded_frame* current_result;
 	int n_rects;
 
-	uint16_t header;
-	z_stream zs;
+	struct parallel_deflate* zs;
 
 	struct aml_work* work;
 };
@@ -212,36 +211,11 @@ static void zrle_encode_tile(struct vec* dst,
 	dst->len += bytes_per_cpixel * length;
 }
 
-static int zrle_deflate(struct vec* dst, const struct vec* src, z_stream* zs,
-		bool flush)
-{
-	zs->next_in = src->data;
-	zs->avail_in = src->len;
-
-	do {
-		if (dst->len == dst->cap && vec_reserve(dst, dst->cap * 2) < 0)
-			return -1;
-
-		zs->next_out = ((Bytef*)dst->data) + dst->len;
-		zs->avail_out = dst->cap - dst->len;
-
-		int r = deflate(zs, flush ? Z_SYNC_FLUSH : Z_NO_FLUSH);
-		if (r == Z_STREAM_ERROR)
-			return -1;
-
-		dst->len = zs->next_out - (Bytef*)dst->data;
-	} while (zs->avail_out == 0);
-
-	assert(zs->avail_in == 0);
-
-	return 0;
-}
-
 static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		const struct rfb_pixel_format* dst_fmt,
 		const struct nvnc_fb* fb,
 		const struct rfb_pixel_format* src_fmt, int x, int y,
-		int stride, int width, int height, z_stream* zs)
+		int stride, int width, int height)
 {
 	int r = -1;
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
@@ -268,11 +242,6 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 	size_t size_index = out->len;
 	vec_append_zero(out, 4);
 
-	if (self->header) {
-		vec_append(out, &self->header, sizeof(self->header));
-		self->header = 0;
-	}
-
 	int n_tiles = UDIV_UP(width, TILE_LENGTH) * UDIV_UP(height, TILE_LENGTH);
 
 	for (int i = 0; i < n_tiles; ++i) {
@@ -295,10 +264,10 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
 				tile_width * tile_height);
 
-		r = zrle_deflate(out, &in, zs, i == n_tiles - 1);
-		if (r < 0)
-			goto failure;
+		parallel_deflate_feed(self->zs, out, in.data, in.len);
 	}
+
+	parallel_deflate_sync(self->zs, out);
 
 	uint32_t out_size = htonl(out->len - size_index - 4);
 	memcpy(((uint8_t*)out->data) + size_index, &out_size, sizeof(out_size));
@@ -310,7 +279,7 @@ failure:
 #undef CHUNK
 }
 
-static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
+static int zrle_encode_frame(struct zrle_encoder* self,
 		struct vec* dst, const struct rfb_pixel_format* dst_fmt,
 		struct nvnc_fb* src, const struct rfb_pixel_format* src_fmt,
 		struct pixman_region16* region)
@@ -337,7 +306,7 @@ static int zrle_encode_frame(struct zrle_encoder* self, z_stream* zs,
 		int box_height = box[i].y2 - y;
 
 		rc = zrle_encode_box(self, dst, dst_fmt, src, src_fmt, x, y,
-				src->stride, box_width, box_height, zs);
+				src->stride, box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}
@@ -367,7 +336,7 @@ static void zrle_encoder_do_work(void* obj)
 	rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
 	assert(rc == 0);
 
-	rc = zrle_encode_frame(self, &self->zs, &dst, &self->output_format, fb,
+	rc = zrle_encode_frame(self, &dst, &self->output_format, fb,
 			&src_fmt, &self->current_damage);
 	assert(rc == 0);
 
@@ -404,13 +373,6 @@ static void zrle_encoder_on_done(void* obj)
 	encoder_unref(&self->encoder);
 }
 
-static uint16_t make_header(void)
-{
-	uint16_t head = 0x7800;
-	head += 31 - (head % 31);
-	return htons(head);
-}
-
 struct encoder* zrle_encoder_new(void)
 {
 	struct zrle_encoder* self = calloc(1, sizeof(*self));
@@ -420,19 +382,18 @@ struct encoder* zrle_encoder_new(void)
 	encoder_init(&self->encoder, &encoder_impl_zrle);
 
 	int level = 1;
-	int method = Z_DEFLATED;
 	int window_bits = -15;
 	int mem_level = 9;
 	int strategy = Z_DEFAULT_STRATEGY;
 
-	self->header = make_header();
-
-	int rc = deflateInit2(&self->zs, level, method, window_bits, mem_level,
+	self->zs = parallel_deflate_new(level, window_bits, mem_level,
 			strategy);
-	if (rc != Z_OK)
+	if (!self->zs)
 		goto deflate_failure;
 
 	pixman_region_init(&self->current_damage);
+
+	aml_require_workers(aml_get_default(), 2);
 
 	return (struct encoder*)self;
 
@@ -445,7 +406,7 @@ static void zrle_encoder_destroy(struct encoder* encoder)
 {
 	struct zrle_encoder* self = zrle_encoder(encoder);
 	pixman_region_fini(&self->current_damage);
-	deflateEnd(&self->zs);
+	parallel_deflate_destroy(self->zs);
 	if (self->work)
 		aml_unref(self->work);
 	if (self->current_result)

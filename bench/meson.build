@@ -25,6 +25,7 @@ if libpng.found()
 			'../src/vec.c',
 			'../src/rcbuf.c',
 			'../src/fb.c',
+			'../src/parallel-deflate.c',
 		],
 		dependencies: [
 			neatvnc_dep,

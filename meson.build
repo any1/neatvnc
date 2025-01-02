@@ -99,6 +99,7 @@ sources = [
 	'src/logging.c',
 	'src/base64.c',
 	'src/bandwidth.c',
+	'src/parallel-deflate.c',
 ]
 
 dependencies = [

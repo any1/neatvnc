@@ -52,7 +52,7 @@
 
 #define TSL 64 /* Tile Side Length */
 
-#define MAX_TILE_SIZE (2 * TSL * TSL * 4)
+static int MAX_TILE_SIZE = 0;
 
 struct encoder* tight_encoder_new(uint16_t width, uint16_t height);
 
@@ -75,6 +75,8 @@ struct tight_encoder {
 	struct rfb_pixel_format dfmt;
 	struct rfb_pixel_format sfmt;
 	struct nvnc_fb* fb;
+	struct nvnc_fb* current_fb;
+
 	uint64_t pts;
 
 	uint32_t n_rects;
@@ -96,7 +98,7 @@ struct tight_tile {
 	enum tight_tile_state state;
 	size_t size;
 	uint8_t type;
-	char buffer[MAX_TILE_SIZE];
+	char* buffer;
 };
 
 struct tight_zs_worker_ctx {
@@ -136,17 +138,23 @@ static inline struct tight_tile* tight_tile(struct tight_encoder* self,
 static inline uint32_t tight_tile_width(struct tight_encoder* self,
 		uint32_t x)
 {
-	return x + TSL > self->width ? self->width - x : TSL;
+	if(!self)
+		return 0;
+	return self->width;
 }
 
 static inline uint32_t tight_tile_height(struct tight_encoder* self,
 		uint32_t y)
 {
-	return y + TSL > self->height ? self->height - y : TSL;
+	if(!self)
+		return 0;
+	return self->height;
 }
 
 static int tight_init_zs_worker(struct tight_encoder* self, int index)
 {
+	if(!self)
+		return -1;
 	struct tight_zs_worker_ctx* ctx = calloc(1, sizeof(*ctx));
 	if (!ctx)
 		return -1;
@@ -175,33 +183,41 @@ static int tight_encoder_resize(struct tight_encoder* self, uint32_t width,
 	self->width = width;
 	self->height = height;
 
-	self->grid_width = UDIV_UP(width, 64);
-	self->grid_height = UDIV_UP(height, 64);
-
-	if (self->grid)
+	self->grid_width = 1;
+	self->grid_height = 1;
+	if (self->grid) {
+		if (self->grid->buffer)
+	        free(self->grid->buffer);
 		free(self->grid);
+	}
 
 	self->grid = calloc(self->grid_width * self->grid_height,
 			sizeof(*self->grid));
-	return self->grid ? 0 : -1;
+	if(!self->grid)
+		return -1;
+	self->grid->buffer = (char*) calloc(MAX_TILE_SIZE, sizeof(char));
+	if (!self->grid->buffer)
+	{
+		free(self->grid);  // Clean up previously allocated memory for the grid
+		self->grid = NULL; // Set grid to NULL to avoid dangling pointer
+		return -1;		   // Buffer allocation failed
+	}
+	return 0; // Successfully resized
 }
 
 static int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 		uint32_t height)
 {
+	if(!self)
+		return -1;
+	MAX_TILE_SIZE = width*height*4;
 	memset(self, 0, sizeof(*self));
 	if (tight_encoder_resize(self, width, height) < 0)
 		return -1;
 
 	tight_encoder_init_stream(&self->zs[0]);
-	tight_encoder_init_stream(&self->zs[1]);
-	tight_encoder_init_stream(&self->zs[2]);
-	tight_encoder_init_stream(&self->zs[3]);
 
 	tight_init_zs_worker(self, 0);
-	tight_init_zs_worker(self, 1);
-	tight_init_zs_worker(self, 2);
-	tight_init_zs_worker(self, 3);
 
 	aml_require_workers(aml_get_default(), 1);
 
@@ -212,43 +228,39 @@ static int tight_encoder_init(struct tight_encoder* self, uint32_t width,
 
 static void tight_encoder_destroy(struct tight_encoder* self)
 {
-	aml_unref(self->zs_worker[3]);
-	aml_unref(self->zs_worker[2]);
-	aml_unref(self->zs_worker[1]);
 	aml_unref(self->zs_worker[0]);
 
-	deflateEnd(&self->zs[3]);
-	deflateEnd(&self->zs[2]);
-	deflateEnd(&self->zs[1]);
 	deflateEnd(&self->zs[0]);
-
-	free(self->grid);
+	if(self->grid)
+	{
+		if(self->grid->buffer)
+			free(self->grid->buffer);
+		free(self->grid);
+	}
 }
 
 static int tight_apply_damage(struct tight_encoder* self,
 		struct pixman_region16* damage)
 {
+	if(!self)
+		return -1;
 	int n_damaged = 0;
 
 	/* Align damage to tile grid */
 	for (uint32_t y = 0; y < self->grid_height; ++y)
 		for (uint32_t x = 0; x < self->grid_width; ++x) {
 			struct pixman_box16 box = {
-				.x1 = x * TSL,
-				.y1 = y * TSL,
-				.x2 = (x + 1) * TSL,
-				.y2 = (y + 1) * TSL,
+				.x1 = x * self->width,
+				.y1 = y * self->height,
+				.x2 = (x + 1) * self->width,
+				.y2 = (y + 1) * self->height,
 			};
 
 			pixman_region_overlap_t overlap
 				= pixman_region_contains_rectangle(damage, &box);
 
-			if (overlap != PIXMAN_REGION_OUT) {
 				++n_damaged;
 				tight_tile(self, x, y)->state = TIGHT_TILE_DAMAGED;
-			} else {
-				tight_tile(self, x, y)->state = TIGHT_TILE_READY;
-			}
 		}
 
 	return n_damaged;
@@ -352,6 +364,8 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 		struct tight_tile* tile, uint32_t x, uint32_t y, uint32_t width,
 		uint32_t height)
 {
+	if(!self)
+		return -1;
 	tile->type = TIGHT_JPEG;
 
 	unsigned char* buffer = NULL;
@@ -410,8 +424,12 @@ static void tight_encode_tile(struct tight_encoder* self,
 	uint32_t x = gx * TSL;
 	uint32_t y = gy * TSL;
 
-	uint32_t width = tight_tile_width(self, x);
-	uint32_t height = tight_tile_height(self, y);
+	uint32_t width = self->width;
+	uint32_t height = self->height;
+	MAX_TILE_SIZE = width*height*4;
+	if(!tile->buffer) {
+		return;
+	}
 
 	tile->size = 0;
 
@@ -432,24 +450,18 @@ static void do_tight_zs_work(void* obj)
 {
 	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
 	struct tight_encoder* self = ctx->encoder;
+	self->fb = self->current_fb;
 	int index = ctx->index;
-
-	for (uint32_t y = 0; y < self->grid_height; ++y)
-		for (uint32_t x = index; x < self->grid_width; x += 4)
-			if (tight_tile(self, x, y)->state == TIGHT_TILE_DAMAGED)
-				tight_encode_tile(self, x, y);
+	tight_encode_tile(self, 0, 0);
 }
 
 static void on_tight_zs_work_done(void* obj)
 {
 	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
 	struct tight_encoder* self = ctx->encoder;
-
-	if (--self->n_jobs == 0) {
-		nvnc_fb_release(self->fb);
-		nvnc_fb_unref(self->fb);
-		schedule_tight_finish(self);
-	}
+	nvnc_fb_release(self->fb);
+	nvnc_fb_unref(self->fb);
+	schedule_tight_finish(self);
 
 	encoder_unref(&self->encoder);
 }
@@ -469,9 +481,8 @@ static int tight_schedule_zs_work(struct tight_encoder* self, int index)
 
 static int tight_schedule_encoding_jobs(struct tight_encoder* self)
 {
-	for (int i = 0; i < 4; ++i)
-		if (tight_schedule_zs_work(self, i) < 0)
-			return -1;
+	if (tight_schedule_zs_work(self, 0) < 0)
+        return -1;
 
 	return 0;
 }
@@ -532,6 +543,8 @@ static void on_tight_finished(void* obj)
 
 static int schedule_tight_finish(struct tight_encoder* self)
 {
+	if(!self)
+		return -1;
 	encoder_ref(&self->encoder);
 
 	struct aml_work* work = aml_work_new(do_tight_finish, on_tight_finished,
@@ -578,7 +591,8 @@ static void tight_encoder_set_output_format(struct encoder* encoder,
 static void tight_encoder_set_quality(struct encoder* encoder, int value)
 {
 	struct tight_encoder* self = tight_encoder(encoder);
-	self->quality = value;
+	if(self)
+		self->quality = value;
 }
 
 static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
@@ -593,7 +607,7 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	rc = rfb_pixfmt_from_fourcc(&self->sfmt, nvnc_fb_get_fourcc_format(fb));
 	assert(rc == 0);
 
-	self->fb = fb;
+	self->current_fb = fb;
 	self->pts = nvnc_fb_get_pts(fb);
 
 	rc = nvnc_fb_map(self->fb);
@@ -609,13 +623,15 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	self->n_rects = tight_apply_damage(self, damage);
 	assert(self->n_rects > 0);
 
-	nvnc_fb_ref(self->fb);
-	nvnc_fb_hold(self->fb);
+	if (!self->current_fb || nvnc_ref_count(self->current_fb) < 1)
+		return -1;
+	nvnc_fb_ref(self->current_fb);
+	nvnc_fb_hold(self->current_fb);
 
-	if (tight_schedule_encoding_jobs(self) < 0) {
-		nvnc_fb_release(self->fb);
-		nvnc_fb_unref(self->fb);
-		vec_destroy(&self->dst);
+	if (tight_schedule_encoding_jobs(self) < 0)
+	{
+		nvnc_fb_release(self->current_fb);
+		nvnc_fb_unref(self->current_fb);
 		return -1;
 	}
 
@@ -623,6 +639,7 @@ static int tight_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 }
 
 struct encoder_impl encoder_impl_tight = {
+	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = tight_encoder_destroy_wrapper,
 	.set_output_format = tight_encoder_set_output_format,
 	.set_quality = tight_encoder_set_quality,

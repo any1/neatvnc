@@ -32,6 +32,9 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 
 	char buffer[256];
 
+	if(client->server->notify_fn) //if reverse is set this code hits in the auth failure case
+		    client->server->notify_fn(false);
+
 	client->state = VNC_CLIENT_STATE_ERROR;
 
 	uint32_t* result = (uint32_t*)buffer;

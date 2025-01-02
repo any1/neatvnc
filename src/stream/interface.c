@@ -33,6 +33,7 @@ void stream_destroy(struct stream* self)
 int stream_send(struct stream* self, struct rcbuf* payload,
 		stream_req_fn on_done, void* userdata)
 {
+	assert(self);
 	assert(self->impl && self->impl->send);
 	return self->impl->send(self, payload, on_done, userdata);
 }

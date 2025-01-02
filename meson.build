@@ -58,6 +58,7 @@ gmp = dependency('gmp', required: get_option('nettle'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
 libdrm = dependency('libdrm', required: get_option('h264'))
+openssl_dep = dependency('openssl', required: true)
 
 libavcodec = dependency('libavcodec', required: get_option('h264'))
 libavfilter = dependency('libavfilter', required: get_option('h264'))
@@ -75,6 +76,7 @@ inc = include_directories('include')
 
 sources = [
 	'src/auth/common.c',
+	'src/auth/vncauth.c',
 	'src/server.c',
 	'src/vec.c',
 	'src/enc/zrle.c',
@@ -107,6 +109,7 @@ dependencies = [
 	aml,
 	zlib,
 	libdrm_inc,
+	openssl_dep
 ]
 
 enable_websocket = false
@@ -142,6 +145,8 @@ if nettle.found() and hogweed.found() and gmp.found()
 		'src/auth/rsa-aes.c',
 	]
 endif
+
+config.set('ENABLE_PASSWORD_AUTH', true)
 
 if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')
 	config.set('HAVE_USDT', true)

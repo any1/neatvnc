@@ -54,6 +54,9 @@
 #include <netinet/tcp.h>
 #include <zlib.h>
 #include <tgmath.h>
+#include <fcntl.h>
+
+#include "auth/vncauth.h"
 
 #ifdef ENABLE_TLS
 #include <gnutls/gnutls.h>
@@ -65,7 +68,7 @@
 #include "auth/apple-dh.h"
 #include "auth/rsa-aes.h"
 #endif
-
+#define MAX_IP_SIZE 32
 #ifndef DRM_FORMAT_INVALID
 #define DRM_FORMAT_INVALID 0
 #endif
@@ -143,7 +146,7 @@ static void client_drain_encoder(struct nvnc_client* client)
 	 /* Letting the encoder finish is the simplest way to free its
 	  * in-flight resources.
 	  */
-	int64_t timeout = 1000000; // µs
+	int64_t timeout = 2000000; // µs
 	int64_t remaining = timeout;
 	int64_t start_time = gettime_us(CLOCK_MONOTONIC);
 
@@ -256,13 +259,20 @@ static int handle_unsupported_version(struct nvnc_client* client)
 
 static void init_security_types(struct nvnc* server)
 {
-#define ADD_SECURITY_TYPE(type) \
-	assert(server->n_security_types < MAX_SECURITY_TYPES); \
-	server->security_types[server->n_security_types++] = (type);
+	assert(server);
+	#define ADD_SECURITY_TYPE(type) \
+		assert(server->n_security_types < MAX_SECURITY_TYPES); \
+		server->security_types[server->n_security_types++] = (type);
 
 	if (server->n_security_types > 0)
 		return;
 
+#ifdef ENABLE_PASSWORD_AUTH
+	if (server->auth_flags & NVNC_ENABLE_PASSWORD_AUTH)
+	{
+		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_VNC_AUTH);//send this only when authentication/reverseconnection is enabled
+	}
+#endif
 	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
 		assert(server->auth_fn);
 
@@ -348,8 +358,19 @@ static int on_version_message(struct nvnc_client* client)
 	return 12;
 }
 
+static void rfbVncAuthSendChallenge(struct nvnc_client* client)
+{
+	if(!client)
+		return;
+    genRandomBytes(client->vnc_auth.challenge);
+
+	stream_write(client->net_stream, client->vnc_auth.challenge,CHALLENGESIZE, NULL, NULL);
+}
+
 static int on_security_message(struct nvnc_client* client)
 {
+	if(!client)
+		return 0;
 	if (client->buffer_len - client->buffer_index < 1)
 		return 0;
 
@@ -367,6 +388,11 @@ static int on_security_message(struct nvnc_client* client)
 	case RFB_SECURITY_TYPE_NONE:
 		security_handshake_ok(client, NULL);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+		break;
+	case RFB_SECURITY_TYPE_VNC_AUTH:
+		rfbVncAuthSendChallenge(client);
+		client->auth =(struct vncAuthData*)client->server->auth_ud;
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_CHALLENGE;
 		break;
 #ifdef ENABLE_TLS
 	case RFB_SECURITY_TYPE_VENCRYPT:
@@ -498,6 +524,8 @@ static int on_init_message(struct nvnc_client* client)
 			client, client->min_rtt / 1000);
 
 	client->state = VNC_CLIENT_STATE_READY;
+	if(client->server->notify_fn) //if reverse is set this code hits in the success case
+		client->server->notify_fn(true);
 	return sizeof(shared_flag);
 }
 
@@ -821,6 +849,10 @@ static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
 
 	nvnc_log(NVNC_LOG_INFO, "Choosing %s encoding for client %p",
 			encoding_to_string(encoding), client);
+
+	nvnc_on_encoder_fn encode_fn = server->on_encode_fn;
+	if (encode_fn)
+		encode_fn(client, encoding_to_string(encoding));
 
 	return true;
 }
@@ -1909,6 +1941,8 @@ static int try_read_client_message(struct nvnc_client* client)
 		return on_version_message(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_SECURITY:
 		return on_security_message(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_CHALLENGE:
+		return vnc_auth_handle_message(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_INIT:
 		return on_init_message(client);
 #ifdef ENABLE_TLS
@@ -1993,6 +2027,98 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
+EXPORT
+void start_tcp_connection(struct nvnc* server)
+{
+	if(!server)
+		return;
+
+	struct nvnc_client* client = calloc(1, sizeof(*client));
+	if (!client)
+		return;
+
+	client->server = server;
+	client->quality = 10; /* default to lossless */
+	client->led_state = -1; /* trigger sending of initial state */
+	client->min_rtt = INT32_MAX;
+	client->bwe = bwe_create(INT32_MAX);
+
+	/* default extended clipboard capabilities */
+	client->ext_clipboard_caps =
+		RFB_EXT_CLIPBOARD_FORMAT_TEXT |
+		RFB_EXT_CLIPBOARD_ACTION_REQUEST |
+		RFB_EXT_CLIPBOARD_ACTION_NOTIFY |
+		RFB_EXT_CLIPBOARD_ACTION_PROVIDE;
+
+	client->ext_clipboard_max_unsolicited_text_size =
+		MAX_CLIENT_UNSOLICITED_TEXT_SIZE;
+
+	int fd = server->fd;
+	if (fd < 0) {
+		nvnc_log(NVNC_LOG_WARNING, "Failed to accept a connection");
+		goto accept_failure;
+	}
+
+	int one = 1;
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+
+#ifdef ENABLE_WEBSOCKET
+	if (server->socket_type == NVNC__SOCKET_WEBSOCKET)
+	{
+		client->net_stream = stream_ws_new(fd, on_client_event, client);
+	}
+	else
+#endif
+	{
+		client->net_stream = stream_new(fd, on_client_event, client);
+	}
+
+	if (!client->net_stream) {
+		nvnc_log(NVNC_LOG_WARNING, "OOM");
+		goto stream_failure;
+	}
+
+	if (!server->display->buffer) {
+		nvnc_log(NVNC_LOG_WARNING, "No display buffer has been set");
+		goto buffer_failure;
+	}
+
+	pixman_region_init(&client->damage);
+
+	struct rcbuf* payload = rcbuf_from_string(RFB_VERSION_MESSAGE);
+	if (!payload) {
+		nvnc_log(NVNC_LOG_WARNING, "OOM");
+		goto payload_failure;
+	}
+
+	client->last_ping_time = gettime_us(CLOCK_MONOTONIC);
+	stream_send(client->net_stream, payload, NULL, NULL);
+
+	LIST_INSERT_HEAD(&server->clients, client, link);
+
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
+
+	char ip_address[MAX_IP_SIZE];
+	struct sockaddr_storage addr;
+	socklen_t addrlen = sizeof(addr);
+	nvnc_client_get_address(client, (struct sockaddr*)&addr, &addrlen);
+	sockaddr_to_string(ip_address, sizeof(ip_address),
+			(struct sockaddr*)&addr);
+	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p",
+			ip_address, client);
+
+	return;
+
+payload_failure:
+	pixman_region_fini(&client->damage);
+buffer_failure:
+	stream_destroy(client->net_stream);
+stream_failure:
+	close(fd);
+accept_failure:
+	free(client);
+}
+
 static void on_connection(void* obj)
 {
 	struct nvnc* server = aml_get_userdata(obj);
@@ -2060,7 +2186,7 @@ static void on_connection(void* obj)
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VERSION;
 
-	char ip_address[256];
+	char ip_address[MAX_IP_SIZE];
 	struct sockaddr_storage addr;
 	socklen_t addrlen = sizeof(addr);
 	nvnc_client_get_address(client, (struct sockaddr*)&addr, &addrlen);
@@ -2196,6 +2322,94 @@ static int bind_address(const char* name, uint16_t port,
 	return -1;
 }
 
+bool setNonBlocking(int sock)
+{
+	int flags = fcntl(sock, F_GETFL);
+	if(flags < 0 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+		nvnc_log(NVNC_LOG_WARNING, "failed to set non blocking");
+		return false;
+	}
+	return true;
+}
+
+static int connect_to_address(const char* address, uint16_t port, enum nvnc__socket_type type)
+{
+	nvnc_log(NVNC_LOG_WARNING, "connect_to_address vnc ");
+	int fd = socket(AF_INET, (type == NVNC__SOCKET_TCP) ? SOCK_STREAM : SOCK_DGRAM, 0);
+	if (fd < 0) {
+		perror("Failed to create socket");
+		return -1;
+	}
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+
+	if (inet_pton(AF_INET, address, &server_addr.sin_addr) <= 0) {
+		perror("Invalid address");
+		close(fd);
+		return -1;
+	}
+
+	if (connect(fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+		perror("Connection failed");
+		nvnc_log(NVNC_LOG_WARNING, "Connection failed vnc ");
+		close(fd);
+		return -1;
+	}
+	nvnc_log(NVNC_LOG_WARNING, "returns fd");
+	return fd;
+}
+
+static struct nvnc* open_reverse_vnc(const char* address, uint16_t port, enum nvnc__socket_type type)
+{
+	nvnc__log_init();
+	nvnc_log(NVNC_LOG_WARNING, "open_reverse_vnc vnc ");
+
+	aml_require_workers(aml_get_default(), -1);
+
+	struct nvnc* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	self->socket_type = type;
+	strcpy(self->name, DEFAULT_NAME);
+	LIST_INIT(&self->clients);
+	// Modify this part to connect to the remote VNC server (viewer)
+	self->fd = connect_to_address(address, port, type);
+	if (self->fd < 0)
+	{
+		nvnc_log(NVNC_LOG_WARNING, "connect_to_address failed");
+		goto connect_failure;
+	}
+
+	nvnc_log(NVNC_LOG_DEBUG, "vnc connected to client ip");
+
+	if(!setNonBlocking(self->fd))
+	{
+		nvnc_log(NVNC_LOG_WARNING, "setNonBlocking failed");
+		return NULL;
+	}
+
+	int one = 1;
+	setsockopt(self->fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+	//ToDO: monitor socket
+
+	nvnc_log(NVNC_LOG_DEBUG, "open_reverse_vnc 2153 calls start_tcp_connection");
+
+	return self;
+
+poll_start_failure:
+	aml_unref(self->poll_handle);
+handle_failure:
+	close(self->fd);
+connect_failure:
+	free(self);
+
+	return NULL;
+}
+
 static struct nvnc* open_common(const char* address, uint16_t port,
 		int fd, enum nvnc__socket_type type)
 {
@@ -2260,6 +2474,13 @@ struct nvnc* nvnc_open_websocket(const char *address, uint16_t port)
 }
 
 EXPORT
+struct nvnc* nvnc_reverse_open(const char* addr, uint16_t port)
+{
+	nvnc_log(NVNC_LOG_INFO, "nvnc_reverse_open vnc");
+	return open_reverse_vnc(addr, port, NVNC__SOCKET_TCP);
+}
+
+EXPORT
 struct nvnc* nvnc_open_unix(const char* address)
 {
 	return open_common(address, 0, -1, NVNC__SOCKET_UNIX);
@@ -2306,8 +2527,8 @@ void nvnc_close(struct nvnc* self)
 
 	while (!LIST_EMPTY(&self->clients))
 		client_close(LIST_FIRST(&self->clients));
-
-	aml_stop(aml_get_default(), self->poll_handle);
+	if(self->poll_handle)
+		aml_stop(aml_get_default(), self->poll_handle);
 	// Do not unlink an externally managed fd.
 	if(self->socket_type != NVNC__SOCKET_FROM_FD) {
 		unlink_fd_path(self->fd);
@@ -2327,7 +2548,7 @@ void nvnc_close(struct nvnc* self)
 #endif
 
 	free(self->ext_clipboard_provide_msg.buffer);
-
+if(self->poll_handle)
 	aml_unref(self->poll_handle);
 	free(self);
 }
@@ -2573,6 +2794,12 @@ void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn fn)
 }
 
 EXPORT
+void nvnc_set_notifyServerReady_fn(struct nvnc* self, nvnc_notifyserverReady_fn fn)
+{
+	self->notify_fn = fn;
+}
+
+EXPORT
 void nvnc_set_key_code_fn(struct nvnc* self, nvnc_key_fn fn)
 {
 	self->key_code_fn = fn;
@@ -2591,8 +2818,16 @@ void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn fn)
 }
 
 EXPORT
+void nvnc_set_encode_event_fn(struct nvnc* self, nvnc_on_encoder_fn fn)
+{
+	if(!self) return;
+    self->on_encode_fn = fn;
+}
+
+EXPORT
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn fn)
 {
+	if(!self) return;
 	self->new_client_fn = fn;
 }
 
@@ -2803,7 +3038,8 @@ EXPORT
 int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 		nvnc_auth_fn auth_fn, void* userdata)
 {
-#if defined(ENABLE_TLS) || defined(HAVE_CRYPTO)
+#if defined(ENABLE_TLS) || defined(HAVE_CRYPTO) || defined(ENABLE_PASSWORD_AUTH)
+	nvnc_log(NVNC_LOG_INFO, "Entered nvnc_enable_auth");
 	self->auth_flags = flags;
 	self->auth_fn = auth_fn;
 	self->auth_ud = userdata;

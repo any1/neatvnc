@@ -39,6 +39,7 @@ static_assert(sizeof(struct stream) <= STREAM_ALLOC_SIZE,
 
 int stream_tcp_close(struct stream* self)
 {
+	if(!self) return -1;
 	if (self->state == STREAM_STATE_CLOSED)
 		return -1;
 
@@ -60,6 +61,7 @@ int stream_tcp_close(struct stream* self)
 
 void stream_tcp_destroy(struct stream* self)
 {
+	if(!self) return;
 	vec_destroy(&self->tmp_buf);
 	stream_close(self);
 	aml_unref(self->handler);
@@ -156,6 +158,7 @@ static int stream_tcp__flush(struct stream* self)
 
 static void stream_tcp__on_readable(struct stream* self)
 {
+	if(!self) return;
 	switch (self->state) {
 	case STREAM_STATE_NORMAL:
 		/* fallthrough */
@@ -170,6 +173,7 @@ static void stream_tcp__on_readable(struct stream* self)
 
 static void stream_tcp__on_writable(struct stream* self)
 {
+	if(!self) return;
 	switch (self->state) {
 	case STREAM_STATE_NORMAL:
 		/* fallthrough */
@@ -183,6 +187,7 @@ static void stream_tcp__on_writable(struct stream* self)
 
 static void stream_tcp__on_event(void* obj)
 {
+	if(!obj) return;
 	struct stream* self = aml_get_userdata(obj);
 	uint32_t events = aml_get_revents(obj);
 
@@ -278,6 +283,7 @@ static struct stream_impl impl = {
 int stream_tcp_init(struct stream* self, int fd, stream_event_fn on_event,
 		void* userdata)
 {
+	if(!self)  return -1;
 	self->impl = &impl,
 	self->fd = fd;
 	self->on_event = on_event;

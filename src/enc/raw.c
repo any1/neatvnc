@@ -169,8 +169,8 @@ static void raw_encoder_on_done(void* obj)
 	struct raw_encoder* self = ctx->parent;
 
 	assert(ctx->result);
-
-	aml_unref(self->work);
+	if(self->work)
+		aml_unref(self->work);
 	self->work = NULL;
 
 	encoder_finish_frame(&self->encoder, ctx->result);
@@ -240,6 +240,8 @@ static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 			sizeof(ctx->output_format));
 	ctx->x_pos = self->encoder.x_pos;
 	ctx->y_pos = self->encoder.y_pos;
+	if (!ctx->fb || nvnc_ref_count(ctx->fb) < 1)
+		return -1;
 	nvnc_fb_ref(ctx->fb);
 	nvnc_fb_hold(ctx->fb);
 	pixman_region_copy(&ctx->damage, damage);
@@ -248,12 +250,14 @@ static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	if (rc < 0) {
 		aml_unref(self->work);
 		self->work = NULL;
+		nvnc_fb_release(ctx->fb);
+		nvnc_fb_unref(ctx->fb);
 	}
-
 	return rc;
 }
 
 struct encoder_impl encoder_impl_raw = {
+	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = raw_encoder_destroy,
 	.set_output_format = raw_encoder_set_output_format,
 	.encode = raw_encoder_encode,

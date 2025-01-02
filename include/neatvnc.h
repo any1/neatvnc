@@ -104,6 +104,7 @@ enum nvnc_log_level {
 enum nvnc_auth_flags {
 	NVNC_AUTH_REQUIRE_AUTH = 1 << 0,
 	NVNC_AUTH_REQUIRE_ENCRYPTION = 1 << 1,
+	NVNC_ENABLE_PASSWORD_AUTH = 1 << 2,
 };
 
 struct nvnc_log_data {
@@ -119,10 +120,12 @@ typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
 typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t x, uint16_t y, uint16_t width,
                                uint16_t height);
+typedef void (*nvnc_on_encoder_fn)(struct nvnc_client*, const char* rfb_encoding);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
                              void* userdata);
+typedef void (*nvnc_get_client_password_fn)(void *password);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
@@ -132,6 +135,7 @@ typedef void (*nvnc_cleanup_fn)(void* userdata);
 typedef void (*nvnc_log_fn)(const struct nvnc_log_data*, const char* message);
 typedef bool (*nvnc_desktop_layout_fn)(
 		struct nvnc_client*, const struct nvnc_desktop_layout*);
+typedef void (*nvnc_notifyserverReady_fn)(bool res);
 
 extern const char nvnc_version[];
 
@@ -139,6 +143,8 @@ struct nvnc* nvnc_open(const char* addr, uint16_t port);
 struct nvnc* nvnc_open_unix(const char *addr);
 struct nvnc* nvnc_open_websocket(const char* addr, uint16_t port);
 struct nvnc* nvnc_open_from_fd(int fd);
+struct nvnc* nvnc_reverse_open(const char* addr, uint16_t port);
+void start_tcp_connection(struct nvnc* server);
 void nvnc_close(struct nvnc* self);
 
 void nvnc_add_display(struct nvnc*, struct nvnc_display*);
@@ -166,14 +172,17 @@ void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_key_code_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
+void nvnc_set_encode_event_fn(struct nvnc* self, nvnc_on_encoder_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
 void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn);
+void nvnc_set_notifyServerReady_fn(struct nvnc* self, nvnc_notifyserverReady_fn);
 
 bool nvnc_has_auth(void);
 int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 		nvnc_auth_fn, void* userdata);
+void nvnc_enable_vnc_auth(struct nvnc* self, nvnc_get_client_password_fn);
 int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
                      const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
@@ -221,6 +230,7 @@ void nvnc_fb_pool_release(struct nvnc_fb_pool*, struct nvnc_fb*);
 struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos);
 void nvnc_display_ref(struct nvnc_display*);
 void nvnc_display_unref(struct nvnc_display*);
+
 
 struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
 

@@ -58,3 +58,25 @@ executable(
 		libm,
 	],
 )
+
+executable(
+	'motion-estimation',
+	[
+		'motion-estimation-bench.c',
+		'../src/motion-estimator.c',
+		'../src/damage-refinery.c',
+		'../src/fb.c',
+		'../src/pngfb.c',
+		'../src/pixels.c',
+	],
+	dependencies: [
+		neatvnc_dep,
+		aml,
+		libm,
+		libsixel,
+		libpng,
+		pixman,
+		libdrm,
+		gbm,
+	]
+)

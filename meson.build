@@ -58,6 +58,7 @@ gmp = dependency('gmp', required: get_option('nettle'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
 libdrm = dependency('libdrm', required: get_option('h264'))
+libsixel = dependency('libsixel', required: false)
 
 libavcodec = dependency('libavcodec', required: get_option('h264'))
 libavfilter = dependency('libavfilter', required: get_option('h264'))

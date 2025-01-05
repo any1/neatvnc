@@ -80,6 +80,56 @@ static bool box_overlaps_region(struct pixman_region16* region, uint32_t x1,
 	return overlap != PIXMAN_REGION_OUT;
 }
 
+// TODO: Don't search outside damage region
+static void logarithmic_search(struct motion_estimator* self,
+		struct nvnc_fb* last_frame, struct nvnc_fb* frame,
+		int vx, int vy, int center_x, int center_y, int search_radius)
+{
+	// This isn't mathematically rigurous. I just an evenly spaced grid
+	// within the search radius for now.
+
+	if (search_radius == 1)
+		return;
+
+	int x1 = MAX(center_x - search_radius / 2, 0);
+	int y1 = MAX(center_y - search_radius / 2, 0);
+	int x2 = MIN(center_x + search_radius / 2, frame->width);
+	int y2 = MIN(center_y + search_radius / 2, frame->height);
+
+	int points = 8;
+	if (search_radius < 4)
+		points = 2;
+	else if (search_radius < 8)
+		points = 4;
+
+	uint32_t min_sad = UINT32_MAX;
+	int best_x = -1, best_y = -1;
+	for (int y = y1; y < y2; y += search_radius / points)
+		for (int x = x1; x < x2; x += search_radius / points) {
+			uint32_t sad = compare_block(self, last_frame, frame,
+					vx, vy, x, y);
+			if (sad > min_sad)
+				continue;
+
+			min_sad = sad;
+			best_x = x;
+			best_y = y;
+		}
+
+	assert(min_sad != UINT32_MAX && best_x >= 0 && best_y >= 0);
+
+	if (min_sad == 0) {
+		struct motion_vector* v = self->vectors + vx + (vy * self->vwidth);
+		v->valid = true;
+		v->x = best_x;
+		v->y = best_y;
+		return;
+	}
+
+	logarithmic_search(self, last_frame, frame, vx, vy, best_x, best_y,
+			search_radius / 2);
+}
+
 static void find_block(struct motion_estimator* self,
 		struct nvnc_fb* last_frame, struct nvnc_fb* frame, uint32_t vx,
 		uint32_t vy, struct pixman_region16* damage)
@@ -95,9 +145,6 @@ static void find_block(struct motion_estimator* self,
 		return;
 	}
 
-	uint16_t width = frame->width;
-	uint16_t height = frame->height;
-
 	int search_distance = ME_BLOCK_SIZE * 2;
 
 	int block_x = vx * ME_BLOCK_SIZE;
@@ -110,6 +157,10 @@ static void find_block(struct motion_estimator* self,
 			search_distance, search_distance);
 
 	pixman_region_intersect(&search_region, &search_region, damage);
+
+#if 0
+	uint16_t width = frame->width;
+	uint16_t height = frame->height;
 
 	int n_rects = 0;
 	struct pixman_box16* rects =
@@ -138,6 +189,11 @@ static void find_block(struct motion_estimator* self,
 			}
 		}
 	}
+#else
+	logarithmic_search(self, last_frame, frame, vx, vy,
+			vx * ME_BLOCK_SIZE, vy * ME_BLOCK_SIZE,
+			search_distance);
+#endif
 
 	pixman_region_fini(&search_region);
 }

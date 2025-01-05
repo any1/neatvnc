@@ -56,7 +56,7 @@ static int compare_block(struct motion_estimator* self, struct nvnc_fb* last_fra
 
 	for (uint32_t y = 0; y < height; ++y) {
 		for (uint32_t x = 0; x < width; ++x) {
-			uint32_t target_pixel = current[tx + ty * stride];
+			uint32_t target_pixel = current[tx + x + (ty + y) * stride];
 			uint32_t block_pixel =
 				last[x_start + x + (y_start + y) * stride];
 			sum += compare_pixels(target_pixel, block_pixel);
@@ -123,6 +123,10 @@ static void find_block(struct motion_estimator* self,
 
 		for (uint32_t y = y1; y < y2; ++y) {
 			for (uint32_t x = x1; x < x2; ++x) {
+				if (x == vx * ME_BLOCK_SIZE &&
+						y == vy * ME_BLOCK_SIZE)
+					continue;
+
 				uint32_t sad = compare_block(self, last_frame,
 						frame, vx, vy, x, y);
 				if (sad == 0) {

@@ -50,9 +50,19 @@ static void draw_line(struct nvnc_fb* fb, int x1, int y1, int x2, int y2,
 	if (x1 == x2 && y1 == y2) {
 		draw_pixel(fb, x1, y1, colour);
 	} else if (x1 == x2) {
+		if (y1 > y2) {
+			int tmp = y1;
+			y1 = y2;
+			y2 = tmp;
+		}
 		for (int y = y1; y < y2; ++y)
 			draw_pixel(fb, x1, y, colour);
 	} else if (y1 == y2) {
+		if (x1 > x2) {
+			int tmp = x1;
+			x1 = x2;
+			x2 = tmp;
+		}
 		for (int x = x1; x < x2; ++x)
 			draw_pixel(fb, x, y1, colour);
 	} else {
@@ -61,12 +71,11 @@ static void draw_line(struct nvnc_fb* fb, int x1, int y1, int x2, int y2,
 		int sx = x1 < x2 ? 1 : -1;
 		int sy = y1 < y2 ? 1 : -1;
 		int err = (dx > dy ? dx : -dy) / 2;
-		int e2;
 		for (;;) {
 			draw_pixel(fb, x1, y1, colour);
 			if (x1 == x2 && y1 == y2)
 				break;
-			e2 = err;
+			int e2 = err;
 			if (e2 > -dx) {
 				err -= dy;
 				x1 += sx;

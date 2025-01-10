@@ -25,7 +25,11 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef __STDC_NO_THREADS__
+#define thread_local _Thread_local
+#else
 #include <threads.h>
+#endif
 
 #ifdef HAVE_LIBAVUTIL
 #include <libavutil/avutil.h>

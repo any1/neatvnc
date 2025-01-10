@@ -178,6 +178,7 @@ struct nvnc {
 	void* userdata;
 	nvnc_key_fn key_fn;
 	nvnc_key_fn key_code_fn;
+	nvnc_key_ext_fn key_ext_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_fb_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;

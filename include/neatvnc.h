@@ -115,6 +115,11 @@ enum nvnc_auth_flags {
 	NVNC_AUTH_REQUIRE_ENCRYPTION = 1 << 1,
 };
 
+enum nvnc_keyboard_event_type {
+	NVNC_KEYBOARD_EVENT_TYPE_REGULAR = 0,
+	NVNC_KEYBOARD_EVENT_TYPE_QEMU = 1,
+};
+
 struct nvnc_log_data {
 	enum nvnc_log_level level;
 	const char* file;
@@ -122,6 +127,11 @@ struct nvnc_log_data {
 };
 
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
+                            bool is_pressed);
+typedef void (*nvnc_key_ext_fn)(struct nvnc_client*,
+                            enum nvnc_keyboard_event_type event_type,
+                            uint32_t key,
+                            uint32_t keysym,
                             bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
                                 enum nvnc_button_mask);
@@ -192,6 +202,7 @@ void nvnc_set_name(struct nvnc* self, const char* name);
 
 void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_key_code_fn(struct nvnc* self, nvnc_key_fn);
+void nvnc_set_key_ext_fn(struct nvnc* self, nvnc_key_ext_fn);
 void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);

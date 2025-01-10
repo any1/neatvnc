@@ -1028,6 +1028,10 @@ static int on_client_key_event(struct nvnc_client* client)
 	if (fn)
 		fn(client, keysym, !!down_flag);
 
+	nvnc_key_ext_fn ext_fn = server->key_ext_fn;
+	if (ext_fn)
+		ext_fn(client, NVNC_KEYBOARD_EVENT_TYPE_REGULAR, 0, keysym, !!down_flag);
+
 	return sizeof(*msg);
 }
 
@@ -1044,6 +1048,7 @@ static int on_client_qemu_key_event(struct nvnc_client* client)
 
 	int down_flag = msg->down_flag;
 	uint32_t xt_keycode = ntohl(msg->keycode);
+	uint32_t keysym = ntohl(msg->keysym);
 
 	uint32_t evdev_keycode = code_map_qnum_to_linux[xt_keycode];
 	if (!evdev_keycode)
@@ -1052,6 +1057,10 @@ static int on_client_qemu_key_event(struct nvnc_client* client)
 	nvnc_key_fn fn = server->key_code_fn;
 	if (fn)
 		fn(client, evdev_keycode, !!down_flag);
+
+	nvnc_key_ext_fn ext_fn = server->key_ext_fn;
+	if (ext_fn)
+		ext_fn(client, NVNC_KEYBOARD_EVENT_TYPE_QEMU, evdev_keycode, keysym, !!down_flag);
 
 	return sizeof(*msg);
 }
@@ -2686,6 +2695,12 @@ EXPORT
 void nvnc_set_key_code_fn(struct nvnc* self, nvnc_key_fn fn)
 {
 	self->key_code_fn = fn;
+}
+
+EXPORT
+void nvnc_set_key_ext_fn(struct nvnc* self, nvnc_key_ext_fn fn)
+{
+    self->key_ext_fn = fn;
 }
 
 EXPORT

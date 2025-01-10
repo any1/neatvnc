@@ -218,11 +218,11 @@ int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 		stream_req_fn on_done, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
-		return -1;
+		goto failure;
 
 	struct stream_req* req = calloc(1, sizeof(*req));
 	if (!req)
-		return -1;
+		goto failure;
 
 	req->payload = payload;
 	req->on_done = on_done;
@@ -231,21 +231,29 @@ int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 	TAILQ_INSERT_TAIL(&self->send_queue, req, link);
 
 	return stream_tcp__flush(self);
+
+failure:
+	rcbuf_unref(payload);
+	return -1;
 }
 
 int stream_tcp_send_first(struct stream* self, struct rcbuf* payload)
 {
 	if (self->state == STREAM_STATE_CLOSED)
-		return -1;
+		goto failure;
 
 	struct stream_req* req = calloc(1, sizeof(*req));
 	if (!req)
-		return -1;
+		goto failure;
 
 	req->payload = payload;
 	TAILQ_INSERT_HEAD(&self->send_queue, req, link);
 
 	return stream_tcp__flush(self);
+
+failure:
+	rcbuf_unref(payload);
+	return -1;
 }
 
 void stream_tcp_exec_and_send(struct stream* self,

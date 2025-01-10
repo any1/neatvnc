@@ -172,11 +172,11 @@ static int stream_gnutls_send(struct stream* self, struct rcbuf* payload,
 		stream_req_fn on_done, void* userdata)
 {
 	if (self->state == STREAM_STATE_CLOSED)
-		return -1;
+		goto failure;
 
 	struct stream_req* req = calloc(1, sizeof(*req));
 	if (!req)
-		return -1;
+		goto failure;
 
 	req->payload = payload;
 	req->on_done = on_done;
@@ -185,6 +185,10 @@ static int stream_gnutls_send(struct stream* self, struct rcbuf* payload,
 	TAILQ_INSERT_TAIL(&self->send_queue, req, link);
 
 	return stream_gnutls__flush(self);
+
+failure:
+	rcbuf_unref(payload);
+	return -1;
 }
 
 static ssize_t stream_gnutls_read(struct stream* base, void* dst, size_t size)

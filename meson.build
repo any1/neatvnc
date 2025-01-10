@@ -136,6 +136,26 @@ if gnutls.found()
 	config.set('ENABLE_TLS', true)
 endif
 
+have_random = false
+
+if cc.has_function(
+	'getrandom',
+	prefix: '#include <stddef.h>\n#include <sys/random.h>',
+	args: [ '-D_GNU_SOURCE' ]
+)
+	config.set('HAVE_GETRANDOM', true)
+	have_random = true
+endif
+
+if cc.has_function(
+	'arc4random_buf',
+	prefix: '#include <stdlib.h>'
+)
+	config.set('HAVE_ARC4RANDOM', true)
+	have_random = true
+endif
+
+
 if nettle.found() and hogweed.found() and gmp.found()
 	dependencies += [ nettle, hogweed, gmp ]
 	enable_websocket = true
@@ -150,6 +170,9 @@ if nettle.found() and hogweed.found() and gmp.found()
 		'src/auth/apple-dh.c',
 		'src/auth/rsa-aes.c',
 	]
+	if not(have_random)
+		error('No random generator available')
+	endif
 endif
 
 if host_system == 'linux' and get_option('systemtap') and cc.has_header('sys/sdt.h')

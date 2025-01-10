@@ -41,7 +41,15 @@ if git.found()
 endif
 add_project_arguments('-DPROJECT_VERSION=@0@'.format(version), language: 'c')
 
-libdrm_inc = dependency('libdrm').partial_dependency(compile_args: true)
+libdrm_inc_path = get_option('drm_include_path')
+if libdrm_inc_path != ''
+	libdrm_inc = declare_dependency(
+		include_directories: include_directories(libdrm_inc_path)
+	)
+else
+	libdrm_inc = dependency('libdrm').partial_dependency(compile_args: true)
+endif
+
 
 add_project_arguments(c_args, language: 'c')
 

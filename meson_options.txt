@@ -8,3 +8,4 @@ option('systemtap', type: 'boolean', value: false, description: 'Enable tracing 
 option('gbm', type: 'feature', value: 'auto', description: 'Enable GBM integration')
 option('h264', type: 'feature', value: 'auto', description: 'Enable open h264 encoding')
 option('experimental', type: 'boolean', value: false, description: 'Enable experimental features')
+option('drm_include_path', type: 'string', value: '', description: 'Use specified libdrm include directory')

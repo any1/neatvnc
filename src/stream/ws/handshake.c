@@ -29,9 +29,11 @@ static const char magic_uuid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 static void tolower_and_remove_ws(char* dst, const char* src)
 {
-	while (*src)
+	while (*src) {
 		if (!isspace(*src))
-			*dst++ = tolower(*src++);
+			*dst++ = tolower(*src);
+		src++;
+	}
 	*dst = '\0';
 }
 

@@ -72,7 +72,7 @@ ssize_t ws_handshake(char* output, size_t output_maxlen, const char* input)
 	bool have_protocols = strlen(protocols) != 1;
 	bool have_versions = strlen(versions) != 1;
 
-	if (have_protocols && !strstr(protocols, ",chat,"))
+	if (have_protocols && !strstr(protocols, ",binary,"))
 		goto failure;
 
 	if (have_versions && !strstr(versions, ",13,"))
@@ -97,7 +97,7 @@ ssize_t ws_handshake(char* output, size_t output_maxlen, const char* input)
 			"%s%s"
 			"\r\n",
 			response,
-			have_protocols ? "Sec-WebSocket-Protocol: char\r\n" : "",
+			have_protocols ? "Sec-WebSocket-Protocol: binary\r\n" : "",
 			have_versions ? "Sec-WebSocket-Version: 13\r\n" : "");
 
 	ssize_t header_len = req.header_length;

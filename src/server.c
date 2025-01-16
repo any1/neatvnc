@@ -1044,14 +1044,19 @@ static int on_client_qemu_key_event(struct nvnc_client* client)
 
 	int down_flag = msg->down_flag;
 	uint32_t xt_keycode = ntohl(msg->keycode);
+	uint32_t keysym = ntohl(msg->keysym);
 
 	uint32_t evdev_keycode = code_map_qnum_to_linux[xt_keycode];
 	if (!evdev_keycode)
 		evdev_keycode = xt_keycode;
 
-	nvnc_key_fn fn = server->key_code_fn;
-	if (fn)
-		fn(client, evdev_keycode, !!down_flag);
+	nvnc_key_fn key_code_fn = server->key_code_fn;
+	nvnc_key_fn key_fn = server->key_fn;
+
+	if (key_code_fn)
+		key_code_fn(client, evdev_keycode, !!down_flag);
+	else if (key_fn)
+		key_fn(client, keysym, !!down_flag);
 
 	return sizeof(*msg);
 }

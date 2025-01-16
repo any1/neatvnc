@@ -1191,7 +1191,7 @@ static char* crlf_to_lf(const char* src, size_t len)
 			continue;
 		}
 
-		if ((in_len == 0) || (*(in + 1) != '\n'))
+		if ((in_len == 1) || (*(in + 1) != '\n'))
 			*out++ = '\n';
 
 		in++;

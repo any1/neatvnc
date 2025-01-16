@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Andri Yngvason
+ * Copyright (c) 2019 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -151,8 +151,6 @@ static void client_drain_encoder(struct nvnc_client* client)
 	int64_t start_time = gettime_us(CLOCK_MONOTONIC);
 
 	while (client->is_updating) {
-		aml_poll(aml_get_default(), remaining);
-		aml_dispatch(aml_get_default());
 
 		int64_t now = gettime_us(CLOCK_MONOTONIC);
 		int64_t dt = now - start_time;

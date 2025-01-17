@@ -95,11 +95,14 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 				NULL, NULL);
 	}
 
-	int payload_len = MIN(ws->read_index, ws->header.payload_length);
+	int payload_len = MIN(ws->read_index - offset, ws->header.payload_length);
 
-	// Feed back the payload:
-	stream_tcp_send(&ws->base, rcbuf_from_mem(ws->read_buffer + offset,
-			payload_len), NULL, NULL);
+	// Feed back the (unmasked) payload:
+	struct rcbuf* rcbuf = rcbuf_new(malloc(payload_len), payload_len);
+	assert(rcbuf && rcbuf->payload);
+	ws_copy_payload(&ws->header, rcbuf->payload, ws->read_buffer + offset,
+			payload_len);
+	stream_tcp_send(&ws->base, rcbuf, NULL, NULL);
 
 	stream_ws_advance_read_buffer(ws, payload_len, offset);
 	return 0;

@@ -102,6 +102,7 @@ EXPORT const char nvnc_version[] = "UNKNOWN";
 #endif
 
 extern const unsigned short code_map_qnum_to_linux[];
+extern const unsigned int code_map_qnum_to_linux_len;
 
 static uint64_t nvnc__htonll(uint64_t x)
 {
@@ -1046,7 +1047,14 @@ static int on_client_qemu_key_event(struct nvnc_client* client)
 	uint32_t xt_keycode = ntohl(msg->keycode);
 	uint32_t keysym = ntohl(msg->keysym);
 
-	uint32_t evdev_keycode = code_map_qnum_to_linux[xt_keycode];
+
+	uint32_t evdev_keycode = 0;
+	if (xt_keycode < code_map_qnum_to_linux_len) {
+		evdev_keycode = code_map_qnum_to_linux[xt_keycode];
+	} else {
+		nvnc_log(NVNC_LOG_WARNING, "Received too large key code from client: %" PRIu32,
+				xt_keycode);
+	}
 	if (!evdev_keycode)
 		evdev_keycode = xt_keycode;
 

@@ -136,7 +136,7 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 		nvnc_log(NVNC_LOG_ERROR, "Failed to decrypt client's challenge");
 		client->state = VNC_CLIENT_STATE_ERROR;
 		nvnc_client_close(client);
-		goto done;
+		return -1;
 	}
 
 	// ClientSessionKey = the first 16 bytes of SHA1(ServerRandom || ClientRandom)
@@ -202,7 +202,7 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 			client_rsa_aes_hash_len(client), NULL, NULL);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CLIENT_HASH;
-done:
+
 	return sizeof(*msg) + length;
 }
 
@@ -253,7 +253,7 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 	if (memcmp(msg, client_hash, client_rsa_aes_hash_len(client)) != 0) {
 		nvnc_log(NVNC_LOG_INFO, "Client hash mismatch");
 		nvnc_client_close(client);
-		return 0;
+		return -1;
 	}
 
 	update_min_rtt(client);

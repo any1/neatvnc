@@ -92,7 +92,7 @@ static int on_vencrypt_subtype_message(struct nvnc_client* client)
 	if (stream_upgrade_to_tls(client->net_stream, client->server->tls_creds) < 0) {
 		client->state = VNC_CLIENT_STATE_ERROR;
 		nvnc_client_close(client);
-		return sizeof(*msg);
+		return -1;
 	}
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_PLAIN_AUTH;

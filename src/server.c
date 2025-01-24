@@ -418,7 +418,7 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 
 }
 
-static void send_server_init_message(struct nvnc_client* client)
+static int send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
 	struct nvnc_display* display = server->display;
@@ -472,10 +472,11 @@ static void send_server_init_message(struct nvnc_client* client)
 
 	client->known_width = width;
 	client->known_height = height;
-	return;
+	return 0;
 
 close:
 	nvnc_client_close(client);
+	return -1;
 }
 
 static int on_init_message(struct nvnc_client* client)
@@ -489,7 +490,8 @@ static int on_init_message(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	send_server_init_message(client);
+	if (send_server_init_message(client) == -1)
+		return -1;
 
 	nvnc_client_fn fn = client->server->new_client_fn;
 	if (fn)
@@ -1085,7 +1087,7 @@ static int on_client_qemu_event(struct nvnc_client* client)
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p",
 			client);
 	nvnc_client_close(client);
-	return 0;
+	return -1;
 }
 
 static int on_client_pointer_event(struct nvnc_client* client)
@@ -1320,7 +1322,7 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 		nvnc_log(NVNC_LOG_ERROR, "Extended clipboard payload length (%d) is greater than max supported length (%d)",
 				length, max_length);
 		nvnc_client_close(client);
-		return 0;
+		return -1;
 	}
 
 	size_t msg_size = sizeof(*msg) + length;
@@ -1334,7 +1336,7 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 		if (!client->cut_text.buffer) {
 			nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
 			nvnc_client_close(client);
-			return 0;
+			return -1;
 		}
 
 		size_t partial_size = left_to_process - sizeof(*msg);
@@ -1396,7 +1398,7 @@ static int process_client_cut_text(struct nvnc_client* client)
 		nvnc_log(NVNC_LOG_ERROR, "Copied text length (%d) is greater than max supported length (%d)",
 				length, max_length);
 		nvnc_client_close(client);
-		return 0;
+		return -1;
 	}
 
 	size_t msg_size = sizeof(*msg) + length;
@@ -1415,7 +1417,7 @@ static int process_client_cut_text(struct nvnc_client* client)
 	if (!client->cut_text.buffer) {
 		nvnc_log(NVNC_LOG_ERROR, "OOM: %m");
 		nvnc_client_close(client);
-		return 0;
+		return -1;
 	}
 
 	size_t partial_size = left_to_process - sizeof(*msg);
@@ -1876,7 +1878,7 @@ static int on_client_fence(struct nvnc_client* client)
 		nvnc_log(NVNC_LOG_WARNING,
 				"Client sent too long fence message. Closing.");
 		nvnc_client_close(client);
-		return 0;
+		return -1;
 	}
 
 	enum rfb_fence_flags flags = ntohl(msg->flags);
@@ -1927,7 +1929,7 @@ static int on_client_message(struct nvnc_client* client)
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p",
 			client);
 	nvnc_client_close(client);
-	return 0;
+	return -1;
 }
 
 static int try_read_client_message(struct nvnc_client* client)
@@ -2010,6 +2012,9 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 		int rc = try_read_client_message(client);
 		if (rc == 0)
 			break;
+
+		if (rc == -1)
+			return;
 
 		client->buffer_index += rc;
 	}
@@ -2546,6 +2551,7 @@ static void finish_fb_update(struct nvnc_client* client,
 		if (!client_supports_resizing(client)) {
 			nvnc_log(NVNC_LOG_ERROR, "Display has been resized but client does not support resizing.  Closing.");
 			client_close(client);
+			return;
 		}
 	}
 

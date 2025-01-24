@@ -2129,6 +2129,8 @@ static void sockaddr_to_string(char* dst, size_t sz, const struct sockaddr* addr
 		nvnc_log(NVNC_LOG_DEBUG,
 				"Don't know how to convert sa_family %d to string",
 				addr->sa_family);
+		if (sz > 0)
+			*dst = 0;
 		break;
 	}
 }

@@ -41,7 +41,15 @@ if git.found()
 endif
 add_project_arguments('-DPROJECT_VERSION=@0@'.format(version), language: 'c')
 
-libdrm_inc = dependency('libdrm').partial_dependency(compile_args: true)
+libdrm_inc_path = get_option('drm_include_path')
+if libdrm_inc_path != ''
+	libdrm_inc = declare_dependency(
+		include_directories: include_directories(libdrm_inc_path)
+	)
+else
+	libdrm_inc = dependency('libdrm').partial_dependency(compile_args: true)
+endif
+
 
 add_project_arguments(c_args, language: 'c')
 
@@ -188,6 +196,27 @@ if get_option('experimental')
 		warning('Experimental features enabled in release build')
 	endif
 	config.set('ENABLE_EXPERIMENTAL', true)
+endif
+
+if cc.has_function(
+	'getrandom',
+	prefix: '#include <stddef.h>\n#include <sys/random.h>',
+	args: [ '-D_GNU_SOURCE' ]
+)
+	config.set('HAVE_GETRANDOM', true)
+endif
+
+if cc.has_function(
+	'arc4random_buf',
+	prefix: '#include <stdlib.h>'
+)
+	config.set('HAVE_ARC4RANDOM', true)
+endif
+
+if (config.has('HAVE_CRYPTO') and
+	not(config.has('HAVE_GETRANDOM') or config.has('HAVE_ARC4RANDOM'))
+)
+	error('No random generator available')
 endif
 
 configure_file(

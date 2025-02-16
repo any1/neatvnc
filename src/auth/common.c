@@ -32,8 +32,6 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 
 	char buffer[256];
 
-	client->state = VNC_CLIENT_STATE_ERROR;
-
 	uint32_t* result = (uint32_t*)buffer;
 
 	struct rfb_error_reason* reason =
@@ -45,8 +43,11 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 
 	size_t len = sizeof(*result) + sizeof(*reason) + strlen(reason_string);
 	stream_write(client->net_stream, buffer, len, close_after_write,
-			client);
+			client->net_stream);
 
+	stream_ref(client->net_stream);
+
+	nvnc_client_close(client);
 	return 0;
 }
 

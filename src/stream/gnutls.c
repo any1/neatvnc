@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Andri Yngvason
+ * Copyright (c) 2020 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -54,6 +54,8 @@ static int stream_gnutls_close(struct stream* base)
 
 	self->base.state = STREAM_STATE_CLOSED;
 
+	stream_ref(&self->base);
+
 	while (!TAILQ_EMPTY(&self->base.send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->base.send_queue);
 		TAILQ_REMOVE(&self->base.send_queue, req, link);
@@ -68,6 +70,9 @@ static int stream_gnutls_close(struct stream* base)
 	close(self->base.fd);
 	self->base.fd = -1;
 
+	// unref
+	stream_destroy(&self->base);
+
 	return 0;
 }
 
@@ -81,26 +86,31 @@ static void stream_gnutls_destroy(struct stream* self)
 static int stream_gnutls__flush(struct stream* base)
 {
 	struct stream_gnutls* self = (struct stream_gnutls*)base;
+
+	stream_ref(base);
+	int rc = -1;
+
 	while (!TAILQ_EMPTY(&self->base.send_queue)) {
 		assert(self->base.state != STREAM_STATE_CLOSED);
 
 		struct stream_req* req = TAILQ_FIRST(&self->base.send_queue);
 
-		ssize_t rc = gnutls_record_send(self->session,
+		ssize_t n_sent = gnutls_record_send(self->session,
 				req->payload->payload, req->payload->size);
-		if (rc < 0) {
-			if (gnutls_error_is_fatal(rc)) {
+		if (n_sent < 0) {
+			if (gnutls_error_is_fatal(n_sent)) {
 				stream_close(base);
-				return -1;
+				goto done;
 			}
 
 			stream__poll_rw(base);
-			return 0;
+			rc = 0;
+			goto done;
 		}
 
-		self->base.bytes_sent += rc;
+		self->base.bytes_sent += n_sent;
 
-		ssize_t remaining = req->payload->size - rc;
+		ssize_t remaining = req->payload->size - n_sent;
 
 		if (remaining > 0) {
 			char* p = req->payload->payload;
@@ -108,7 +118,8 @@ static int stream_gnutls__flush(struct stream* base)
 			memmove(p, p + s - remaining, remaining);
 			req->payload->size = remaining;
 			stream__poll_rw(base);
-			return 1;
+			rc = 1;
+			goto done;
 		}
 
 		assert(remaining == 0);
@@ -120,7 +131,11 @@ static int stream_gnutls__flush(struct stream* base)
 	if (TAILQ_EMPTY(&base->send_queue) && base->state != STREAM_STATE_CLOSED)
 		stream__poll_r(base);
 
-	return 1;
+	rc = 1;
+done:
+	// unref
+	stream_destroy(base);
+	return rc;
 }
 
 static void stream_gnutls__on_readable(struct stream* self)
@@ -161,11 +176,15 @@ static void stream_gnutls__on_event(void* obj)
 	struct stream* self = aml_get_userdata(obj);
 	uint32_t events = aml_get_revents(obj);
 
+	stream_ref(self);
+
 	if (events & AML_EVENT_READ)
 		stream_gnutls__on_readable(self);
 
 	if (events & AML_EVENT_WRITE)
 		stream_gnutls__on_writable(self);
+
+	stream_destroy(self);
 }
 
 static int stream_gnutls_send(struct stream* self, struct rcbuf* payload,

@@ -45,6 +45,8 @@ int stream_tcp_close(struct stream* self)
 	self->state = STREAM_STATE_CLOSED;
 	self->cork = true;
 
+	stream_ref(self);
+
 	while (!TAILQ_EMPTY(&self->send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
 		TAILQ_REMOVE(&self->send_queue, req, link);
@@ -54,6 +56,9 @@ int stream_tcp_close(struct stream* self)
 	aml_stop(aml_get_default(), self->handler);
 	close(self->fd);
 	self->fd = -1;
+
+	// unref
+	stream_destroy(self);
 
 	return 0;
 }
@@ -120,6 +125,8 @@ static int stream_tcp__flush(struct stream* self)
 	// Don't flush while flushing
 	self->cork = true;
 
+	stream_ref(self);
+
 	struct stream_req* tmp;
 	TAILQ_FOREACH_SAFE(req, &self->send_queue, link, tmp) {
 		bytes_left -= req->payload->size;
@@ -150,6 +157,9 @@ static int stream_tcp__flush(struct stream* self)
 		stream__poll_r(self);
 
 	assert(bytes_left <= 0);
+
+	// unref
+	stream_destroy(self);
 
 	return bytes_sent;
 }
@@ -186,11 +196,18 @@ static void stream_tcp__on_event(void* obj)
 	struct stream* self = aml_get_userdata(obj);
 	uint32_t events = aml_get_revents(obj);
 
+	// We hold a reference here in case the stream gets destroyed inside
+	// callback.
+	stream_ref(self);
+
 	if (events & AML_EVENT_READ)
 		stream_tcp__on_readable(self);
 
 	if (events & AML_EVENT_WRITE)
 		stream_tcp__on_writable(self);
+
+	// unref
+	stream_destroy(self);
 }
 
 ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)

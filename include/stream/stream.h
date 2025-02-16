@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Andri Yngvason
+ * Copyright (c) 2020 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -78,6 +78,7 @@ struct stream_impl {
 
 struct stream {
 	struct stream_impl *impl;
+	int ref;
 
 	enum stream_state state;
 
@@ -102,6 +103,8 @@ struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata);
 #endif
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);
+void stream_init(struct stream* self);
+void stream_ref(struct stream* self);
 int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);
 ssize_t stream_read(struct stream* self, void* dst, size_t size);

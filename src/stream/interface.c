@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Andri Yngvason
+ * Copyright (c) 2023 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,6 +18,11 @@
 
 #include <assert.h>
 
+void stream_ref(struct stream* self)
+{
+	self->ref++;
+}
+
 int stream_close(struct stream* self)
 {
 	assert(self->impl && self->impl->close);
@@ -27,7 +32,8 @@ int stream_close(struct stream* self)
 void stream_destroy(struct stream* self)
 {
 	assert(self->impl && self->impl->destroy);
-	return self->impl->destroy(self);
+	if (--self->ref == 0)
+		return self->impl->destroy(self);
 }
 
 int stream_send(struct stream* self, struct rcbuf* payload,

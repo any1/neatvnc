@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Andri Yngvason
+ * Copyright (c) 2020 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -317,11 +317,12 @@ struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata)
 	if (!self)
 		return NULL;
 
+	stream_init(self);
+
 	if (stream_tcp_init(self, fd, on_event, userdata) < 0) {
 		free(self);
 		return NULL;
 	}
 
 	return self;
-
 }

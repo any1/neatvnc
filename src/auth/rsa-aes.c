@@ -134,7 +134,6 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 			client->rsa.challenge_len, msg->challenge, length);
 	if (len < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to decrypt client's challenge");
-		client->state = VNC_CLIENT_STATE_ERROR;
 		nvnc_client_close(client);
 		return -1;
 	}

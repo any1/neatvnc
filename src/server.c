@@ -223,22 +223,13 @@ static void defer_client_close(struct nvnc_client* client)
 
 void close_after_write(void* userdata, enum stream_req_status status)
 {
-	struct nvnc_client* client = userdata;
-	nvnc_log(NVNC_LOG_DEBUG, "close_after_write(%p)", client);
-	stream_close(client->net_stream);
-
-	/* This is a rather hacky way of making sure that the client object
-	 * stays alive while the stream is processing its queue.
-	 * TODO: Figure out some better resource management for clients
-	 */
-	defer_client_close(client);
+	struct stream* stream = userdata;
+	stream_destroy(stream);
 }
 
 static int handle_unsupported_version(struct nvnc_client* client)
 {
 	char buffer[256];
-
-	client->state = VNC_CLIENT_STATE_ERROR;
 
 	struct rfb_error_reason* reason = (struct rfb_error_reason*)(buffer + 1);
 
@@ -250,9 +241,13 @@ static int handle_unsupported_version(struct nvnc_client* client)
 
 	size_t len = 1 + sizeof(*reason) + strlen(reason_string);
 	stream_write(client->net_stream, buffer, len, close_after_write,
-			client);
+			client->net_stream);
 
-	return 0;
+	// Keep stream alive until the result has been sent to the client
+	stream_ref(client->net_stream);
+
+	client_close(client);
+	return -1;
 }
 
 static void init_security_types(struct nvnc* server)
@@ -1935,8 +1930,6 @@ static int on_client_message(struct nvnc_client* client)
 static int try_read_client_message(struct nvnc_client* client)
 {
 	switch (client->state) {
-	case VNC_CLIENT_STATE_ERROR:
-		return client->buffer_len - client->buffer_index;
 	case VNC_CLIENT_STATE_WAITING_FOR_VERSION:
 		return on_version_message(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_SECURITY:

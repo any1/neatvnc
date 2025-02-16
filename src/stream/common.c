@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Andri Yngvason
+ * Copyright (c) 2020 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,6 +18,11 @@
 #include "stream/common.h"
 
 #include <stdlib.h>
+
+void stream_init(struct stream* self)
+{
+	self->ref = 1;
+}
 
 void stream_req__finish(struct stream_req* req, enum stream_req_status status)
 {

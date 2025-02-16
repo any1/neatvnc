@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Andri Yngvason
+ * Copyright (c) 2023 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -306,6 +306,8 @@ struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata)
 	struct stream_ws *self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
+
+	stream_init(&self->base);
 
 	stream_tcp_init(&self->base, fd, on_event, userdata);
 	self->base.impl =  &impl;

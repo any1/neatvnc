@@ -293,13 +293,14 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	if (server->auth_fn(username, password, server->auth_ud)) {
-		security_handshake_ok(client, username);
-		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
-	} else {
+	if (!server->auth_fn(username, password, server->auth_ud)) {
 		security_handshake_failed(client, username,
 				"Invalid username or password");
+		return -1;
 	}
+
+	security_handshake_ok(client, username);
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 
 	return 2 + username_len + password_len;
 }

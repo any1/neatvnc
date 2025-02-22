@@ -54,7 +54,7 @@ static int on_vencrypt_version_message(struct nvnc_client* client)
 	if (msg->major != 0 || msg->minor != 2) {
 		security_handshake_failed(client, NULL,
 				"Unsupported VeNCrypt version");
-		return sizeof(*msg);
+		return -1;
 	}
 
 	send_byte(client, 0);
@@ -126,13 +126,14 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	if (server->auth_fn(username, password, server->auth_ud)) {
-		security_handshake_ok(client, username);
-		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
-	} else {
+	if (!server->auth_fn(username, password, server->auth_ud)) {
 		security_handshake_failed(client, username,
 				"Invalid username or password");
+		return -1;
 	}
+
+	security_handshake_ok(client, username);
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 
 	return sizeof(*msg) + ulen + plen;
 }

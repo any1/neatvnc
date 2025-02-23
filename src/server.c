@@ -164,6 +164,13 @@ static void client_drain_encoder(struct nvnc_client* client)
 
 static void client_close(struct nvnc_client* client)
 {
+	if (client->close_task) {
+		struct aml_idle* task = client->close_task;
+		client->close_task = NULL;
+		aml_stop(aml_get_default(), task);
+		aml_unref(task);
+	}
+
 	nvnc_log(NVNC_LOG_INFO, "Closing client connection %p", client);
 
 	stream_close(client->net_stream);
@@ -205,7 +212,9 @@ static void client_close(struct nvnc_client* client)
 
 static void do_deferred_client_close(void *obj)
 {
-	client_close(obj);
+	struct nvnc_client* client = obj;
+	if (client->close_task)
+		client_close(client);
 }
 
 static void stop_self(void* obj)
@@ -215,10 +224,11 @@ static void stop_self(void* obj)
 
 static void defer_client_close(struct nvnc_client* client)
 {
-	struct aml_idle* idle = aml_idle_new(stop_self, client,
+	if (client->close_task)
+		return;
+	client->close_task = aml_idle_new(stop_self, client,
 			do_deferred_client_close);
-	aml_start(aml_get_default(), idle);
-	aml_unref(idle);
+	aml_start(aml_get_default(), client->close_task);
 }
 
 void close_after_write(void* userdata, enum stream_req_status status)

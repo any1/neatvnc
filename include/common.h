@@ -133,6 +133,7 @@ struct nvnc_client {
 	int32_t min_rtt;
 	struct bwe* bwe;
 	int32_t inflight_bytes;
+	struct aml_idle* close_task;
 
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;

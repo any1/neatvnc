@@ -1939,6 +1939,9 @@ static int on_client_message(struct nvnc_client* client)
 
 static int try_read_client_message(struct nvnc_client* client)
 {
+	if (client->net_stream->state == STREAM_STATE_CLOSED)
+		return -1;
+
 	switch (client->state) {
 	case VNC_CLIENT_STATE_WAITING_FOR_VERSION:
 		return on_version_message(client);

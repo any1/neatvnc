@@ -2319,6 +2319,7 @@ void nvnc_close(struct nvnc* self)
 
 	nvnc_fb_release(self->cursor.buffer);
 	nvnc_fb_unref(self->cursor.buffer);
+	self->cursor.buffer = NULL;
 
 	// The stream is closed first to stop all communication and to make sure
 	// that encoding of new frames does not start.

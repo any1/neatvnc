@@ -67,8 +67,9 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	nvnc_transform_dimensions(image->transform, &hotspot_x, &hotspot_y);
 
 	if (nvnc_fb_map(image) < 0)
-		goto failure;
+		return -1;
 
+	// This returns a new image that needs to be unreferenced later
 	image = apply_transform(image);
 
 	assert(width <= image->width);

@@ -210,24 +210,23 @@ static void client_close(struct nvnc_client* client)
 	free(client);
 }
 
-static void do_deferred_client_close(void *obj)
+static void do_deferred_client_close(void* obj)
 {
-	struct nvnc_client* client = obj;
-	if (client->close_task)
-		client_close(client);
-}
+	struct aml_idle* idle = obj;
+	struct nvnc_client* client = aml_get_userdata(idle);
+	client->close_task = NULL;
+	aml_stop(aml_get_default(), idle);
+	aml_unref(idle);
 
-static void stop_self(void* obj)
-{
-	aml_stop(aml_get_default(), obj);
+	client_close(client);
 }
 
 static void defer_client_close(struct nvnc_client* client)
 {
 	if (client->close_task)
 		return;
-	client->close_task = aml_idle_new(stop_self, client,
-			do_deferred_client_close);
+	client->close_task = aml_idle_new(do_deferred_client_close, client,
+			NULL);
 	aml_start(aml_get_default(), client->close_task);
 }
 

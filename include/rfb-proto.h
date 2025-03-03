@@ -17,6 +17,7 @@
 #pragma once
 
 #define RFB_VERSION_MESSAGE "RFB 003.008\n"
+#define RFB_VERSION_MESSAGE_AAPL "RFB 003.889\n"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -48,6 +49,9 @@ enum rfb_client_to_server_msg_type {
 	RFB_CLIENT_TO_SERVER_KEY_EVENT = 4,
 	RFB_CLIENT_TO_SERVER_POINTER_EVENT = 5,
 	RFB_CLIENT_TO_SERVER_CLIENT_CUT_TEXT = 6,
+	RFB_CLIENT_TO_SERVER_APPLE_CONTINUOUS_UPDATES = 9,
+	RFB_CLIENT_TO_SERVER_APPLE_SET_MODE = 10,
+	RFB_CLIENT_TO_SERVER_APPLE_ENCRYPTED_EVENT_MESSAGE = 16,
 	RFB_CLIENT_TO_SERVER_ENABLE_CONTINUOUS_UPDATES = 150,
 	RFB_CLIENT_TO_SERVER_NTP = 160,
 	RFB_CLIENT_TO_SERVER_FENCE = 248,
@@ -362,4 +366,28 @@ struct rfb_fence_msg {
 	uint32_t flags;
 	uint8_t length;
 	uint8_t payload[0];
+} RFB_PACKED;
+
+struct rfb_apple_enc_event_msg {
+	uint8_t type;
+	uint8_t flags;
+	uint8_t keyboard;
+	uint8_t down_flag;
+	uint32_t key;
+	uint32_t delta;
+	uint8_t mouse;
+	uint8_t button_mask;
+	uint16_t x;
+	uint16_t y;
+} RFB_PACKED;
+
+struct rfb_apple_continuous_update_msg {
+	uint8_t type;
+	uint8_t padding;
+	uint16_t flag;
+	uint32_t ms_between_updates;
+	uint16_t x;
+	uint16_t y;
+	uint16_t width;
+	uint16_t height;
 } RFB_PACKED;

@@ -126,9 +126,9 @@ static int raw_encode_frame(struct raw_encoder_work* ctx, struct vec* dst,
 	return 0;
 }
 
-static void raw_encoder_do_work(void* obj)
+static void raw_encoder_do_work(struct aml_work* work)
 {
-	struct raw_encoder_work* ctx = aml_get_userdata(obj);
+	struct raw_encoder_work* ctx = aml_get_userdata(work);
 	int rc __attribute__((unused));
 
 	struct nvnc_fb* fb = ctx->fb;
@@ -163,9 +163,9 @@ static void raw_encoder_do_work(void* obj)
 	assert(ctx->result);
 }
 
-static void raw_encoder_on_done(void* obj)
+static void raw_encoder_on_done(struct aml_work* work)
 {
-	struct raw_encoder_work* ctx = aml_get_userdata(obj);
+	struct raw_encoder_work* ctx = aml_get_userdata(work);
 	struct raw_encoder* self = ctx->parent;
 
 	assert(ctx->result);

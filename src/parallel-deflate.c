@@ -172,9 +172,8 @@ static bool consolidate_complete_chunk_segments(struct parallel_deflate* self,
 	return have_end_chunk;
 }
 
-static void do_work(void* obj)
+static void do_work(struct aml_work* work)
 {
-	struct aml_work* work = obj;
 	struct deflate_job* job = aml_get_userdata(work);
 	struct parallel_deflate* self = job->parent;
 

@@ -511,9 +511,9 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 	}
 }
 
-static void process_fd_events(void* handle)
+static void process_fd_events(struct aml_handler* handler)
 {
-	struct h264_encoder_v4l2m2m* self = aml_get_userdata(handle);
+	struct h264_encoder_v4l2m2m* self = aml_get_userdata(handler);
 	process_dst_bufs(self);
 }
 

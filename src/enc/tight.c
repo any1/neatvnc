@@ -106,8 +106,8 @@ struct tight_zs_worker_ctx {
 
 struct encoder_impl encoder_impl_tight;
 
-static void do_tight_zs_work(void*);
-static void on_tight_zs_work_done(void*);
+static void do_tight_zs_work(struct aml_work*);
+static void on_tight_zs_work_done(struct aml_work*);
 static int schedule_tight_finish(struct tight_encoder* self);
 
 static inline struct tight_encoder* tight_encoder(struct encoder* encoder)
@@ -428,9 +428,9 @@ static void tight_encode_tile(struct tight_encoder* self,
 	tile->state = TIGHT_TILE_ENCODED;
 }
 
-static void do_tight_zs_work(void* obj)
+static void do_tight_zs_work(struct aml_work* work)
 {
-	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
+	struct tight_zs_worker_ctx* ctx = aml_get_userdata(work);
 	struct tight_encoder* self = ctx->encoder;
 	int index = ctx->index;
 
@@ -440,7 +440,7 @@ static void do_tight_zs_work(void* obj)
 				tight_encode_tile(self, x, y);
 }
 
-static void on_tight_zs_work_done(void* obj)
+static void on_tight_zs_work_done(struct aml_work* obj)
 {
 	struct tight_zs_worker_ctx* ctx = aml_get_userdata(obj);
 	struct tight_encoder* self = ctx->encoder;
@@ -509,15 +509,15 @@ static void tight_finish(struct tight_encoder* self)
 				tight_finish_tile(self, x, y);
 }
 
-static void do_tight_finish(void* obj)
+static void do_tight_finish(struct aml_work* work)
 {
-	struct tight_encoder* self = aml_get_userdata(obj);
+	struct tight_encoder* self = aml_get_userdata(work);
 	tight_finish(self);
 }
 
-static void on_tight_finished(void* obj)
+static void on_tight_finished(struct aml_work* work)
 {
-	struct tight_encoder* self = aml_get_userdata(obj);
+	struct tight_encoder* self = aml_get_userdata(work);
 
 	struct encoded_frame* result;
 	result = encoded_frame_new(self->dst.data, self->dst.len, self->n_rects,

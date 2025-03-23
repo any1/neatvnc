@@ -191,10 +191,10 @@ static void stream_tcp__on_writable(struct stream* self)
 	}
 }
 
-static void stream_tcp__on_event(void* obj)
+static void stream_tcp__on_event(struct aml_handler* handler)
 {
-	struct stream* self = aml_get_userdata(obj);
-	uint32_t events = aml_get_revents(obj);
+	struct stream* self = aml_get_userdata(handler);
+	uint32_t events = aml_get_revents(handler);
 
 	// We hold a reference here in case the stream gets destroyed inside
 	// callback.

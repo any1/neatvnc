@@ -147,9 +147,8 @@ void resample_now(struct nvnc_fb* dst, struct nvnc_fb* src,
 	pixman_image_unref(dstimg);
 }
 
-static void do_work(void* handle)
+static void do_work(struct aml_work* work)
 {
-	struct aml_work* work = handle;
 	struct resampler_work* ctx = aml_get_userdata(work);
 
 	struct nvnc_fb* src = ctx->src;
@@ -159,11 +158,9 @@ static void do_work(void* handle)
 	resample_now(dst, src, &dst_side_data->buffer_damage);
 }
 
-static void on_work_done(void* handle)
+static void on_work_done(struct aml_work* work)
 {
-	struct aml_work* work = handle;
 	struct resampler_work* ctx = aml_get_userdata(work);
-
 	ctx->on_done(ctx->dst, &ctx->frame_damage, ctx->userdata);
 }
 

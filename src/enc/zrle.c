@@ -315,9 +315,9 @@ static int zrle_encode_frame(struct zrle_encoder* self,
 	return 0;
 }
 
-static void zrle_encoder_do_work(void* obj)
+static void zrle_encoder_do_work(struct aml_work* work)
 {
-	struct zrle_encoder* self = aml_get_userdata(obj);
+	struct zrle_encoder* self = aml_get_userdata(work);
 	int rc __attribute__((unused));
 
 	struct nvnc_fb* fb = self->current_fb;
@@ -349,9 +349,9 @@ static void zrle_encoder_do_work(void* obj)
 	assert(self->current_result);
 }
 
-static void zrle_encoder_on_done(void* obj)
+static void zrle_encoder_on_done(struct aml_work* work)
 {
-	struct zrle_encoder* self = aml_get_userdata(obj);
+	struct zrle_encoder* self = aml_get_userdata(work);
 
 	assert(self->current_result);
 

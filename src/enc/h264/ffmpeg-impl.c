@@ -415,9 +415,9 @@ get_frame_failure:
 	return rc == AVERROR(EAGAIN) ? 0 : rc;
 }
 
-static void h264_encoder__do_work(void* handle)
+static void h264_encoder__do_work(struct aml_work* work)
 {
-	struct h264_encoder_ffmpeg* self = aml_get_userdata(handle);
+	struct h264_encoder_ffmpeg* self = aml_get_userdata(work);
 
 	AVFrame* frame = fb_to_avframe(self->current_fb);
 	assert(frame); // TODO
@@ -453,9 +453,9 @@ failure:
 	av_frame_free(&frame);
 }
 
-static void h264_encoder__on_work_done(void* handle)
+static void h264_encoder__on_work_done(struct aml_work* work)
 {
-	struct h264_encoder_ffmpeg* self = aml_get_userdata(handle);
+	struct h264_encoder_ffmpeg* self = aml_get_userdata(work);
 
 	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
 	nvnc_fb_release(self->current_fb);

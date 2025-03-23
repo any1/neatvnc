@@ -210,9 +210,8 @@ static void client_close(struct nvnc_client* client)
 	free(client);
 }
 
-static void do_deferred_client_close(void* obj)
+static void do_deferred_client_close(struct aml_idle* idle)
 {
-	struct aml_idle* idle = obj;
 	struct nvnc_client* client = aml_get_userdata(idle);
 	client->close_task = NULL;
 	aml_stop(aml_get_default(), idle);
@@ -2033,9 +2032,8 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	client->buffer_index = 0;
 }
 
-static void on_connection(void* obj)
+static void on_connection(struct aml_handler* poll_handle)
 {
-	struct aml_handler* poll_handle = obj;
 	struct nvnc__socket* socket = aml_get_userdata(poll_handle);
 	struct nvnc* server = socket->parent;
 

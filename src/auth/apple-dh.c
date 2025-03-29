@@ -94,18 +94,20 @@ int apple_dh_handle_response(struct nvnc_client* client)
 			msg->encrypted_credentials, sizeof(username), NULL, 0);
 	username[63] = '\0';
 	username[127] = '\0';
-	crypto_cipher_del(cipher);
 
 	update_min_rtt(client);
 
 	if (!server->auth_fn(username, password, server->auth_ud)) {
 		security_handshake_failed(client, username,
 				"Invalid username or password");
+		client->apple_dh_cipher = NULL;
+		crypto_cipher_del(cipher);
 		return -1;
 	}
 
 	security_handshake_ok(client, username);
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	client->apple_dh_cipher = cipher;
 
 	return sizeof(*msg) + key_len;
 }

@@ -127,3 +127,6 @@ ssize_t crypto_rsa_encrypt(struct crypto_rsa_pub_key* pub, uint8_t* dst,
 		size_t dst_size, const uint8_t* src, size_t src_size);
 ssize_t crypto_rsa_decrypt(struct crypto_rsa_priv_key* priv, uint8_t* dst,
 		size_t dst_size, const uint8_t* src, size_t src_size);
+
+// DES
+void crypto_des_encrypt(uint8_t* key, uint8_t* dst, uint8_t* src, size_t len);

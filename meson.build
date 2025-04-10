@@ -166,9 +166,11 @@ if nettle.found() and hogweed.found() and gmp.found()
 		'src/crypto/nettle/hash.c',
 		'src/crypto/nettle/key.c',
 		'src/crypto/nettle/rsa.c',
+		'src/crypto/nettle/des.c',
 		'src/stream/rsa-aes.c',
 		'src/auth/apple-dh.c',
 		'src/auth/rsa-aes.c',
+		'src/auth/vnc_auth.c',
 	]
 	if not(have_random)
 		error('No random generator available')

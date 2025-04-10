@@ -3,6 +3,9 @@
 #include "auth/auth.h"
 #include "auth/vnc_auth.h"
 
+void crypto_random(uint8_t* dst, size_t len);
+void crypto_des_encrypt(uint8_t* key, uint8_t* dst, uint8_t* src, size_t len);
+
 void vnc_auth_reverse_bits(uint8_t *dst, uint8_t *src)
 {
 	for (int i = 0; i < VNC_AUTH_PASSWORD_LEN; ++i) {

@@ -363,7 +363,7 @@ static int on_security_message(struct nvnc_client* client)
 
 	if (!is_allowed_security_type(client->server, type)) {
 		security_handshake_failed(client, NULL, "Illegal security type");
-		return sizeof(type);
+		return -1;
 	}
 
 	update_min_rtt(client);
@@ -402,7 +402,7 @@ static int on_security_message(struct nvnc_client* client)
 	default:
 		security_handshake_failed(client, NULL,
 				"Unsupported security type");
-		break;
+		return -1;
 	}
 
 	return sizeof(type);

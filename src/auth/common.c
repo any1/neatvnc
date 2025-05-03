@@ -27,8 +27,8 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
 				username, reason_string);
 	else
-		nvnc_log(NVNC_LOG_INFO, "Security handshake: %s",
-				username, reason_string);
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
+				reason_string);
 
 	char buffer[256];
 

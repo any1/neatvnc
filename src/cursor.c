@@ -64,7 +64,6 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 		return encode_rect_head(dst, RFB_ENCODING_CURSOR, 0, 0, 0, 0);
 
 	nvnc_transform_dimensions(image->transform, &width, &height);
-	nvnc_transform_dimensions(image->transform, &hotspot_x, &hotspot_y);
 
 	if (nvnc_fb_map(image) < 0)
 		return -1;

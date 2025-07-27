@@ -2947,34 +2947,60 @@ int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 	return -1;
 }
 
+static bool buffers_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
+{
+	if (a == b)
+		return true;
+
+	if ((a && !b) || (!a && b))
+		return false;
+
+	if (nvnc_fb_get_width(a) != nvnc_fb_get_width(b) ||
+			nvnc_fb_get_height(a) != nvnc_fb_get_height(b) ||
+			nvnc_fb_get_stride(a) != nvnc_fb_get_stride(b) ||
+			nvnc_fb_get_pixel_size(a) != nvnc_fb_get_pixel_size(b) ||
+			nvnc_fb_get_fourcc_format(a) != nvnc_fb_get_fourcc_format(b) ||
+			nvnc_fb_get_transform(a) != nvnc_fb_get_transform(b))
+		return false;
+
+	nvnc_fb_map(a);
+	nvnc_fb_map(b);
+
+	const uint8_t* data_a = nvnc_fb_get_addr(a);
+	const uint8_t* data_b = nvnc_fb_get_addr(b);
+
+	uint32_t size = nvnc_fb_get_stride(a) * nvnc_fb_get_pixel_size(a) *
+		nvnc_fb_get_height(a);
+	bool result = true;
+
+	for (uint32_t i = 0; i < size; ++i)
+		result &= data_a[i] == data_b[i];
+
+	return result;
+}
+
 EXPORT
 void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
 		bool is_damaged)
 {
+	bool should_send = is_damaged && !buffers_are_equal(self->cursor.buffer, fb);
+
 	nvnc_fb_release(self->cursor.buffer);
 	nvnc_fb_unref(self->cursor.buffer);
 
 	self->cursor.buffer = fb;
+	self->cursor.width = width;
+	self->cursor.height = height;
+	self->cursor.hotspot_x = hotspot_x;
+	self->cursor.hotspot_y = hotspot_y;
 
 	if (fb) {
-		// TODO: Hash cursors to check if they actually changed?
 		nvnc_fb_ref(fb);
 		nvnc_fb_hold(fb);
-
-		self->cursor.width = width;
-		self->cursor.height = height;
-		self->cursor.hotspot_x = hotspot_x;
-		self->cursor.hotspot_y = hotspot_y;
-
-	} else {
-		self->cursor.width = width;
-		self->cursor.height = height;
-		self->cursor.hotspot_x = 0;
-		self->cursor.hotspot_y = 0;
 	}
 
-	if (!is_damaged)
+	if (!should_send)
 		return;
 
 	self->cursor_seq++;

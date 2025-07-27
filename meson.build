@@ -76,7 +76,7 @@ aml_project = subproject('aml', required: false, version: aml_version)
 if aml_project.found()
 	aml = aml_project.get_variable('aml_dep')
 else
-	aml = dependency('aml', version: aml_version)
+	aml = dependency('aml1', version: aml_version)
 endif
 
 inc = include_directories('include')

@@ -87,7 +87,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	int bpp = pixfmt->bits_per_pixel / 8;
 	size_t size = width * height;
 
-	rc = vec_reserve(dst, dst->len + size * bpp + UDIV_UP(size, 8));
+	rc = vec_reserve(dst, dst->len + size * bpp + UDIV_UP(width, 8) * height);
 	if (rc < 0)
 		goto failure;
 

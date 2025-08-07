@@ -202,6 +202,7 @@ void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn);
 bool nvnc_has_auth(void);
 int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 		nvnc_auth_fn, void* userdata);
+int nvnc_set_vnc_auth_passwd(struct nvnc* self, const char *password);
 int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
                      const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);

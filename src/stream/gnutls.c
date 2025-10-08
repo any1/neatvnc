@@ -95,6 +95,10 @@ static int stream_gnutls__flush(struct stream* base)
 
 		struct stream_req* req = TAILQ_FIRST(&self->base.send_queue);
 
+                /* GnuTLS returns an error when sending with 0 data_size */
+                if (req->payload->size == 0)
+                    goto req_done;
+
 		ssize_t n_sent = gnutls_record_send(self->session,
 				req->payload->payload, req->payload->size);
 		if (n_sent < 0) {
@@ -124,6 +128,7 @@ static int stream_gnutls__flush(struct stream* base)
 
 		assert(remaining == 0);
 
+req_done:
 		TAILQ_REMOVE(&self->base.send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_DONE);
 	}

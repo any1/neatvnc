@@ -20,7 +20,10 @@
 #include <stdint.h>
 
 #if defined(HAVE_GETRANDOM)
+#include <errno.h>
+#include <string.h>
 #include <sys/random.h>
+#include "neatvnc.h"
 #elif defined(HAVE_ARC4RANDOM)
 #include <stdlib.h>
 #endif
@@ -29,7 +32,17 @@
 void crypto_random(uint8_t* dst, size_t len)
 {
 #if defined(HAVE_GETRANDOM)
-	getrandom(dst, len, 0);
+	while (len) {
+		ssize_t nr = getrandom(dst, len, 0);
+		if (nr < 0) {
+			if (errno != EINTR)
+				nvnc_log(NVNC_LOG_PANIC, "getrandom failed: %s",
+					strerror(errno));
+			continue;
+		}
+		dst += nr;
+		len -= nr;
+	}
 #elif defined(HAVE_ARC4RANDOM)
 	arc4random_buf(dst, len);
 #else

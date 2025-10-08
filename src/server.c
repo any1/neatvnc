@@ -1741,8 +1741,8 @@ static void update_ntp_stats(struct nvnc_client* client,
 	uint32_t t2 = ntohl(msg->t2);
 	uint32_t t3 = ntohl(msg->t3);
 
-	double delta = (int32_t)(t3 - t0) - (int32_t)(t2 - t1);
-	double theta = ((int32_t)(t1 - t0) + (int32_t)(t2 - t3)) / 2;
+	int32_t delta = (int32_t)(t3 - t0) - (int32_t)(t2 - t1);
+	int32_t theta = ((int32_t)(t1 - t0) + (int32_t)(t2 - t3)) / 2;
 
 	nvnc_log(NVNC_LOG_DEBUG, "NTP: delta: %.2f ms, theta: %.2f ms",
 			delta / 1e3, theta / 1e3);

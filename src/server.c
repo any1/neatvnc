@@ -1870,11 +1870,11 @@ static int on_client_fence(struct nvnc_client* client)
 	struct rfb_fence_msg *msg = (struct rfb_fence_msg*)(client->msg_buffer +
 			client->buffer_index);
 
-	if (client->buffer_len - client->buffer_index < sizeof(msg))
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
 		return 0;
 
 	uint8_t length = msg->length;
-	if (client->buffer_len - client->buffer_index < sizeof(msg) + length)
+	if (client->buffer_len - client->buffer_index < sizeof(*msg) + length)
 		return 0;
 
 	if (length > 64) {

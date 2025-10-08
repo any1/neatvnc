@@ -482,8 +482,8 @@ static void tight_finish_tile(struct tight_encoder* self,
 {
 	struct tight_tile* tile = tight_tile(self, gx, gy);
 
-	uint16_t x_pos = self->encoder.x_pos;
-	uint16_t y_pos = self->encoder.y_pos;
+	uint16_t x_pos = 0;
+	uint16_t y_pos = 0;
 
 	uint32_t x = gx * TSL;
 	uint32_t y = gy * TSL;

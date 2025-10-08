@@ -199,8 +199,8 @@ static struct encoded_frame* open_h264_pull(struct encoder* enc)
 	rect->encoding = htonl(RFB_ENCODING_OPEN_H264);
 	rect->width = htons(self->width);
 	rect->height = htons(self->height);
-	rect->x = htons(self->parent.x_pos);
-	rect->y = htons(self->parent.y_pos);
+	rect->x = htons(0);
+	rect->y = htons(0);
 
 	struct open_h264_header* header =
 		(void*)(((uint8_t*)self->pending.data) + sizeof(*rect));

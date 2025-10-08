@@ -222,8 +222,8 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 	int src_bpp = src_fmt->bits_per_pixel / 8;
 	struct vec in;
 
-	uint16_t x_pos = self->encoder.x_pos;
-	uint16_t y_pos = self->encoder.y_pos;
+	uint16_t x_pos = 0;
+	uint16_t y_pos = 0;
 
 	uint8_t* tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);
 	if (!tile)

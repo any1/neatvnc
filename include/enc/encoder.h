@@ -58,9 +58,6 @@ struct encoder {
 
 	int ref;
 
-	uint16_t x_pos;
-	uint16_t y_pos;
-
 	void (*on_done)(struct encoder*, struct encoded_frame* result);
 	void* userdata;
 };

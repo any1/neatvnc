@@ -238,8 +238,6 @@ static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	ctx->fb = fb;
 	memcpy(&ctx->output_format, &self->output_format,
 			sizeof(ctx->output_format));
-	ctx->x_pos = self->encoder.x_pos;
-	ctx->y_pos = self->encoder.y_pos;
 	nvnc_fb_ref(ctx->fb);
 	nvnc_fb_hold(ctx->fb);
 	pixman_region_copy(&ctx->damage, damage);

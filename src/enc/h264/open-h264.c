@@ -39,7 +39,6 @@ struct open_h264 {
 	struct h264_encoder* encoder;
 
 	struct vec pending;
-	uint64_t pts;
 
 	uint32_t width;
 	uint32_t height;
@@ -57,7 +56,7 @@ enum open_h264_flags {
 };
 
 struct encoder* open_h264_new(void);
-static struct encoded_frame* open_h264_pull(struct encoder* enc);
+static struct encoded_frame* open_h264_pull(struct encoder* enc, uint64_t pts);
 
 struct encoder_impl encoder_impl_open_h264;
 
@@ -79,9 +78,8 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	}
 
 	vec_append(&self->pending, data, size);
-	self->pts = pts;
 
-	struct encoded_frame* result = open_h264_pull(&self->parent);
+	struct encoded_frame* result = open_h264_pull(&self->parent, pts);
 
 	DTRACE_PROBE1(neatvnc, open_h264_finish_frame, rpts);
 
@@ -114,7 +112,6 @@ struct encoder* open_h264_new(void)
 		return NULL;
 	}
 
-	self->pts = NVNC_NO_PTS;
 	self->quality = 6;
 
 	return (struct encoder*)self;
@@ -179,7 +176,7 @@ static int open_h264_encode(struct encoder* enc, struct nvnc_fb* fb,
 	return 0;
 }
 
-static struct encoded_frame* open_h264_pull(struct encoder* enc)
+static struct encoded_frame* open_h264_pull(struct encoder* enc, uint64_t pts)
 {
 	struct open_h264* self = open_h264(enc);
 
@@ -188,9 +185,6 @@ static struct encoded_frame* open_h264_pull(struct encoder* enc)
 		- sizeof(struct open_h264_header);
 	if (payload_size == 0)
 		return NULL;
-
-	uint64_t pts = self->pts;
-	self->pts = NVNC_NO_PTS;
 
 	uint32_t flags = self->needs_reset ? OPEN_H264_FLAG_RESET_CONTEXT : 0;
 	self->needs_reset = false;

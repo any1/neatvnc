@@ -49,6 +49,10 @@
 #define nvnc_trace(...)
 #endif
 
+#define nvnc_assert(statement, fmt, ...) \
+	if (!(statement)) \
+		nvnc_log(NVNC_LOG_PANIC, fmt, ## __VA_ARGS__)
+
 #define NVNC_DEPRECATED(msg) __attribute__((deprecated(msg)))
 
 struct nvnc;

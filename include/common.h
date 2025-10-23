@@ -42,6 +42,11 @@
 #define MAX_CLIENT_UNSOLICITED_TEXT_SIZE 20971520
 #define MAX_SECURITY_TYPES 32
 
+// TODO: Let's define this only once
+#ifndef NVNC_FB_COMPOSITE_MAX
+#define NVNC_FB_COMPOSITE_MAX 64
+#endif
+
 enum nvnc_client_state {
 	VNC_CLIENT_STATE_WAITING_FOR_VERSION = 0,
 	VNC_CLIENT_STATE_WAITING_FOR_SECURITY,
@@ -184,7 +189,8 @@ struct nvnc {
 	nvnc_cut_text_fn cut_text_fn;
 	struct cut_text ext_clipboard_provide_msg;
 	nvnc_desktop_layout_fn desktop_layout_fn;
-	struct nvnc_display* display;
+	int n_displays;
+	struct nvnc_display* displays[NVNC_FB_COMPOSITE_MAX];
 	struct {
 		struct nvnc_fb* buffer;
 		uint32_t width, height;

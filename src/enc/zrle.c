@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Andri Yngvason
+ * Copyright (c) 2019 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,6 @@
 #include "fb.h"
 #include "enc/util.h"
 #include "enc/encoder.h"
-#include "rcbuf.h"
 #include "parallel-deflate.h"
 
 #include <stdint.h>
@@ -43,7 +42,7 @@ struct zrle_encoder {
 
 	struct rfb_pixel_format output_format;
 
-	struct nvnc_fb* current_fb;
+	struct nvnc_composite_fb current_fb;
 	struct pixman_region16 current_damage;
 
 	struct encoded_frame* current_result;
@@ -222,8 +221,8 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 	int src_bpp = src_fmt->bits_per_pixel / 8;
 	struct vec in;
 
-	uint16_t x_pos = 0;
-	uint16_t y_pos = 0;
+	uint16_t x_pos = fb->x_off;
+	uint16_t y_pos = fb->y_off;
 
 	uint8_t* tile = malloc(TILE_LENGTH * TILE_LENGTH * 4);
 	if (!tile)
@@ -286,14 +285,8 @@ static int zrle_encode_frame(struct zrle_encoder* self,
 {
 	int rc __attribute__((unused)) = -1;
 
-	self->n_rects = 0;
-
 	int n_rects = 0;
 	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
-	if (n_rects > UINT16_MAX) {
-		box = pixman_region_extents(region);
-		n_rects = 1;
-	}
 
 	rc = nvnc_fb_map(src);
 	if (rc < 0)
@@ -305,48 +298,97 @@ static int zrle_encode_frame(struct zrle_encoder* self,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		rc = zrle_encode_box(self, dst, dst_fmt, src, src_fmt, x, y,
+		rc = zrle_encode_box(self, dst, dst_fmt, src, src_fmt,
+				x - src->x_off, y - src->y_off,
 				src->stride, box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}
 
-	self->n_rects = n_rects;
+	self->n_rects += n_rects;
 	return 0;
+}
+
+static void zlre_encoder_init_damage_subregions(struct zrle_encoder* self,
+		struct pixman_region16 subregions[])
+{
+	struct nvnc_composite_fb* cfb = &self->current_fb;
+
+	int n_rects = 0;
+	for (int i = 0; i < cfb->n_fbs; ++i) {
+		struct nvnc_fb* fb = cfb->fbs[i];
+		assert(fb);
+
+		pixman_region_init(&subregions[i]);
+		pixman_region_intersect_rect(&subregions[i],
+				&self->current_damage, fb->x_off, fb->y_off,
+				fb->width, fb->height);
+		n_rects += pixman_region_n_rects(&subregions[i]);
+	}
+
+	if (n_rects > UINT16_MAX) {
+		n_rects = cfb->n_fbs;
+
+		for (int i = 0; i < cfb->n_fbs; ++i) {
+			struct nvnc_fb* fb = cfb->fbs[i];
+			assert(fb);
+			pixman_region_fini(&subregions[i]);
+			pixman_region_init_rect(&subregions[i], fb->x_off,
+					fb->y_off, fb->width, fb->height);
+		}
+	}
+}
+
+static int zrle_encoder_alloc_output_buffer(struct zrle_encoder* self,
+		struct vec* dst)
+{
+	int n_rects = pixman_region_n_rects(&self->current_damage);
+	size_t bpp = self->output_format.bits_per_pixel / 8;
+	size_t buffer_size = calculate_region_area(&self->current_damage) * bpp
+		+ n_rects * sizeof(struct rfb_server_fb_rect);
+
+	return vec_init(dst, buffer_size);
 }
 
 static void zrle_encoder_do_work(struct aml_work* work)
 {
 	struct zrle_encoder* self = aml_get_userdata(work);
-	int rc __attribute__((unused));
+	int rc;
 
-	struct nvnc_fb* fb = self->current_fb;
-	assert(fb);
+	struct nvnc_composite_fb* cfb = &self->current_fb;
+	assert(cfb->n_fbs != 0);
 
-	// TODO: Calculate the ideal buffer size based on the size of the
-	// damaged area.
-	size_t buffer_size = nvnc_fb_get_stride(fb) * nvnc_fb_get_height(fb) *
-		nvnc_fb_get_pixel_size(fb);
+	struct pixman_region16 subregions[NVNC_FB_COMPOSITE_MAX] = { 0 };
+	zlre_encoder_init_damage_subregions(self, subregions);
 
 	struct vec dst;
-	rc = vec_init(&dst, buffer_size);
-	assert(rc == 0);
+	nvnc_assert(zrle_encoder_alloc_output_buffer(self, &dst) >= 0, "OOM");
 
-	struct rfb_pixel_format src_fmt;
-	rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
-	assert(rc == 0);
+	self->n_rects = 0;
 
-	rc = zrle_encode_frame(self, &dst, &self->output_format, fb,
-			&src_fmt, &self->current_damage);
-	assert(rc == 0);
+	for (int i = 0; i < cfb->n_fbs; ++i) {
+		struct nvnc_fb* fb = cfb->fbs[i];
+		assert(fb);
 
-	uint16_t width = nvnc_fb_get_width(fb);
-	uint16_t height = nvnc_fb_get_height(fb);
-	uint64_t pts = nvnc_fb_get_pts(fb);
+		struct rfb_pixel_format src_fmt;
+		rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
+		nvnc_assert(rc == 0, "Unsupported pixel format");
+
+		rc = zrle_encode_frame(self, &dst, &self->output_format, fb,
+				&src_fmt, &subregions[i]);
+		nvnc_assert(rc == 0, "Failed to encode frame");
+	}
+
+	uint16_t width = nvnc_composite_fb_width(cfb);
+	uint16_t height = nvnc_composite_fb_height(cfb);
+	uint64_t pts = nvnc_composite_fb_pts(cfb);
 
 	self->current_result = encoded_frame_new(dst.data, dst.len,
 			self->n_rects, width, height, pts);
 	assert(self->current_result);
+
+	for (int i = 0; i < cfb->n_fbs; ++i)
+		pixman_region_fini(&subregions[i]);
 }
 
 static void zrle_encoder_on_done(struct aml_work* work)
@@ -355,9 +397,9 @@ static void zrle_encoder_on_done(struct aml_work* work)
 
 	assert(self->current_result);
 
-	nvnc_fb_release(self->current_fb);
-	nvnc_fb_unref(self->current_fb);
-	self->current_fb = NULL;
+	nvnc_composite_fb_release(&self->current_fb);
+	nvnc_composite_fb_unref(&self->current_fb);
+	memset(&self->current_fb, 0, sizeof(self->current_fb));
 
 	pixman_region_clear(&self->current_damage);
 
@@ -421,35 +463,26 @@ static void zrle_encoder_set_output_format(struct encoder* encoder,
 	memcpy(&self->output_format, pixfmt, sizeof(self->output_format));
 }
 
-static int zrle_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
-		struct pixman_region16* damage)
+static int zrle_encoder_encode(struct encoder* encoder,
+		struct nvnc_composite_fb* fb, struct pixman_region16* damage)
 {
 	struct zrle_encoder* self = zrle_encoder(encoder);
 
-	assert(!self->current_fb);
+	assert(self->current_fb.n_fbs == 0);
 
 	self->work = aml_work_new(zrle_encoder_do_work, zrle_encoder_on_done,
 			self, NULL);
 	if (!self->work)
 		return -1;
 
-	self->current_fb = fb;
-	nvnc_fb_ref(self->current_fb);
-	nvnc_fb_hold(self->current_fb);
+	nvnc_composite_fb_copy(&self->current_fb, fb);
+	nvnc_composite_fb_hold(&self->current_fb);
 	pixman_region_copy(&self->current_damage, damage);
 
 	encoder_ref(&self->encoder);
 
 	int rc = aml_start(aml_get_default(), self->work);
-	if (rc < 0) {
-		encoder_unref(&self->encoder);
-		aml_unref(self->work);
-		self->work = NULL;
-		pixman_region_clear(&self->current_damage);
-		nvnc_fb_release(self->current_fb);
-		nvnc_fb_unref(self->current_fb);
-		self->current_fb = NULL;
-	}
+	nvnc_assert(rc == 0, "Failed to start encoding job");
 
 	return rc;
 }

@@ -22,7 +22,7 @@
 #include <unistd.h>
 
 struct encoder;
-struct nvnc_fb;
+struct nvnc_composite_fb;
 struct pixman_region16;
 
 enum encoder_impl_flags {
@@ -39,7 +39,7 @@ struct encoder_impl {
 			const struct rfb_pixel_format*);
 	void (*set_quality)(struct encoder*, int quality);
 
-	int (*encode)(struct encoder*, struct nvnc_fb* fb,
+	int (*encode)(struct encoder*, struct nvnc_composite_fb* fb,
 			struct pixman_region16* damage);
 
 	void (*request_key_frame)(struct encoder*);
@@ -76,7 +76,7 @@ void encoder_set_output_format(struct encoder* self,
 		const struct rfb_pixel_format*);
 void encoder_set_quality(struct encoder* self, int value);
 
-int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
+int encoder_encode(struct encoder* self, struct nvnc_composite_fb* fb,
 		struct pixman_region16* damage);
 
 void encoder_request_key_frame(struct encoder* self);

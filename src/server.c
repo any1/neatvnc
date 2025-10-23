@@ -16,7 +16,6 @@
 
 #include "rfb-proto.h"
 #include "vec.h"
-#include "type-macros.h"
 #include "fb.h"
 #include "desktop-layout.h"
 #include "display.h"
@@ -84,7 +83,7 @@ static bool client_supports_resizing(const struct nvnc_client* client);
 static bool send_ext_support_frame(struct nvnc_client* client);
 static void send_ext_clipboard_caps(struct nvnc_client* client);
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
-		const struct nvnc_fb*);
+		const struct nvnc_composite_fb*);
 static void on_encode_frame_done(struct encoder*, struct encoded_frame*);
 static bool client_has_encoding(const struct nvnc_client* client,
 		enum rfb_encodings encoding);
@@ -421,27 +420,45 @@ static void disconnect_all_other_clients(struct nvnc_client* client)
 
 }
 
+static bool have_display_buffers(const struct nvnc* self)
+{
+	for (int i = 0; i < self->n_displays; ++i)
+		if (!self->displays[i]->buffer)
+			return false;
+	return self->n_displays > 0;
+}
+
 static int send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
-	struct nvnc_display* display = server->display;
 
 	size_t name_len = strlen(server->name);
 	size_t size = sizeof(struct rfb_server_init_msg) + name_len;
 
-	if (!display) {
+	if (server->n_displays == 0) {
 		nvnc_log(NVNC_LOG_WARNING, "Tried to send init message, but no display has been added");
 		goto close;
 	}
 
-	if (!display->buffer) {
-		nvnc_log(NVNC_LOG_WARNING, "Tried to send init message, but no framebuffers have been set");
+	if (!have_display_buffers(server)) {
+		nvnc_log(NVNC_LOG_WARNING, "Tried to send init message, but framebuffers have not been set for displays");
 		goto close;
 	}
 
-	uint16_t width = nvnc_fb_get_width(display->buffer);
-	uint16_t height = nvnc_fb_get_height(display->buffer);
-	uint32_t fourcc = nvnc_fb_get_fourcc_format(display->buffer);
+	uint16_t width = 0;
+	uint16_t height = 0;
+
+	for (int i = 0; i < server->n_displays; ++i) {
+		struct nvnc_display *display = server->displays[i];
+		uint16_t w = display->x_pos + display->buffer->width;
+		uint16_t h = display->y_pos + display->buffer->height;
+		if (w > width)
+			width = w;
+		if (h > height)
+			height = h;
+	}
+
+	uint32_t fourcc = nvnc_fb_get_fourcc_format(server->displays[0]->buffer);
 
 	if (rfb_pixfmt_from_fourcc(&client->pixfmt, fourcc) < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to convert buffer format to RFB pixel format");
@@ -776,7 +793,8 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	return "UNKNOWN";
 }
 
-static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
+static bool ensure_encoder(struct nvnc_client* client,
+		const struct nvnc_composite_fb *fb)
 {
 	struct nvnc* server = client->server;
 
@@ -784,8 +802,8 @@ static bool ensure_encoder(struct nvnc_client* client, const struct nvnc_fb *fb)
 	if (client->encoder && encoding == encoder_get_type(client->encoder))
 		return true;
 
-	int width = server->display->buffer->width;
-	int height = server->display->buffer->height;
+	int width = nvnc_composite_fb_width(fb);
+	int height = nvnc_composite_fb_height(fb);
 	if (client->encoder) {
 		server->n_damage_clients -= !(client->encoder->impl->flags &
 				ENCODER_IMPL_FLAG_IGNORES_DAMAGE);
@@ -875,7 +893,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (client->net_stream->state == STREAM_STATE_CLOSED)
 		return;
 
-	if (!server->display || !server->display->buffer)
+	if (!have_display_buffers(server))
 		return;
 
 	if (client->is_updating)
@@ -884,9 +902,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (!client->continuous_updates_enabled &&
 	    client->n_pending_requests == 0)
 		return;
-
-	struct nvnc_fb* fb = client->server->display->buffer;
-	assert(fb);
 
 	if (!client->is_ext_notified) {
 		client->is_ext_notified = true;
@@ -927,7 +942,16 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		}
 	}
 
-	if (!ensure_encoder(client, fb))
+	struct nvnc_composite_fb cfb = {
+		.n_fbs = server->n_displays
+	};
+	for (int i = 0; i < server->n_displays; ++i) {
+		struct nvnc_display* display = server->displays[i];
+		struct nvnc_fb* fb = display->buffer;
+		cfb.fbs[i] = fb;
+	}
+
+	if (!ensure_encoder(client, &cfb))
 		return;
 
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
@@ -946,15 +970,16 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	client->encoder->userdata = client;
 
 	DTRACE_PROBE2(neatvnc, process_fb_update_requests__encode,
-			client, fb->pts);
+			client, nvnc_composite_fb_pts(&cfb));
 
 	/* Damage is clamped here in case the client requested an out of bounds
 	 * region.
 	 */
-	pixman_region_intersect_rect(&damage, &damage, 0, 0, fb->width,
-			fb->height);
+	pixman_region_intersect_rect(&damage, &damage, 0, 0,
+			nvnc_composite_fb_width(&cfb),
+			nvnc_composite_fb_height(&cfb));
 
-	if (encoder_encode(client->encoder, fb, &damage) >= 0) {
+	if (encoder_encode(client->encoder, &cfb, &damage) >= 0) {
 		if (client->n_pending_requests > 0)
 			--client->n_pending_requests;
 	} else {
@@ -1649,8 +1674,8 @@ static enum rfb_resize_status check_desktop_layout(struct nvnc_client* client,
 
 		nvnc_display_layout_init(display, screen);
 
-		if (screen->id == 0)
-			display->display = server->display;
+		if (screen->id < (uint32_t)server->n_displays)
+			display->display = server->displays[screen->id];
 
 		if (display->x_pos + display->width > width ||
 		    display->y_pos + display->height > height) {
@@ -2080,7 +2105,7 @@ static void on_connection(struct aml_handler* poll_handle)
 		goto stream_failure;
 	}
 
-	if (!server->display->buffer) {
+	if (!have_display_buffers(server)) {
 		nvnc_log(NVNC_LOG_WARNING, "No display buffer has been set");
 		goto buffer_failure;
 	}
@@ -2402,8 +2427,11 @@ void nvnc_del(struct nvnc* self)
 	if (cleanup)
 		cleanup(self->common.userdata);
 
-	if (self->display)
-		nvnc_display_unref(self->display);
+	for (int i = 0; i < self->n_displays; ++i) {
+		struct nvnc_display *display = self->displays[i];
+		assert(display);
+		nvnc_display_unref(display);
+	}
 
 	nvnc_fb_release(self->cursor.buffer);
 	nvnc_fb_unref(self->cursor.buffer);
@@ -2491,9 +2519,9 @@ static void on_write_frame_done(void* userdata, enum stream_req_status status)
 }
 
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
-		const struct nvnc_fb* fb)
+		const struct nvnc_composite_fb* fb)
 {
-	for (size_t i = 0; i < client->n_encodings; ++i)
+	for (size_t i = 0; i < client->n_encodings; ++i) {
 		switch (client->encodings[i]) {
 		case RFB_ENCODING_RAW:
 		case RFB_ENCODING_TIGHT:
@@ -2502,8 +2530,9 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 #ifdef ENABLE_OPEN_H264
 		case RFB_ENCODING_OPEN_H264:
 			// h264 is useless for sw frames
-			if (fb->type != NVNC_FB_GBM_BO)
-				break;
+			for (int i = 0; i < fb->n_fbs; ++i)
+				if (fb->fbs[i]->type != NVNC_FB_GBM_BO)
+					goto skip;
 			if (!have_working_h264_encoder())
 				break;
 			return client->encodings[i];
@@ -2511,6 +2540,8 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		default:
 			break;
 		}
+skip:;
+	}
 
 	return RFB_ENCODING_RAW;
 }
@@ -2752,23 +2783,38 @@ void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn fn)
 EXPORT
 void nvnc_add_display(struct nvnc* self, struct nvnc_display* display)
 {
-	if (self->display) {
-		nvnc_log(NVNC_LOG_PANIC, "Multiple displays are not implemented. Aborting!");
-	}
+	nvnc_assert(self->n_displays < NVNC_FB_COMPOSITE_MAX,
+		"Too many displays added. Maximum is %d", NVNC_FB_COMPOSITE_MAX);
 
 	display->server = self;
-	self->display = display;
+
+	self->displays[self->n_displays++] = display;
 	nvnc_display_ref(display);
+}
+
+static int nvnc__find_display(const struct nvnc* self, struct nvnc_display *display)
+{
+	for (int i = 0; i < self->n_displays; ++i) {
+		if (self->displays[i] == display)
+			return i;
+	}
+	return -1;
 }
 
 EXPORT
 void nvnc_remove_display(struct nvnc* self, struct nvnc_display* display)
 {
-	if (self->display != display)
-		return;
-
 	nvnc_display_unref(display);
-	self->display = NULL;
+
+	int index = nvnc__find_display(self, display);
+	if (index == -1) {
+		nvnc_log(NVNC_LOG_ERROR, "Tried to remove non-existent display");
+		return;
+	}
+
+	self->n_displays--;
+	self->displays[index] = self->displays[self->n_displays];
+	self->displays[self->n_displays] = NULL;
 }
 
 EXPORT

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Andri Yngvason
+ * Copyright (c) 2020 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,6 +25,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <pixman.h>
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -46,8 +47,24 @@ static void nvnc_display__on_resampler_done(struct nvnc_fb* fb,
 
 	assert(self->server);
 
-	// TODO: Shift according to display position
-	nvnc__damage_region(self->server, damage);
+	struct pixman_region16 shifted_damage;
+	pixman_region_init(&shifted_damage);
+
+	int n_rects = 0;
+	struct pixman_box16* box = pixman_region_rectangles(damage, &n_rects);
+	for (int i = 0; i < n_rects; ++i) {
+		int x = box[i].x1;
+		int y = box[i].y1;
+		int box_width = box[i].x2 - x;
+		int box_height = box[i].y2 - y;
+
+		pixman_region_union_rect(&shifted_damage, &shifted_damage,
+				x + fb->x_off, y + fb->y_off, box_width,
+				box_height);
+	}
+
+	nvnc__damage_region(self->server, &shifted_damage);
+	pixman_region_fini(&shifted_damage);
 }
 
 EXPORT
@@ -132,6 +149,9 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 		// it's needed.
 		damage_refinery_resize(&self->damage_refinery, 0, 0);
 	}
+
+	fb->x_off = self->x_pos;
+	fb->y_off = self->y_pos;
 
 	struct pixman_region16 transformed_damage;
 	pixman_region_init(&transformed_damage);

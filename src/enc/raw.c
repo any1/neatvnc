@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,6 @@
 #include "pixels.h"
 #include "enc/util.h"
 #include "enc/encoder.h"
-#include "rcbuf.h"
 
 #include <stdlib.h>
 #include <pixman.h>
@@ -38,10 +37,9 @@ struct raw_encoder {
 struct raw_encoder_work {
 	struct raw_encoder* parent;
 	struct rfb_pixel_format output_format;
-	struct nvnc_fb* fb;
+	struct nvnc_composite_fb composite_fb;
 	struct pixman_region16 damage;
 	int n_rects;
-	uint16_t x_pos, y_pos;
 	struct encoded_frame *result;
 };
 
@@ -59,8 +57,8 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 		const struct rfb_pixel_format* src_fmt, int x_start,
 		int y_start, int stride, int width, int height)
 {
-	uint16_t x_pos = ctx->x_pos;
-	uint16_t y_pos = ctx->y_pos;
+	uint16_t x_pos = fb->x_off;
+	uint16_t y_pos = fb->y_off;
 
 	int rc = -1;
 
@@ -92,52 +90,38 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 	return 0;
 }
 
-static int raw_encode_frame(struct raw_encoder_work* ctx, struct vec* dst,
-		const struct rfb_pixel_format* dst_fmt, struct nvnc_fb* src,
-		const struct rfb_pixel_format* src_fmt,
-		struct pixman_region16* region)
-{
-	int rc = -1;
-
-	int n_rects = 0;
-	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
-	if (n_rects > UINT16_MAX) {
-		box = pixman_region_extents(region);
-		n_rects = 1;
-	}
-
-	rc = nvnc_fb_map(src);
-	if (rc < 0)
-		return -1;
-
-	for (int i = 0; i < n_rects; ++i) {
-		int x = box[i].x1;
-		int y = box[i].y1;
-		int box_width = box[i].x2 - x;
-		int box_height = box[i].y2 - y;
-
-		rc = raw_encode_box(ctx, dst, dst_fmt, src, src_fmt, x, y,
-				src->stride, box_width, box_height);
-		if (rc < 0)
-			return -1;
-	}
-
-	ctx->n_rects = n_rects;
-	return 0;
-}
-
 static void raw_encoder_do_work(struct aml_work* work)
 {
 	struct raw_encoder_work* ctx = aml_get_userdata(work);
 	int rc __attribute__((unused));
 
-	struct nvnc_fb* fb = ctx->fb;
-	assert(fb);
+	assert(ctx->composite_fb.n_fbs != 0);
+
+	int n_rects = 0;
+	struct pixman_region16 subregions[NVNC_FB_COMPOSITE_MAX] = { 0 };
+	for (int i = 0; i < ctx->composite_fb.n_fbs; ++i) {
+		struct nvnc_fb* fb = ctx->composite_fb.fbs[i];
+		assert(fb);
+
+		pixman_region_init(&subregions[i]);
+		pixman_region_intersect_rect(&subregions[i], &ctx->damage,
+				fb->x_off, fb->y_off, fb->width, fb->height);
+		n_rects += pixman_region_n_rects(&subregions[i]);
+	}
+
+	if (n_rects > UINT16_MAX) {
+		n_rects = ctx->composite_fb.n_fbs;
+
+		for (int i = 0; i < ctx->composite_fb.n_fbs; ++i) {
+			struct nvnc_fb* fb = ctx->composite_fb.fbs[i];
+			assert(fb);
+			pixman_region_fini(&subregions[i]);
+			pixman_region_init_rect(&subregions[i], fb->x_off,
+					fb->y_off, fb->width, fb->height);
+		}
+	}
 
 	size_t bpp = ctx->output_format.bits_per_pixel / 8;
-	size_t n_rects = pixman_region_n_rects(&ctx->damage);
-	if (n_rects > UINT16_MAX)
-		n_rects = 1;
 	size_t buffer_size = calculate_region_area(&ctx->damage) * bpp
 		+ n_rects * sizeof(struct rfb_server_fb_rect);
 
@@ -145,22 +129,46 @@ static void raw_encoder_do_work(struct aml_work* work)
 	rc = vec_init(&dst, buffer_size);
 	assert(rc == 0);
 
-	struct rfb_pixel_format src_fmt;
-	rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
-	assert(rc == 0);
+	for (int i = 0; i < ctx->composite_fb.n_fbs; ++i) {
+		struct nvnc_fb* fb = ctx->composite_fb.fbs[i];
+		assert(fb);
 
-	rc = raw_encode_frame(ctx, &dst, &ctx->output_format, fb, &src_fmt,
-			&ctx->damage);
-	assert(rc == 0);
+		struct rfb_pixel_format src_fmt;
+		rc = rfb_pixfmt_from_fourcc(&src_fmt,
+				nvnc_fb_get_fourcc_format(fb));
+		assert(rc == 0);
 
+		rc = nvnc_fb_map(fb);
+		nvnc_assert(rc == 0, "Failed to map framebuffer for encoding");
 
-	uint16_t width = nvnc_fb_get_width(ctx->fb);
-	uint16_t height = nvnc_fb_get_height(ctx->fb);
-	uint64_t pts = nvnc_fb_get_pts(ctx->fb);
+		int n_subrects = 0;
+		struct pixman_box16* box = pixman_region_rectangles(
+				&subregions[i], &n_subrects);
 
-	ctx->result = encoded_frame_new(dst.data, dst.len, ctx->n_rects,
-			width, height, pts);
+		for (int i = 0; i < n_subrects; ++i) {
+			int x = box[i].x1;
+			int y = box[i].y1;
+			int box_width = box[i].x2 - x;
+			int box_height = box[i].y2 - y;
+
+			rc = raw_encode_box(ctx, &dst, &ctx->output_format, fb,
+					&src_fmt, x - fb->x_off, y - fb->y_off,
+					fb->stride, box_width, box_height);
+			nvnc_assert(rc == 0, "Failed to encode box");
+		}
+	}
+	ctx->n_rects = n_rects;
+
+	uint16_t width = nvnc_composite_fb_width(&ctx->composite_fb);
+	uint16_t height = nvnc_composite_fb_height(&ctx->composite_fb);
+	uint64_t pts = nvnc_composite_fb_pts(&ctx->composite_fb);
+
+	ctx->result = encoded_frame_new(dst.data, dst.len, n_rects, width,
+			height, pts);
 	assert(ctx->result);
+
+	for (int i = 0; i < ctx->composite_fb.n_fbs; ++i)
+		pixman_region_fini(&subregions[i]);
 }
 
 static void raw_encoder_on_done(struct aml_work* work)
@@ -207,8 +215,8 @@ static void raw_encoder_set_output_format(struct encoder* encoder,
 static void raw_encoder_work_destroy(void* obj)
 {
 	struct raw_encoder_work* ctx = obj;
-	nvnc_fb_release(ctx->fb);
-	nvnc_fb_unref(ctx->fb);
+	nvnc_composite_fb_release(&ctx->composite_fb);
+	nvnc_composite_fb_unref(&ctx->composite_fb);
 	pixman_region_fini(&ctx->damage);
 	if (ctx->result)
 		encoded_frame_unref(ctx->result);
@@ -216,7 +224,8 @@ static void raw_encoder_work_destroy(void* obj)
 	free(ctx);
 }
 
-static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
+static int raw_encoder_encode(struct encoder* encoder,
+		struct nvnc_composite_fb* fb,
 		struct pixman_region16* damage)
 {
 	struct raw_encoder* self = raw_encoder(encoder);
@@ -235,11 +244,10 @@ static int raw_encoder_encode(struct encoder* encoder, struct nvnc_fb* fb,
 	encoder_ref(encoder);
 
 	ctx->parent = self;
-	ctx->fb = fb;
+	nvnc_composite_fb_copy(&ctx->composite_fb, fb);
 	memcpy(&ctx->output_format, &self->output_format,
 			sizeof(ctx->output_format));
-	nvnc_fb_ref(ctx->fb);
-	nvnc_fb_hold(ctx->fb);
+	nvnc_composite_fb_hold(&ctx->composite_fb);
 	pixman_region_copy(&ctx->damage, damage);
 
 	int rc = aml_start(aml_get_default(), self->work);

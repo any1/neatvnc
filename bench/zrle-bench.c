@@ -15,8 +15,8 @@
  */
 
 #include "enc/encoder.h"
+#include "fb.h"
 #include "rfb-proto.h"
-#include "vec.h"
 #include "neatvnc.h"
 #include "pixels.h"
 
@@ -232,8 +232,12 @@ static int run_benchmark(const char *image)
 
 	free(dummy);
 
+	struct nvnc_composite_fb cfb;
+	struct nvnc_fb *fbs[] = { fb, NULL };
+	nvnc_composite_fb_init(&cfb, fbs);
+
 	stopwatch_start(&stopwatch);
-	rc = encoder_encode(enc, fb, &region);
+	rc = encoder_encode(enc, &cfb, &region);
 
 	aml_run(aml_get_default());
 

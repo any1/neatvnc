@@ -103,7 +103,7 @@ void encoder_set_quality(struct encoder* self, int value)
 		self->impl->set_quality(self, value);
 }
 
-int encoder_encode(struct encoder* self, struct nvnc_fb* fb,
+int encoder_encode(struct encoder* self, struct nvnc_composite_fb* fb,
 		struct pixman_region16* damage)
 {
 	assert(self->impl->encode);

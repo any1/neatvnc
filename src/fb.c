@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2025 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -281,4 +281,129 @@ void nvnc_fb_unmap(struct nvnc_fb* fb)
 	fb->addr = NULL;
 	fb->stride = 0;
 #endif
+}
+
+void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
+		struct nvnc_fb* fbs[])
+{
+	int i;
+	for (i = 0; fbs[i]; ++i) {
+		self->fbs[i] = fbs[i];
+	}
+	self->n_fbs = i;
+}
+
+void nvnc_composite_fb_ref(struct nvnc_composite_fb* self)
+{
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* fb = self->fbs[i];
+		assert(fb);
+		nvnc_fb_ref(fb);
+	}
+}
+
+void nvnc_composite_fb_unref(struct nvnc_composite_fb* self)
+{
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* fb = self->fbs[i];
+		assert(fb);
+		nvnc_fb_unref(fb);
+	}
+}
+
+void nvnc_composite_fb_hold(struct nvnc_composite_fb* self)
+{
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* fb = self->fbs[i];
+		assert(fb);
+		nvnc_fb_hold(fb);
+	}
+}
+
+void nvnc_composite_fb_release(struct nvnc_composite_fb* self)
+{
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* fb = self->fbs[i];
+		assert(fb);
+		nvnc_fb_release(fb);
+	}
+}
+
+int nvnc_composite_fb_map(struct nvnc_composite_fb* self)
+{
+	int rc = 0;
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* fb = self->fbs[i];
+		assert(fb);
+		if (nvnc_fb_map(fb) < 0)
+			rc = 1;
+	}
+	return rc;
+}
+
+void nvnc_composite_fb_copy(struct nvnc_composite_fb* dst,
+		const struct nvnc_composite_fb* src)
+{
+	memcpy(dst, src, sizeof(*dst));
+	nvnc_composite_fb_ref(dst);
+}
+
+uint16_t nvnc_composite_fb_width(const struct nvnc_composite_fb* self)
+{
+	uint16_t width = 0;
+	for (int i = 0; i < self->n_fbs; ++i) {
+		const struct nvnc_fb* fb = self->fbs[i];
+		if (width < fb->x_off + fb->width)
+			width = fb->x_off + fb->width;
+	}
+	return width;
+}
+
+uint16_t nvnc_composite_fb_height(const struct nvnc_composite_fb* self)
+{
+	uint16_t height = 0;
+	for (int i = 0; i < self->n_fbs; ++i) {
+		const struct nvnc_fb* fb = self->fbs[i];
+		if (height < fb->y_off + fb->height)
+			height = fb->y_off + fb->height;
+	}
+	return height;
+}
+
+uint64_t nvnc_composite_fb_pts(const struct nvnc_composite_fb* self)
+{
+	// TODO: Rethink this
+	assert(self->n_fbs > 0);
+	return self->fbs[0]->pts;
+}
+
+
+static bool nvnc_fbs_overlap(const struct nvnc_fb* a, const struct nvnc_fb* b)
+{
+	int a_x0 = a->x_off;
+	int a_x1 = a->x_off + a->width;
+	int a_y0 = a->y_off;
+	int a_y1 = a->y_off + a->height;
+	int b_x0 = b->x_off;
+	int b_x1 = b->x_off + b->width;
+	int b_y0 = b->y_off;
+	int b_y1 = b->y_off + b->height;
+	return a_x0 < b_x1 && a_x1 > b_x0 && a_y0 > b_y1 && a_y1 < b_y0;
+}
+
+void nvnc_composite_fb_validate(const struct nvnc_composite_fb* self)
+{
+	// TODO: make sure that composite fb starts and (0, 0)
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* a = self->fbs[i];
+		assert(a);
+
+		for (int j = i + 1; j < self->n_fbs; ++j) {
+			struct nvnc_fb* b = self->fbs[j];
+			assert(b);
+
+			nvnc_assert(!nvnc_fbs_overlap(a, b),
+					"Composites must contain overlapping framebuffers");
+		}
+	}
 }

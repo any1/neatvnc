@@ -27,4 +27,18 @@ if libpng.found()
 			libpng,
 		]
 	)
+
+	executable(
+		'multi-display',
+		[
+			'multi-display.c',
+			'../src/pngfb.c',
+		],
+		dependencies: [
+			neatvnc_dep,
+			pixman,
+			aml,
+			libpng,
+		]
+	)
 endif

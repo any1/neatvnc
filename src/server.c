@@ -925,6 +925,9 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			return;
 	}
 
+	if (server->display_sync_barrier > 0)
+		return;
+
 	if (!client_has_damage(client))
 		return;
 
@@ -2713,6 +2716,9 @@ void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage
 			pixman_region_union(&client->damage, &client->damage,
 					(struct pixman_region16*)damage);
 
+	if (self->display_sync_barrier > 0)
+		--self->display_sync_barrier;
+
 	LIST_FOREACH(client, &self->clients, link)
 		process_fb_update_requests(client);
 }
@@ -3113,4 +3119,9 @@ double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 	int max_depth = find_highest_client_depth(self);
 	return rate_pixel_format(format, modifier, FORMAT_RATING_NEED_ALPHA,
 			max_depth);
+}
+
+void nvnc_set_display_sync_barrier(struct nvnc* self, int n_displays)
+{
+	self->display_sync_barrier = n_displays;
 }

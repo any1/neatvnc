@@ -46,6 +46,8 @@ static enum nvnc_log_level log_level = NVNC_LOG_DEBUG;
 static enum nvnc_log_level log_level = NVNC_LOG_WARNING;
 #endif
 
+static char log_filter[256];
+
 static bool is_initialised = false;
 
 static nvnc_log_fn get_log_fn(void)
@@ -106,7 +108,7 @@ static void nvnc__vlog(const struct nvnc_log_data* meta, const char* fmt,
 {
 	char message[1024];
 
-	if (meta->level <= log_level) {
+	if (meta->level <= log_level && strstr(meta->file, log_filter)) {
 		vsnprintf(message, sizeof(message), fmt, args);
 		get_log_fn()(meta, trim(message));
 	}
@@ -182,6 +184,12 @@ void nvnc_set_log_level(enum nvnc_log_level level)
 #ifdef HAVE_LIBAVUTIL
 	av_log_set_level(nvnc__log_level_to_av(level));
 #endif
+}
+
+EXPORT
+void nvnc_set_log_filter(const char* value)
+{
+	snprintf(log_filter, sizeof(log_filter), "%s", value);
 }
 
 EXPORT

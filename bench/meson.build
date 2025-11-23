@@ -42,6 +42,31 @@ if libpng.found()
 			libavfilter,
 		],
 	)
+
+endif
+
+if libpng.found() and libsixel.found()
+	executable(
+		'compositor-bench',
+		[
+			'compositor-bench.c',
+			'../src/compositor.c',
+			'../src/pngfb.c',
+			'../src/pixels.c',
+			'../src/fb.c',
+			'../src/transform-util.c',
+		],
+		dependencies: [
+			neatvnc_dep,
+			pixman,
+			aml,
+			libpng,
+			libm,
+			gbm,
+			libdrm,
+			libsixel,
+		],
+	)
 endif
 
 executable(

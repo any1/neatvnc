@@ -40,6 +40,8 @@ struct nvnc_fb {
 	uint16_t y_off;
 	uint16_t width;
 	uint16_t height;
+	uint16_t logical_width;
+	uint16_t logical_height;
 	uint32_t fourcc_format;
 	enum nvnc_transform transform;
 	uint64_t pts; // in micro seconds

@@ -120,6 +120,14 @@ void nvnc_display_unref(struct nvnc_display* self)
 }
 
 EXPORT
+void nvnc_display_set_logical_size(struct nvnc_display *self, uint16_t width,
+		uint16_t height)
+{
+	self->logical_width = width;
+	self->logical_height = height;
+}
+
+EXPORT
 struct nvnc* nvnc_display_get_server(const struct nvnc_display* self)
 {
 	return self->server;
@@ -152,6 +160,8 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 
 	fb->x_off = self->x_pos;
 	fb->y_off = self->y_pos;
+	fb->logical_width = self->logical_width;
+	fb->logical_height = self->logical_height;
 
 	struct pixman_region16 transformed_damage;
 	pixman_region_init(&transformed_damage);

@@ -6,7 +6,6 @@ configure_file(
 )
 
 if libpng.found()
-
 	executable(
 		'zrle-bench',
 		[
@@ -25,6 +24,7 @@ if libpng.found()
 			'../src/vec.c',
 			'../src/rcbuf.c',
 			'../src/fb.c',
+			'../src/transform-util.c',
 			'../src/parallel-deflate.c',
 		],
 		dependencies: [

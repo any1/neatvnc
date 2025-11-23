@@ -17,6 +17,7 @@
 #include "fb.h"
 #include "pixels.h"
 #include "neatvnc.h"
+#include "transform-util.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -348,25 +349,47 @@ void nvnc_composite_fb_copy(struct nvnc_composite_fb* dst,
 	nvnc_composite_fb_ref(dst);
 }
 
+static void nvnc_composite_fb_dimensions(const struct nvnc_composite_fb* self,
+		uint16_t* width_out, uint16_t* height_out)
+{
+	uint16_t width = 0;
+	uint16_t height = 0;
+	for (int i = 0; i < self->n_fbs; ++i) {
+		const struct nvnc_fb* fb = self->fbs[i];
+		uint32_t fb_width;
+		uint32_t fb_height;
+		if (fb->logical_width) {
+			assert(fb->logical_height);
+			fb_width = fb->logical_width;
+			fb_height = fb->logical_height;
+		} else {
+			fb_width = fb->width;
+			fb_height = fb->height;
+			nvnc_transform_dimensions(fb->transform, &fb_width,
+					&fb_height);
+		}
+		if (width < fb->x_off + fb_width)
+			width = fb->x_off + fb_width;
+		if (height < fb->y_off + fb_height)
+			height = fb->y_off + fb_height;
+	}
+	if (width_out)
+		*width_out = width;
+	if (height_out)
+		*height_out = height;
+}
+
 uint16_t nvnc_composite_fb_width(const struct nvnc_composite_fb* self)
 {
 	uint16_t width = 0;
-	for (int i = 0; i < self->n_fbs; ++i) {
-		const struct nvnc_fb* fb = self->fbs[i];
-		if (width < fb->x_off + fb->width)
-			width = fb->x_off + fb->width;
-	}
+	nvnc_composite_fb_dimensions(self, &width, NULL);
 	return width;
 }
 
 uint16_t nvnc_composite_fb_height(const struct nvnc_composite_fb* self)
 {
 	uint16_t height = 0;
-	for (int i = 0; i < self->n_fbs; ++i) {
-		const struct nvnc_fb* fb = self->fbs[i];
-		if (height < fb->y_off + fb->height)
-			height = fb->y_off + fb->height;
-	}
+	nvnc_composite_fb_dimensions(self, NULL, &height);
 	return height;
 }
 

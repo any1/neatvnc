@@ -75,6 +75,7 @@ struct crypto_key;
 struct crypto_rsa_pub_key;
 struct crypto_rsa_priv_key;
 struct bwe;
+struct compositor;
 
 struct nvnc_common {
 	void* userdata;
@@ -121,6 +122,7 @@ struct nvnc_client {
 	struct encoder* encoder;
 	struct encoder* zrle_encoder;
 	struct encoder* tight_encoder;
+	struct compositor* compositor;
 	uint32_t cursor_seq;
 	int quality;
 	bool formats_changed;

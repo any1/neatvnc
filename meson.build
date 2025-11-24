@@ -109,6 +109,7 @@ sources = [
 	'src/base64.c',
 	'src/bandwidth.c',
 	'src/parallel-deflate.c',
+	'src/compositor.c',
 ]
 
 dependencies = [

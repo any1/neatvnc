@@ -32,6 +32,7 @@
 #include "logging.h"
 #include "auth/auth.h"
 #include "bandwidth.h"
+#include "compositor.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -185,6 +186,7 @@ static void client_close(struct nvnc_client* client)
 	if (fn)
 		fn(client);
 
+	compositor_destroy(client->compositor);
 	bwe_destroy(client->bwe);
 
 #ifdef HAVE_CRYPTO
@@ -860,6 +862,21 @@ static int decrement_pending_requests(struct nvnc_client* client)
 	return --client->n_pending_requests;
 }
 
+static void on_compositing_done(struct nvnc_composite_fb* cfb,
+		struct pixman_region16* frame_damage, void* userdata)
+{
+	struct nvnc_client* client = userdata;
+
+	if (encoder_encode(client->encoder, cfb, frame_damage) >= 0) {
+		if (client->n_pending_requests > 0)
+			--client->n_pending_requests;
+	} else {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
+		client->is_updating = false;
+		client->formats_changed = false;
+	}
+}
+
 /* TODO: This should be const but older versions of pixman do not use const for
  * regions. This has been fixed, but Ubuntu is slow on the uptake as usual,
  * so this will remain non-const for now.
@@ -982,14 +999,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 			nvnc_composite_fb_width(&cfb),
 			nvnc_composite_fb_height(&cfb));
 
-	if (encoder_encode(client->encoder, &cfb, &damage) >= 0) {
-		if (client->n_pending_requests > 0)
-			--client->n_pending_requests;
-	} else {
-		nvnc_log(NVNC_LOG_ERROR, "Failed to encode current frame");
-		client->is_updating = false;
-		client->formats_changed = false;
-	}
+	compositor_feed(client->compositor, &cfb, &damage, on_compositing_done,
+			client);
 
 	pixman_region_fini(&damage);
 }
@@ -2074,6 +2085,7 @@ static void on_connection(struct aml_handler* poll_handle)
 	client->led_state = -1; /* trigger sending of initial state */
 	client->min_rtt = INT32_MAX;
 	client->bwe = bwe_create(INT32_MAX);
+	client->compositor = compositor_create();
 
 	/* default extended clipboard capabilities */
 	client->ext_clipboard_caps =

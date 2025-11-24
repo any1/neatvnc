@@ -18,7 +18,6 @@
 #include "neatvnc.h"
 #include "common.h"
 #include "fb.h"
-#include "resampler.h"
 #include "transform-util.h"
 #include "enc/encoder.h"
 #include "usdt.h"
@@ -29,54 +28,12 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-static void nvnc_display__on_resampler_done(struct nvnc_fb* fb,
-		struct pixman_region16* damage, void* userdata)
-{
-	struct nvnc_display* self = userdata;
-
-	DTRACE_PROBE2(neatvnc, nvnc_display__on_resampler_done, self, fb->pts);
-
-	if (self->buffer) {
-		nvnc_fb_release(self->buffer);
-		nvnc_fb_unref(self->buffer);
-	}
-
-	self->buffer = fb;
-	nvnc_fb_ref(fb);
-	nvnc_fb_hold(fb);
-
-	assert(self->server);
-
-	struct pixman_region16 shifted_damage;
-	pixman_region_init(&shifted_damage);
-
-	int n_rects = 0;
-	struct pixman_box16* box = pixman_region_rectangles(damage, &n_rects);
-	for (int i = 0; i < n_rects; ++i) {
-		int x = box[i].x1;
-		int y = box[i].y1;
-		int box_width = box[i].x2 - x;
-		int box_height = box[i].y2 - y;
-
-		pixman_region_union_rect(&shifted_damage, &shifted_damage,
-				x + fb->x_off, y + fb->y_off, box_width,
-				box_height);
-	}
-
-	nvnc__damage_region(self->server, &shifted_damage);
-	pixman_region_fini(&shifted_damage);
-}
-
 EXPORT
 struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 {
 	struct nvnc_display* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
-
-	self->resampler = resampler_create();
-	if (!self->resampler)
-		goto resampler_failure;
 
 	if (damage_refinery_init(&self->damage_refinery, 0, 0) < 0)
 		goto refinery_failure;
@@ -88,8 +45,6 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos)
 	return self;
 
 refinery_failure:
-	resampler_destroy(self->resampler);
-resampler_failure:
 	free(self);
 
 	return NULL;
@@ -102,7 +57,6 @@ static void nvnc__display_free(struct nvnc_display* self)
 		nvnc_fb_unref(self->buffer);
 	}
 	damage_refinery_destroy(&self->damage_refinery);
-	resampler_destroy(self->resampler);
 	free(self);
 }
 
@@ -168,8 +122,36 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 	nvnc_transform_region(&transformed_damage, damage, fb->transform,
 			fb->width, fb->height);
 
-	resampler_feed(self->resampler, fb, &transformed_damage,
-			nvnc_display__on_resampler_done, self);
+	if (self->buffer) {
+		nvnc_fb_release(self->buffer);
+		nvnc_fb_unref(self->buffer);
+	}
+
+	self->buffer = fb;
+	nvnc_fb_ref(fb);
+	nvnc_fb_hold(fb);
+
+	assert(self->server);
+
+	struct pixman_region16 shifted_damage;
+	pixman_region_init(&shifted_damage);
+
+	int n_rects = 0;
+	struct pixman_box16* box = pixman_region_rectangles(&transformed_damage,
+			&n_rects);
+	for (int i = 0; i < n_rects; ++i) {
+		int x = box[i].x1;
+		int y = box[i].y1;
+		int box_width = box[i].x2 - x;
+		int box_height = box[i].y2 - y;
+
+		pixman_region_union_rect(&shifted_damage, &shifted_damage,
+				x + fb->x_off, y + fb->y_off, box_width,
+				box_height);
+	}
+
+	nvnc__damage_region(self->server, &shifted_damage);
+	pixman_region_fini(&shifted_damage);
 
 	pixman_region_fini(&transformed_damage);
 	pixman_region_fini(&refined_damage);

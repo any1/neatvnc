@@ -110,6 +110,7 @@ sources = [
 	'src/bandwidth.c',
 	'src/parallel-deflate.c',
 	'src/compositor.c',
+	'src/region.c',
 ]
 
 dependencies = [

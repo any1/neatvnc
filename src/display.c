@@ -18,6 +18,7 @@
 #include "neatvnc.h"
 #include "common.h"
 #include "fb.h"
+#include "region.h"
 #include "transform-util.h"
 #include "enc/encoder.h"
 #include "usdt.h"
@@ -117,11 +118,6 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 	fb->logical_width = self->logical_width;
 	fb->logical_height = self->logical_height;
 
-	struct pixman_region16 transformed_damage;
-	pixman_region_init(&transformed_damage);
-	nvnc_transform_region(&transformed_damage, damage, fb->transform,
-			fb->width, fb->height);
-
 	if (self->buffer) {
 		nvnc_fb_release(self->buffer);
 		nvnc_fb_unref(self->buffer);
@@ -133,26 +129,35 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 
 	assert(self->server);
 
-	struct pixman_region16 shifted_damage;
-	pixman_region_init(&shifted_damage);
+	// rotate
+	struct pixman_region16 transformed_damage;
+	pixman_region_init(&transformed_damage);
+	nvnc_transform_region(&transformed_damage, damage, fb->transform,
+			fb->width, fb->height);
+	pixman_region_fini(&refined_damage);
 
-	int n_rects = 0;
-	struct pixman_box16* box = pixman_region_rectangles(&transformed_damage,
-			&n_rects);
-	for (int i = 0; i < n_rects; ++i) {
-		int x = box[i].x1;
-		int y = box[i].y1;
-		int box_width = box[i].x2 - x;
-		int box_height = box[i].y2 - y;
-
-		pixman_region_union_rect(&shifted_damage, &shifted_damage,
-				x + fb->x_off, y + fb->y_off, box_width,
-				box_height);
+	// scale
+	double h_scale = 1.0, v_scale = 1.0;
+	if (fb->logical_width && fb->logical_height) {
+		uint32_t transformed_width = fb->width;
+		uint32_t transformed_height = fb->height;
+		nvnc_transform_dimensions(fb->transform, &transformed_width,
+				&transformed_height);
+		h_scale = (double)fb->logical_width / transformed_width;
+		v_scale = (double)fb->logical_height / transformed_height;
 	}
+
+	struct pixman_region16 scaled_damage = { 0 };
+	nvnc_region_scale(&scaled_damage, &transformed_damage,
+			h_scale, v_scale);
+	pixman_region_fini(&transformed_damage);
+
+	// translate
+	struct pixman_region16 shifted_damage = { 0 };
+	nvnc_region_translate(&shifted_damage, &scaled_damage, fb->x_off,
+			fb->y_off);
+	pixman_region_fini(&scaled_damage);
 
 	nvnc__damage_region(self->server, &shifted_damage);
 	pixman_region_fini(&shifted_damage);
-
-	pixman_region_fini(&transformed_damage);
-	pixman_region_fini(&refined_damage);
 }

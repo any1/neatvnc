@@ -29,3 +29,5 @@ void nvnc_transform_dimensions(enum nvnc_transform transform, uint32_t* width,
 void nvnc_transform_region(struct pixman_region16* dst,
 		struct pixman_region16* src, enum nvnc_transform transform,
 		int width, int height);
+
+bool nvnc_is_transform_90_degrees(enum nvnc_transform transform);

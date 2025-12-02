@@ -136,7 +136,7 @@ void nvnc_transform_to_pixman_transform(pixman_transform_t* dst,
 	abort();
 }
 
-static bool is_transform_90_degrees(enum nvnc_transform transform)
+bool nvnc_is_transform_90_degrees(enum nvnc_transform transform)
 {
 	switch (transform) {
 	case NVNC_TRANSFORM_90:
@@ -154,7 +154,7 @@ static bool is_transform_90_degrees(enum nvnc_transform transform)
 void nvnc_transform_dimensions(enum nvnc_transform transform, uint32_t* width,
 		uint32_t* height)
 {
-	if (is_transform_90_degrees(transform)) {
+	if (nvnc_is_transform_90_degrees(transform)) {
 		uint32_t tmp = *width;
 		*width = *height;
 		*height = tmp;

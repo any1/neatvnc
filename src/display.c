@@ -75,6 +75,14 @@ void nvnc_display_unref(struct nvnc_display* self)
 }
 
 EXPORT
+void nvnc_display_set_position(struct nvnc_display *self, uint16_t x,
+		uint16_t y)
+{
+	self->x_pos = x;
+	self->y_pos = y;
+}
+
+EXPORT
 void nvnc_display_set_logical_size(struct nvnc_display *self, uint16_t width,
 		uint16_t height)
 {

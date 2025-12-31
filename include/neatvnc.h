@@ -254,6 +254,8 @@ struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos);
 void nvnc_display_ref(struct nvnc_display*);
 void nvnc_display_unref(struct nvnc_display*);
 
+void nvnc_display_set_position(struct nvnc_display* self, uint16_t x,
+		uint16_t y);
 void nvnc_display_set_logical_size(struct nvnc_display* self, uint16_t width,
 		uint16_t height);
 

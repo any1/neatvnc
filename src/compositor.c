@@ -250,11 +250,16 @@ static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 		if (fb->transform != NVNC_TRANSFORM_NORMAL)
 			return true;
 
-		// encoders don't know hot to scale
-		// TODO: If scaling of all fbs is equal, normalise the
-		// coordinate space and remove logical_width/height instead.
-		if (fb->logical_width || fb->logical_height)
+		// encoders don't know how to scale
+		if (fb->logical_width && fb->logical_width != fb->width)
 			return true;
+		if (fb->logical_height && fb->logical_height != fb->height)
+			return true;
+
+		/* TODO: It would be possible to skip compositing if scaling is
+		 * equal for all buffers, but this is difficult to implement
+		 * within the current architecture.
+		 */
 	}
 
 	// encoders can composite buffers without scaling and/or transform

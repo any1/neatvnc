@@ -414,9 +414,26 @@ static bool nvnc_fbs_overlap(const struct nvnc_fb* a, const struct nvnc_fb* b)
 	return a_x0 < b_x1 && a_x1 > b_x0 && a_y0 > b_y1 && a_y1 < b_y0;
 }
 
-void nvnc_composite_fb_validate(const struct nvnc_composite_fb* self)
+static bool nvnc_composite_fb_starts_at_zero(
+		const struct nvnc_composite_fb* self)
 {
-	// TODO: make sure that composite fb starts and (0, 0)
+	int x_min = INT_MAX;
+	int y_min = INT_MAX;
+
+	for (int i = 0; i < self->n_fbs; ++i) {
+		struct nvnc_fb* fb = self->fbs[i];
+		assert(fb);
+
+		x_min = MIN(x_min, (int)fb->x_off);
+		y_min = MIN(y_min, (int)fb->y_off);
+	}
+
+	return x_min == 0 && y_min == 0;
+}
+
+static bool nvnc_composite_fb_contains_overlaps(
+		const struct nvnc_composite_fb* self)
+{
 	for (int i = 0; i < self->n_fbs; ++i) {
 		struct nvnc_fb* a = self->fbs[i];
 		assert(a);
@@ -425,8 +442,17 @@ void nvnc_composite_fb_validate(const struct nvnc_composite_fb* self)
 			struct nvnc_fb* b = self->fbs[j];
 			assert(b);
 
-			nvnc_assert(!nvnc_fbs_overlap(a, b),
-					"Composites must contain overlapping framebuffers");
+			return nvnc_fbs_overlap(a, b);
 		}
 	}
+
+	return false;
+}
+
+void nvnc_composite_fb_validate(const struct nvnc_composite_fb* self)
+{
+	nvnc_assert(!nvnc_composite_fb_contains_overlaps(self),
+			"Composites may not contain overlapping framebuffers");
+	nvnc_assert(nvnc_composite_fb_starts_at_zero(self),
+			"Composites must start at (x, y) = (0, 0)");
 }

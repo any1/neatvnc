@@ -2833,6 +2833,13 @@ void nvnc_remove_display(struct nvnc* self, struct nvnc_display* display)
 	self->n_displays--;
 	self->displays[index] = self->displays[self->n_displays];
 	self->displays[self->n_displays] = NULL;
+
+	// Some encoders have a per-display context, and this signals to those
+	// to reset all context and start again.
+	struct nvnc_client* client;
+	LIST_FOREACH (client, &self->clients, link)
+		if (client->encoder)
+			encoder_reset(client->encoder);
 }
 
 EXPORT

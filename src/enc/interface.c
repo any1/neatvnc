@@ -121,3 +121,9 @@ void encoder_finish_frame(struct encoder* self, struct encoded_frame* result)
 	if (self->on_done)
 		self->on_done(self, result);
 }
+
+void encoder_reset(struct encoder* self)
+{
+	if (self->impl->reset)
+		self->impl->reset(self);
+}

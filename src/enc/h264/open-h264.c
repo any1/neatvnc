@@ -68,6 +68,8 @@ struct open_h264 {
 	uint16_t frame_height;
 
 	int quality;
+
+	bool needs_full_reset;
 };
 
 enum open_h264_flags {
@@ -84,6 +86,26 @@ struct encoder_impl encoder_impl_open_h264;
 static inline struct open_h264* open_h264(struct encoder* enc)
 {
 	return (struct open_h264*)enc;
+}
+
+static void open_h264_context_destroy(struct open_h264_context* ctx)
+{
+	if (ctx->encoder)
+		h264_encoder_destroy(ctx->encoder);
+	vec_destroy(&ctx->pending);
+	free(ctx);
+}
+
+static void open_h264_destroy_all_contexts(struct open_h264* self)
+{
+	for (int i = 0; i < self->n_contexts; ++i) {
+		struct open_h264_context* ctx = self->context[i];
+		assert(ctx);
+
+		open_h264_context_destroy(ctx);
+	}
+
+	self->n_contexts = 0;
 }
 
 static void open_h264_finish_frame(struct open_h264* self)
@@ -128,6 +150,26 @@ static void open_h264_finish_frame(struct open_h264* self)
 		vec_clear(&context->pending);
 
 		pts = context->last_pts;
+
+		n_rects++;
+	}
+
+	if (self->needs_full_reset) {
+		self->needs_full_reset = false;
+		open_h264_destroy_all_contexts(self);
+
+		struct rfb_server_fb_rect rect = {
+			.encoding = htonl(RFB_ENCODING_OPEN_H264),
+		};
+
+		uint32_t flags = OPEN_H264_FLAG_RESET_ALL_CONTEXTS;
+		struct open_h264_header header = {
+			.length = htonl(0),
+			.flags = htonl(flags),
+		};
+
+		vec_append(&buffer, &rect, sizeof(rect));
+		vec_append(&buffer, &header, sizeof(header));
 
 		n_rects++;
 	}
@@ -183,16 +225,7 @@ struct encoder* open_h264_new(void)
 static void open_h264_destroy(struct encoder* enc)
 {
 	struct open_h264* self = open_h264(enc);
-
-	for (int i = 0; i < self->n_contexts; ++i) {
-		struct open_h264_context* ctx = self->context[i];
-		assert(ctx);
-
-		if (ctx->encoder)
-			h264_encoder_destroy(ctx->encoder);
-		vec_destroy(&ctx->pending);
-	}
-
+	open_h264_destroy_all_contexts(self);
 	free(self);
 }
 
@@ -357,10 +390,17 @@ static void open_h264_set_quality(struct encoder* enc, int value)
 	self->quality = value;
 }
 
+static void open_h264_reset(struct encoder* enc)
+{
+	struct open_h264* self = open_h264(enc);
+	self->needs_full_reset = true;
+}
+
 struct encoder_impl encoder_impl_open_h264 = {
 	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = open_h264_destroy,
 	.encode = open_h264_encode,
 	.request_key_frame = open_h264_request_keyframe,
 	.set_quality = open_h264_set_quality,
+	.reset = open_h264_reset,
 };

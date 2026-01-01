@@ -153,6 +153,7 @@ static AVFrame* fb_to_avframe(struct nvnc_fb* fb)
 	frame->height = fb->height;
 	frame->format = AV_PIX_FMT_DRM_PRIME;
 	frame->sample_aspect_ratio = (AVRational){1, 1};
+	frame->pts = fb->pts;
 
 	AVBufferRef* desc_ref = av_buffer_create((void*)desc, sizeof(*desc),
 			hw_frame_desc_free, NULL, 0);

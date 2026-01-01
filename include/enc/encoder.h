@@ -43,6 +43,8 @@ struct encoder_impl {
 			struct pixman_region16* damage);
 
 	void (*request_key_frame)(struct encoder*);
+
+	void (*reset)(struct encoder*);
 };
 
 struct encoded_frame {
@@ -82,6 +84,8 @@ int encoder_encode(struct encoder* self, struct nvnc_composite_fb* fb,
 void encoder_request_key_frame(struct encoder* self);
 
 void encoder_finish_frame(struct encoder* self, struct encoded_frame* result);
+
+void encoder_reset(struct encoder* self);
 
 static inline void encoded_frame_ref(struct encoded_frame* self)
 {

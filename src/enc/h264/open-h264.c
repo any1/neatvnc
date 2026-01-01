@@ -68,6 +68,8 @@ struct open_h264 {
 	uint16_t frame_height;
 
 	int quality;
+
+	bool needs_full_reset;
 };
 
 enum open_h264_flags {
@@ -103,6 +105,10 @@ static void open_h264_finish_frame(struct open_h264* self)
 		uint32_t flags = context->needs_reset ?
 			OPEN_H264_FLAG_RESET_CONTEXT : 0;
 		context->needs_reset = false;
+
+		flags |= self->needs_full_reset ?
+			OPEN_H264_FLAG_RESET_ALL_CONTEXTS : 0;
+		self->needs_full_reset = false;
 
 		struct rfb_server_fb_rect rect = {
 			.encoding = htonl(RFB_ENCODING_OPEN_H264),
@@ -180,19 +186,30 @@ struct encoder* open_h264_new(void)
 	return (struct encoder*)self;
 }
 
-static void open_h264_destroy(struct encoder* enc)
+static void open_h264_context_destroy(struct open_h264_context* ctx)
 {
-	struct open_h264* self = open_h264(enc);
+	if (ctx->encoder)
+		h264_encoder_destroy(ctx->encoder);
+	vec_destroy(&ctx->pending);
+	free(ctx);
+}
 
+static void open_h264_destroy_all_contexts(struct open_h264* self)
+{
 	for (int i = 0; i < self->n_contexts; ++i) {
 		struct open_h264_context* ctx = self->context[i];
 		assert(ctx);
 
-		if (ctx->encoder)
-			h264_encoder_destroy(ctx->encoder);
-		vec_destroy(&ctx->pending);
+		open_h264_context_destroy(ctx);
 	}
 
+	self->n_contexts = 0;
+}
+
+static void open_h264_destroy(struct encoder* enc)
+{
+	struct open_h264* self = open_h264(enc);
+	open_h264_destroy_all_contexts(self);
 	free(self);
 }
 
@@ -357,10 +374,18 @@ static void open_h264_set_quality(struct encoder* enc, int value)
 	self->quality = value;
 }
 
+static void open_h264_reset(struct encoder* enc)
+{
+	struct open_h264* self = open_h264(enc);
+	open_h264_destroy_all_contexts(self);
+	self->needs_full_reset = true;
+}
+
 struct encoder_impl encoder_impl_open_h264 = {
 	.flags = ENCODER_IMPL_FLAG_IGNORES_DAMAGE,
 	.destroy = open_h264_destroy,
 	.encode = open_h264_encode,
 	.request_key_frame = open_h264_request_keyframe,
 	.set_quality = open_h264_set_quality,
+	.reset = open_h264_reset,
 };

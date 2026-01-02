@@ -395,11 +395,23 @@ uint16_t nvnc_composite_fb_height(const struct nvnc_composite_fb* self)
 
 uint64_t nvnc_composite_fb_pts(const struct nvnc_composite_fb* self)
 {
-	// TODO: Rethink this
 	assert(self->n_fbs > 0);
-	return self->fbs[0]->pts;
-}
+	int64_t base = self->fbs[0]->pts;
+	int64_t latest = base;
 
+	// The point of rebasing the pts is to deal with overflow, although it
+	// is astronomically unlikely to happen. :p
+	for (int i = 1; i < self->n_fbs; ++i) {
+		int64_t pts = self->fbs[i]->pts;
+		int64_t latest_diff = latest - base;
+		int64_t diff = pts - base;
+
+		if (diff > latest_diff)
+			latest = pts;
+	}
+
+	return latest;
+}
 
 static bool nvnc_fbs_overlap(const struct nvnc_fb* a, const struct nvnc_fb* b)
 {

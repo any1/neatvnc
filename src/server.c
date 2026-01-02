@@ -971,6 +971,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 		cfb.fbs[i] = fb;
 	}
 
+	nvnc_composite_fb_validate(&cfb);
+
 	if (!ensure_encoder(client, &cfb))
 		return;
 

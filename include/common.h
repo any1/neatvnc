@@ -225,3 +225,4 @@ void nvnc__damage_region(struct nvnc* self,
                          const struct pixman_region16* damage);
 void close_after_write(void* userdata, enum stream_req_status status);
 void update_min_rtt(struct nvnc_client* client);
+void nvnc__reset_encoders(struct nvnc* self);

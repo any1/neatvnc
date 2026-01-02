@@ -78,6 +78,9 @@ EXPORT
 void nvnc_display_set_position(struct nvnc_display *self, uint16_t x,
 		uint16_t y)
 {
+	if (x != self->x_pos || y != self->y_pos)
+		nvnc__reset_encoders(self->server);
+
 	self->x_pos = x;
 	self->y_pos = y;
 }

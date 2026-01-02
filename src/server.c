@@ -2821,6 +2821,14 @@ static int nvnc__find_display(const struct nvnc* self, struct nvnc_display *disp
 	return -1;
 }
 
+void nvnc__reset_encoders(struct nvnc* self)
+{
+	struct nvnc_client* client;
+	LIST_FOREACH (client, &self->clients, link)
+		if (client->encoder)
+			encoder_reset(client->encoder);
+}
+
 EXPORT
 void nvnc_remove_display(struct nvnc* self, struct nvnc_display* display)
 {
@@ -2838,10 +2846,7 @@ void nvnc_remove_display(struct nvnc* self, struct nvnc_display* display)
 
 	// Some encoders have a per-display context, and this signals to those
 	// to reset all context and start again.
-	struct nvnc_client* client;
-	LIST_FOREACH (client, &self->clients, link)
-		if (client->encoder)
-			encoder_reset(client->encoder);
+	nvnc__reset_encoders(self);
 }
 
 EXPORT

@@ -65,11 +65,8 @@ uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 		 * 3-byte cpixels. There is no wire negotiation for cpixel size,
 		 * so both sides must calculate it identically.
 		 *
-		 * This approach is safe for all clients:
-		 * - Clients wanting 4-byte pixels with alpha would set alpha
-		 *   shift to 24, and we correctly return 4 bytes.
-		 * - Clients with depth<=24 and RGB in low bytes get 3 bytes,
-		 *   which matches RFC requirements.
+		 * This is a common approach among VNC implementations. If RGB
+		 * fits in 3 bytes, we use 3 bytes regardless of depth.
 		 */
 		int max_shift = fmt->red_shift;
 		if (fmt->green_shift > max_shift)

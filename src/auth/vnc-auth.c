@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Andrian Budantsov
+ * Copyright (c) 2026 Andrian Budantsov
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above

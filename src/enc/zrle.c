@@ -135,7 +135,7 @@ static void zrle_encode_packed_tile(struct vec* dst,
 	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
 	int src_bpp = src_fmt->bits_per_pixel / 8;
 
-	uint8_t cpalette[16 * 3];
+	uint8_t cpalette[16 * 4];
 	pixel_to_cpixel(cpalette, dst_fmt, palette, src_fmt,
 			bytes_per_cpixel, palette_size);
 
@@ -229,7 +229,7 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		goto failure;
 
 	if (vec_init(&in, 1 + bytes_per_cpixel * TILE_LENGTH * TILE_LENGTH +
-				16 * 3) < 0)
+				16 * 4) < 0)
 		goto failure;
 
 	r = encode_rect_head(out, RFB_ENCODING_ZRLE, x_pos + x, y_pos + y,

@@ -22,6 +22,7 @@
 #include "usdt.h"
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <aml.h>
 #include <pixman.h>
 #include <assert.h>
@@ -64,6 +65,13 @@ static void fb_side_data_destroy(void* userdata)
 	free(fb_side_data);
 }
 
+/* Scale a pixman region from one coordinate space to another.
+ * The source region is in logical coordinates and the destination region
+ * will be in physical coordinates.
+ * Rounding strategy: truncate for min coordinates (x1, y1) to avoid including
+ * pixels outside the damage region, and round up for max coordinates (x2, y2)
+ * to ensure full coverage of partially damaged pixels.
+ */
 static void scale_region(struct pixman_region16* dst,
 		const struct pixman_region16* src,
 		double scale_x, double scale_y)
@@ -74,11 +82,21 @@ static void scale_region(struct pixman_region16* dst,
 
 	pixman_region_init(dst);
 	for (int i = 0; i < n_rects; ++i) {
+		// Truncate min coordinates (implicit floor via cast to int)
 		int x1 = (int)(rects[i].x1 * scale_x);
 		int y1 = (int)(rects[i].y1 * scale_y);
+		// Round up max coordinates (add 0.999 before truncation)
 		int x2 = (int)(rects[i].x2 * scale_x + 0.999);
 		int y2 = (int)(rects[i].y2 * scale_y + 0.999);
-		pixman_region_union_rect(dst, dst, x1, y1, x2 - x1, y2 - y1);
+
+		// Clamp to valid region16 range (pixman uses int16_t internally)
+		x1 = (x1 < INT16_MIN) ? INT16_MIN : ((x1 > INT16_MAX) ? INT16_MAX : x1);
+		y1 = (y1 < INT16_MIN) ? INT16_MIN : ((y1 > INT16_MAX) ? INT16_MAX : y1);
+		x2 = (x2 < INT16_MIN) ? INT16_MIN : ((x2 > INT16_MAX) ? INT16_MAX : x2);
+		y2 = (y2 < INT16_MIN) ? INT16_MIN : ((y2 > INT16_MAX) ? INT16_MAX : y2);
+
+		if (x2 > x1 && y2 > y1)
+			pixman_region_union_rect(dst, dst, x1, y1, x2 - x1, y2 - y1);
 	}
 }
 

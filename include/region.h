@@ -18,7 +18,20 @@
 
 struct pixman_region16;
 
+/* Maximum normalized coordinate value (representing 1.0) */
+#define NVNC_REGION_NORM_MAX 32767
+
 void nvnc_region_scale(struct pixman_region16* dst, struct pixman_region16* src,
 		double h_scale, double v_scale);
 void nvnc_region_translate(struct pixman_region16* dst,
 		struct pixman_region16* src, int x, int y);
+
+/* Normalize region from pixel coordinates to [0, NVNC_REGION_NORM_MAX] */
+void nvnc_region_normalize(struct pixman_region16* dst,
+		const struct pixman_region16* src,
+		uint32_t width, uint32_t height);
+
+/* Denormalize region from [0, NVNC_REGION_NORM_MAX] to pixel coordinates */
+void nvnc_region_denormalize(struct pixman_region16* dst,
+		const struct pixman_region16* src,
+		uint32_t width, uint32_t height);

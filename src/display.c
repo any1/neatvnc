@@ -169,6 +169,33 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 			fb->y_off);
 	pixman_region_fini(&scaled_damage);
 
-	nvnc__damage_region(self->server, &shifted_damage);
+	// Calculate composite framebuffer dimensions for normalization
+	uint32_t composite_width = 0, composite_height = 0;
+	for (int i = 0; i < server->n_displays; ++i) {
+		struct nvnc_display* display = server->displays[i];
+		if (!display->buffer)
+			continue;
+		
+		uint32_t display_width = display->logical_width ?
+			display->logical_width : display->buffer->width;
+		uint32_t display_height = display->logical_height ?
+			display->logical_height : display->buffer->height;
+		
+		uint32_t right = display->x_pos + display_width;
+		uint32_t bottom = display->y_pos + display_height;
+		
+		if (composite_width < right)
+			composite_width = right;
+		if (composite_height < bottom)
+			composite_height = bottom;
+	}
+	
+	// normalize to [0, NVNC_REGION_NORM_MAX] for resolution-independent storage
+	struct pixman_region16 normalized_damage = { 0 };
+	nvnc_region_normalize(&normalized_damage, &shifted_damage,
+			composite_width, composite_height);
 	pixman_region_fini(&shifted_damage);
+
+	nvnc__damage_region(self->server, &normalized_damage);
+	pixman_region_fini(&normalized_damage);
 }

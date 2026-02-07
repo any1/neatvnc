@@ -17,13 +17,12 @@
 #include "compositor.h"
 #include "neatvnc.h"
 #include "fb.h"
+#include "region.h"
 #include "transform-util.h"
 #include "pixels.h"
 #include "usdt.h"
 
 #include <stdlib.h>
-#include <stdint.h>
-#include <math.h>
 #include <aml.h>
 #include <pixman.h>
 #include <assert.h>
@@ -31,9 +30,7 @@
 #include <pthread.h>
 
 struct fb_side_data {
-	struct pixman_region16 buffer_damage; // Stored in logical coordinates
-	double scale_x; // Horizontal scale factor (physical/logical)
-	double scale_y; // Vertical scale factor (physical/logical)
+	struct pixman_region16 buffer_damage;
 	LIST_ENTRY(fb_side_data) link;
 };
 
@@ -64,43 +61,6 @@ static void fb_side_data_destroy(void* userdata)
 	LIST_REMOVE(fb_side_data, link);
 	pixman_region_fini(&fb_side_data->buffer_damage);
 	free(fb_side_data);
-}
-
-#define CLAMP(val, min_val, max_val) \
-	((val) < (min_val) ? (min_val) : ((val) > (max_val) ? (max_val) : (val)))
-
-/* Scale a pixman region from one coordinate space to another.
- * The source region is in logical coordinates and the destination region
- * will be in physical coordinates.
- * Rounding strategy: floor for min coordinates (x1, y1) to avoid including
- * pixels outside the damage region, and ceil for max coordinates (x2, y2)
- * to ensure full coverage of partially damaged pixels.
- */
-static void scale_region(struct pixman_region16* dst,
-		const struct pixman_region16* src,
-		double scale_x, double scale_y)
-{
-	int n_rects = 0;
-	struct pixman_box16* rects = pixman_region_rectangles(
-			(struct pixman_region16*)src, &n_rects);
-
-	pixman_region_init(dst);
-	for (int i = 0; i < n_rects; ++i) {
-		// Floor for min coordinates, ceil for max coordinates
-		int x1 = (int)floor(rects[i].x1 * scale_x);
-		int y1 = (int)floor(rects[i].y1 * scale_y);
-		int x2 = (int)ceil(rects[i].x2 * scale_x);
-		int y2 = (int)ceil(rects[i].y2 * scale_y);
-
-		// Clamp to valid region16 range (pixman uses int16_t internally)
-		x1 = CLAMP(x1, INT16_MIN, INT16_MAX);
-		y1 = CLAMP(y1, INT16_MIN, INT16_MAX);
-		x2 = CLAMP(x2, INT16_MIN, INT16_MAX);
-		y2 = CLAMP(y2, INT16_MIN, INT16_MAX);
-
-		if (x2 > x1 && y2 > y1)
-			pixman_region_union_rect(dst, dst, x1, y1, x2 - x1, y2 - y1);
-	}
 }
 
 static void compositor_damage_all_buffers(struct compositor* self,
@@ -166,6 +126,7 @@ static void do_work(struct aml_work* work)
 	struct nvnc_composite_fb* csrc = &ctx->src;
 	struct nvnc_fb* dst = ctx->dst;
 	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
+	struct pixman_region16* damage = &dst_side_data->buffer_damage;
 
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
 
@@ -179,13 +140,10 @@ static void do_work(struct aml_work* work)
 			dst_fmt, dst->width, dst->height, dst->addr,
 			nvnc_fb_get_pixel_size(dst) * dst->stride);
 
-	/* Side data contains damage in logical coordinates. Scale it to
-	 * physical coordinates for rendering.
+	/* Side data contains the union of the buffer damage and the
+	 * frame damage.
 	 */
-	struct pixman_region16 physical_damage;
-	scale_region(&physical_damage, &dst_side_data->buffer_damage,
-			dst_side_data->scale_x, dst_side_data->scale_y);
-	pixman_image_set_clip_region(dstimg, &physical_damage);
+	pixman_image_set_clip_region(dstimg, damage);
 
 	for (int i = 0; i < csrc->n_fbs; ++i) {
 		struct nvnc_fb* src = csrc->fbs[i];
@@ -247,7 +205,6 @@ static void do_work(struct aml_work* work)
 		pixman_image_unref(srcimg);
 	}
 
-	pixman_region_fini(&physical_damage);
 	pixman_image_unref(dstimg);
 
 	// Block the thread until previous jobs have completed
@@ -300,13 +257,9 @@ static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 		if (fb->logical_height && fb->logical_height != fb->height)
 			return true;
 
-		/* With damage normalization in place, it would be possible to
-		 * skip compositing if scaling is equal for all buffers.
-		 * However, encoders currently don't handle scaled composite
-		 * framebuffers correctly (they use physical dimensions for
-		 * damage intersection instead of logical dimensions).
-		 * TODO: Update encoders to use logical dimensions, then enable
-		 * bypass for equal scaling.
+		/* TODO: It would be possible to skip compositing if scaling is
+		 * equal for all buffers, but this is difficult to implement
+		 * within the current architecture.
 		 */
 	}
 
@@ -322,13 +275,19 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 
 	nvnc_assert(cfb->n_fbs != 0, "Composite fb contains no fbs");
 
-	if (self->seq_tail == self->seq_head && !is_compositing_needed(cfb)) {
-		on_done(cfb, damage, userdata);
-		return 0;
-	}
-
 	uint32_t width = nvnc_composite_fb_width(cfb);
 	uint32_t height = nvnc_composite_fb_height(cfb);
+
+	/* Denormalize damage from [0, NVNC_REGION_NORM_MAX] to buffer dimensions */
+	struct pixman_region16 denormalized_damage;
+	pixman_region_init(&denormalized_damage);
+	nvnc_region_denormalize(&denormalized_damage, damage, width, height);
+
+	if (self->seq_tail == self->seq_head && !is_compositing_needed(cfb)) {
+		on_done(cfb, &denormalized_damage, userdata);
+		pixman_region_fini(&denormalized_damage);
+		return 0;
+	}
 
 	struct nvnc_fb* first_fb = cfb->fbs[0];
 	assert(first_fb);
@@ -340,11 +299,14 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	assert(aml);
 
 	struct compositor_work* ctx = calloc(1, sizeof(*ctx));
-	if (!ctx)
+	if (!ctx) {
+		pixman_region_fini(&denormalized_damage);
 		return -1;
+	}
 
 	pixman_region_init(&ctx->frame_damage);
-	pixman_region_copy(&ctx->frame_damage, damage);
+	pixman_region_copy(&ctx->frame_damage, &denormalized_damage);
+	pixman_region_fini(&denormalized_damage);
 
 	ctx->dst = nvnc_fb_pool_acquire(self->pool);
 	if (!ctx->dst)
@@ -356,24 +318,15 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 		if (!fb_side_data)
 			goto side_data_failure;
 
-		/* This is a new buffer, so the whole surface is damaged.
-		 * Damage is stored in logical coordinates (= physical coords
-		 * of destination buffer).
-		 */
+		/* This is a new buffer, so the whole surface is damaged. */
 		pixman_region_init_rect(&fb_side_data->buffer_damage, 0, 0,
 				width, height);
-
-		/* Destination buffer is in logical coordinate space, so scale
-		 * factor is 1.0 (no scaling needed when rendering).
-		 */
-		fb_side_data->scale_x = 1.0;
-		fb_side_data->scale_y = 1.0;
 
 		nvnc_set_userdata(ctx->dst, fb_side_data, fb_side_data_destroy);
 		LIST_INSERT_HEAD(&self->fb_side_data_list, fb_side_data, link);
 	}
 
-	compositor_damage_all_buffers(self, damage);
+	compositor_damage_all_buffers(self, &ctx->frame_damage);
 
 	nvnc_fb_hold(ctx->dst);
 

@@ -265,9 +265,6 @@ static void on_work_done(struct aml_work* work)
 
 static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 {
-	double first_scale_x = 0.0, first_scale_y = 0.0;
-	bool has_scaling = false;
-
 	for (int i = 0; i < cfb->n_fbs; ++i) {
 		struct nvnc_fb* fb = cfb->fbs[i];
 		assert(fb);
@@ -276,30 +273,23 @@ static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 		if (fb->transform != NVNC_TRANSFORM_NORMAL)
 			return true;
 
-		// Calculate the scaling factor for this buffer
-		double scale_x = 1.0, scale_y = 1.0;
-		if (fb->logical_width && fb->logical_width != fb->width) {
-			scale_x = (double)fb->width / fb->logical_width;
-			has_scaling = true;
-		}
-		if (fb->logical_height && fb->logical_height != fb->height) {
-			scale_y = (double)fb->height / fb->logical_height;
-			has_scaling = true;
-		}
+		// encoders don't know how to scale
+		if (fb->logical_width && fb->logical_width != fb->width)
+			return true;
+		if (fb->logical_height && fb->logical_height != fb->height)
+			return true;
 
-		// Check if all buffers have the same scaling factor
-		if (i == 0) {
-			first_scale_x = scale_x;
-			first_scale_y = scale_y;
-		} else if (has_scaling) {
-			// If scaling factors differ, compositing is needed
-			if (scale_x != first_scale_x || scale_y != first_scale_y)
-				return true;
-		}
+		/* With damage normalization in place, it would be possible to
+		 * skip compositing if scaling is equal for all buffers.
+		 * However, encoders currently don't handle scaled composite
+		 * framebuffers correctly (they use physical dimensions for
+		 * damage intersection instead of logical dimensions).
+		 * TODO: Update encoders to use logical dimensions, then enable
+		 * bypass for equal scaling.
+		 */
 	}
 
-	// encoders can composite buffers without scaling/transform, or with
-	// equal scaling across all buffers
+	// encoders can composite buffers without scaling and/or transform
 	return false;
 }
 

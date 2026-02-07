@@ -29,7 +29,9 @@
 #include <pthread.h>
 
 struct fb_side_data {
-	struct pixman_region16 buffer_damage;
+	struct pixman_region16 buffer_damage; // Stored in logical coordinates
+	double scale_x; // Horizontal scale factor (physical/logical)
+	double scale_y; // Vertical scale factor (physical/logical)
 	LIST_ENTRY(fb_side_data) link;
 };
 
@@ -60,6 +62,24 @@ static void fb_side_data_destroy(void* userdata)
 	LIST_REMOVE(fb_side_data, link);
 	pixman_region_fini(&fb_side_data->buffer_damage);
 	free(fb_side_data);
+}
+
+static void scale_region(struct pixman_region16* dst,
+		const struct pixman_region16* src,
+		double scale_x, double scale_y)
+{
+	int n_rects = 0;
+	struct pixman_box16* rects = pixman_region_rectangles(
+			(struct pixman_region16*)src, &n_rects);
+
+	pixman_region_init(dst);
+	for (int i = 0; i < n_rects; ++i) {
+		int x1 = (int)(rects[i].x1 * scale_x);
+		int y1 = (int)(rects[i].y1 * scale_y);
+		int x2 = (int)(rects[i].x2 * scale_x + 0.5);
+		int y2 = (int)(rects[i].y2 * scale_y + 0.5);
+		pixman_region_union_rect(dst, dst, x1, y1, x2 - x1, y2 - y1);
+	}
 }
 
 static void compositor_damage_all_buffers(struct compositor* self,
@@ -125,7 +145,6 @@ static void do_work(struct aml_work* work)
 	struct nvnc_composite_fb* csrc = &ctx->src;
 	struct nvnc_fb* dst = ctx->dst;
 	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
-	struct pixman_region16* damage = &dst_side_data->buffer_damage;
 
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
 
@@ -139,10 +158,13 @@ static void do_work(struct aml_work* work)
 			dst_fmt, dst->width, dst->height, dst->addr,
 			nvnc_fb_get_pixel_size(dst) * dst->stride);
 
-	/* Side data contains the union of the buffer damage and the
-	 * frame damage.
+	/* Side data contains damage in logical coordinates. Scale it to
+	 * physical coordinates for rendering.
 	 */
-	pixman_image_set_clip_region(dstimg, damage);
+	struct pixman_region16 physical_damage;
+	scale_region(&physical_damage, &dst_side_data->buffer_damage,
+			dst_side_data->scale_x, dst_side_data->scale_y);
+	pixman_image_set_clip_region(dstimg, &physical_damage);
 
 	for (int i = 0; i < csrc->n_fbs; ++i) {
 		struct nvnc_fb* src = csrc->fbs[i];
@@ -204,6 +226,7 @@ static void do_work(struct aml_work* work)
 		pixman_image_unref(srcimg);
 	}
 
+	pixman_region_fini(&physical_damage);
 	pixman_image_unref(dstimg);
 
 	// Block the thread until previous jobs have completed
@@ -242,6 +265,9 @@ static void on_work_done(struct aml_work* work)
 
 static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 {
+	double first_scale_x = 0.0, first_scale_y = 0.0;
+	bool has_scaling = false;
+
 	for (int i = 0; i < cfb->n_fbs; ++i) {
 		struct nvnc_fb* fb = cfb->fbs[i];
 		assert(fb);
@@ -250,19 +276,30 @@ static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 		if (fb->transform != NVNC_TRANSFORM_NORMAL)
 			return true;
 
-		// encoders don't know how to scale
-		if (fb->logical_width && fb->logical_width != fb->width)
-			return true;
-		if (fb->logical_height && fb->logical_height != fb->height)
-			return true;
+		// Calculate the scaling factor for this buffer
+		double scale_x = 1.0, scale_y = 1.0;
+		if (fb->logical_width && fb->logical_width != fb->width) {
+			scale_x = (double)fb->width / fb->logical_width;
+			has_scaling = true;
+		}
+		if (fb->logical_height && fb->logical_height != fb->height) {
+			scale_y = (double)fb->height / fb->logical_height;
+			has_scaling = true;
+		}
 
-		/* TODO: It would be possible to skip compositing if scaling is
-		 * equal for all buffers, but this is difficult to implement
-		 * within the current architecture.
-		 */
+		// Check if all buffers have the same scaling factor
+		if (i == 0) {
+			first_scale_x = scale_x;
+			first_scale_y = scale_y;
+		} else if (has_scaling) {
+			// If scaling factors differ, compositing is needed
+			if (scale_x != first_scale_x || scale_y != first_scale_y)
+				return true;
+		}
 	}
 
-	// encoders can composite buffers without scaling and/or transform
+	// encoders can composite buffers without scaling/transform, or with
+	// equal scaling across all buffers
 	return false;
 }
 
@@ -308,9 +345,18 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 		if (!fb_side_data)
 			goto side_data_failure;
 
-		/* This is a new buffer, so the whole surface is damaged. */
+		/* This is a new buffer, so the whole surface is damaged.
+		 * Damage is stored in logical coordinates (= physical coords
+		 * of destination buffer).
+		 */
 		pixman_region_init_rect(&fb_side_data->buffer_damage, 0, 0,
 				width, height);
+		
+		/* Destination buffer is in logical coordinate space, so scale
+		 * factor is 1.0 (no scaling needed when rendering).
+		 */
+		fb_side_data->scale_x = 1.0;
+		fb_side_data->scale_y = 1.0;
 
 		nvnc_set_userdata(ctx->dst, fb_side_data, fb_side_data_destroy);
 		LIST_INSERT_HEAD(&self->fb_side_data_list, fb_side_data, link);

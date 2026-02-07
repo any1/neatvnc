@@ -76,8 +76,8 @@ static void scale_region(struct pixman_region16* dst,
 	for (int i = 0; i < n_rects; ++i) {
 		int x1 = (int)(rects[i].x1 * scale_x);
 		int y1 = (int)(rects[i].y1 * scale_y);
-		int x2 = (int)(rects[i].x2 * scale_x + 0.5);
-		int y2 = (int)(rects[i].y2 * scale_y + 0.5);
+		int x2 = (int)(rects[i].x2 * scale_x + 0.999);
+		int y2 = (int)(rects[i].y2 * scale_y + 0.999);
 		pixman_region_union_rect(dst, dst, x1, y1, x2 - x1, y2 - y1);
 	}
 }
@@ -341,7 +341,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 		 */
 		pixman_region_init_rect(&fb_side_data->buffer_damage, 0, 0,
 				width, height);
-		
+
 		/* Destination buffer is in logical coordinate space, so scale
 		 * factor is 1.0 (no scaling needed when rendering).
 		 */

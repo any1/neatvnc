@@ -670,6 +670,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_OPEN_H264:
 		case RFB_ENCODING_CURSOR:
 		case RFB_ENCODING_DESKTOPSIZE:
+		case RFB_ENCODING_DESKTOPNAME:
 		case RFB_ENCODING_EXTENDEDDESKTOPSIZE:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
 		case RFB_ENCODING_QEMU_LED_STATE:
@@ -749,6 +750,30 @@ static void send_cursor_update(struct nvnc_client* client)
 			NULL, NULL);
 }
 
+static void send_desktop_name_update(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+
+	struct rfb_server_fb_rect rect = {
+		.encoding = htonl(RFB_ENCODING_DESKTOPNAME),
+	};
+
+	uint32_t name_len = strlen(server->name);
+	uint32_t name_nlen = htonl(name_len);
+
+	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
+	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	stream_write(client->net_stream, &name_nlen, sizeof(name_nlen), NULL, NULL);
+	stream_write(client->net_stream, server->name, name_len, NULL, NULL);
+
+	client->needs_desktop_name_update = false;
+}
+
 static bool will_send_pts(const struct nvnc_client* client, uint64_t pts)
 {
 	return pts != NVNC_NO_PTS && client_has_encoding(client, RFB_ENCODING_PTS);
@@ -781,6 +806,7 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_OPEN_H264: return "open-h264";
 	case RFB_ENCODING_CURSOR: return "cursor";
 	case RFB_ENCODING_DESKTOPSIZE: return "desktop-size";
+	case RFB_ENCODING_DESKTOPNAME: return "desktop-name";
 	case RFB_ENCODING_EXTENDEDDESKTOPSIZE: return "extended-desktop-size";
 	case RFB_ENCODING_QEMU_EXT_KEY_EVENT: return "qemu-extended-key-event";
 	case RFB_ENCODING_QEMU_LED_STATE: return "qemu-led-state";
@@ -932,6 +958,13 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (server->cursor_seq != client->cursor_seq
 			&& client_has_encoding(client, RFB_ENCODING_CURSOR)) {
 		send_cursor_update(client);
+
+		if (decrement_pending_requests(client) <= 0)
+			return;
+	}
+
+	if (client->needs_desktop_name_update) {
+		send_desktop_name_update(client);
 
 		if (decrement_pending_requests(client) <= 0)
 			return;
@@ -2957,6 +2990,14 @@ void nvnc_set_name(struct nvnc* self, const char* name)
 {
 	strncpy(self->name, name, sizeof(self->name));
 	self->name[sizeof(self->name) - 1] = '\0';
+
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link) {
+		if (client_has_encoding(client, RFB_ENCODING_DESKTOPNAME)) {
+			client->needs_desktop_name_update = true;
+			process_fb_update_requests(client);
+		}
+	}
 }
 
 EXPORT

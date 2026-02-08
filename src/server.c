@@ -2659,6 +2659,7 @@ static int send_desktop_resize_rect(struct nvnc_client* client, uint16_t width,
 	client->known_width = width;
 	client->known_height = height;
 
+	pixman_region_clear(&client->damage);
 	pixman_region_union_rect(&client->damage, &client->damage, 0, 0,
 			width, height);
 

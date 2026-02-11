@@ -55,6 +55,9 @@ enum nvnc_client_state {
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_SUBTYPE,
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_PLAIN_AUTH,
 #endif
+#ifdef HAVE_VNC_AUTH
+	VNC_CLIENT_STATE_WAITING_FOR_VNC_AUTH_RESPONSE,
+#endif
 #ifdef HAVE_CRYPTO
 	VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE,
 	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY,
@@ -65,6 +68,10 @@ enum nvnc_client_state {
 	VNC_CLIENT_STATE_WAITING_FOR_INIT,
 	VNC_CLIENT_STATE_READY,
 };
+
+#define VNC_AUTH_CHALLENGE_LEN 16
+#define VNC_AUTH_PASSWORD_LEN 8
+#define VNC_AUTH_RESPONSE_LEN VNC_AUTH_CHALLENGE_LEN
 
 struct nvnc;
 struct stream;
@@ -103,6 +110,7 @@ struct nvnc_client {
 	struct pixman_region16 damage;
 	int n_pending_requests;
 	bool is_updating;
+	bool rfb_less_38;
 	nvnc_client_fn cleanup_fn;
 	size_t buffer_index;
 	size_t buffer_len;
@@ -143,6 +151,9 @@ struct nvnc_client {
 	bool has_ext_mouse_buttons;
 	struct aml_idle* close_task;
 
+#ifdef HAVE_VNC_AUTH
+	uint8_t vnc_auth_challenge[VNC_AUTH_CHALLENGE_LEN];
+#endif
 #ifdef HAVE_CRYPTO
 	struct crypto_key* apple_dh_secret;
 
@@ -208,6 +219,9 @@ struct nvnc {
 	gnutls_certificate_credentials_t tls_creds;
 #endif
 
+#ifdef HAVE_VNC_AUTH
+#endif
+	uint8_t vnc_auth_password[VNC_AUTH_PASSWORD_LEN];
 #ifdef HAVE_CRYPTO
 	struct crypto_rsa_pub_key* rsa_pub;
 	struct crypto_rsa_priv_key* rsa_priv;

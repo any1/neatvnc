@@ -60,6 +60,10 @@
 #include "auth/vencrypt.h"
 #endif
 
+#ifdef HAVE_VNC_AUTH
+#include "auth/vnc_auth.h"
+#endif
+
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
 #include "auth/apple-dh.h"
@@ -269,6 +273,12 @@ static void init_security_types(struct nvnc* server)
 		return;
 
 	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+#ifdef HAVE_VNC_AUTH
+		if (*server->vnc_auth_password) {
+			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_VNC_AUTH);
+			return;
+		}
+#endif
 		assert(server->auth_fn);
 
 #ifdef ENABLE_TLS
@@ -373,6 +383,12 @@ static int on_security_message(struct nvnc_client* client)
 		security_handshake_ok(client, NULL);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
+#ifdef HAVE_VNC_AUTH
+	case RFB_SECURITY_TYPE_VNC_AUTH:
+		vnc_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_VNC_AUTH_RESPONSE;
+		break;
+#endif
 #ifdef ENABLE_TLS
 	case RFB_SECURITY_TYPE_VENCRYPT:
 		vencrypt_send_version(client);
@@ -1994,6 +2010,10 @@ static int try_read_client_message(struct nvnc_client* client)
 	case VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_PLAIN_AUTH:
 		return vencrypt_handle_message(client);
 #endif
+#ifdef HAVE_VNC_AUTH
+	case VNC_CLIENT_STATE_WAITING_FOR_VNC_AUTH_RESPONSE:
+		return vnc_auth_handle_response(client);
+#endif
 #ifdef HAVE_CRYPTO
 	case VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE:
 		return apple_dh_handle_response(client);
@@ -3056,6 +3076,19 @@ static bool buffers_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
 		result &= data_a[i] == data_b[i];
 
 	return result;
+}
+
+EXPORT
+int nvnc_set_vnc_auth_passwd(struct nvnc* self, const char *password)
+{
+#ifdef HAVE_VNC_AUTH
+	char pass[VNC_AUTH_PASSWORD_LEN] = {0};
+	strncpy(pass, password, VNC_AUTH_PASSWORD_LEN);
+	vnc_auth_reverse_bits(self->vnc_auth_password, (uint8_t*)pass);
+	self->auth_flags = NVNC_AUTH_REQUIRE_AUTH;
+	return 0;
+#endif
+	return -1;
 }
 
 EXPORT

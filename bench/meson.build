@@ -55,6 +55,7 @@ if libpng.found() and libsixel.found()
 			'../src/pixels.c',
 			'../src/fb.c',
 			'../src/transform-util.c',
+			'../src/region.c',
 		],
 		dependencies: [
 			neatvnc_dep,

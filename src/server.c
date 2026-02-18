@@ -120,6 +120,7 @@ static uint64_t gettime_us(clockid_t clock)
 	return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL;
 }
 
+#ifdef ENABLE_OPEN_H264
 static bool have_working_h264_encoder(void)
 {
 	static int cached_result;
@@ -138,6 +139,7 @@ static bool have_working_h264_encoder(void)
 
 	return cached_result == 1;
 }
+#endif // ENABLE_OPEN_H264
 
 static void client_drain_encoder(struct nvnc_client* client)
 {

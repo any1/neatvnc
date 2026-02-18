@@ -42,7 +42,7 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 	if (!fb)
 		return NULL;
 
-	uint32_t bpp = pixel_size_from_fourcc(fourcc_format);
+	uint32_t bpp = nvnc__pixel_size_from_fourcc(fourcc_format);
 
 	fb->type = NVNC_FB_SIMPLE;
 	fb->ref = 1;
@@ -143,7 +143,7 @@ int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb)
 EXPORT
 int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb)
 {
-	return pixel_size_from_fourcc(fb->fourcc_format);
+	return nvnc__pixel_size_from_fourcc(fb->fourcc_format);
 }
 
 EXPORT

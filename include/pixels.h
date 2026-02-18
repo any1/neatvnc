@@ -39,7 +39,7 @@ int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src);
 uint32_t rfb_pixfmt_to_fourcc(const struct rfb_pixel_format* fmt);
 int rfb_pixfmt_depth(const struct rfb_pixel_format *fmt);
 
-int pixel_size_from_fourcc(uint32_t fourcc);
+int nvnc__pixel_size_from_fourcc(uint32_t fourcc);
 
 bool fourcc_to_pixman_fmt(pixman_format_code_t* dst, uint32_t src);
 

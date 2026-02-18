@@ -424,7 +424,7 @@ bpp_16:
 	return 0;
 }
 
-int pixel_size_from_fourcc(uint32_t fourcc)
+int nvnc__pixel_size_from_fourcc(uint32_t fourcc)
 {
 	switch (fourcc & ~DRM_FORMAT_BIG_ENDIAN) {
 	case DRM_FORMAT_RGBA1010102:

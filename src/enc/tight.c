@@ -326,7 +326,7 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	z_stream* zs = &self->zs[zs_index];
 	tile->type = TIGHT_BASIC | TIGHT_STREAM(zs_index);
 
-	int bytes_per_cpixel = calc_bytes_per_cpixel(&self->dfmt);
+	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(&self->dfmt);
 	assert(bytes_per_cpixel <= 4);
 	uint8_t row[TSL * 4];
 
@@ -525,7 +525,7 @@ static void tight_finish_tile(struct tight_encoder* self,
 	uint32_t width = tight_tile_width(self, fb_index, x);
 	uint32_t height = tight_tile_height(self, fb_index, y);
 
-	encode_rect_head(&self->dst, RFB_ENCODING_TIGHT, x_pos + x, y_pos + y,
+	nvnc__encode_rect_head(&self->dst, RFB_ENCODING_TIGHT, x_pos + x, y_pos + y,
 			width, height);
 
 	vec_append(&self->dst, &tile->type, sizeof(tile->type));
@@ -560,7 +560,7 @@ static void on_tight_finished(struct aml_work* work)
 	memset(&self->composite_fb, 0, sizeof(self->composite_fb));
 
 	struct encoded_frame* result;
-	result = encoded_frame_new(self->dst.data, self->dst.len, self->n_rects,
+	result = nvnc__encoded_frame_new(self->dst.data, self->dst.len, self->n_rects,
 			self->width, self->height, self->pts);
 	assert(result);
 

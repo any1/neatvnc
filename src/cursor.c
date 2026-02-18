@@ -61,7 +61,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	// Empty cursor
 	if (!image)
-		return encode_rect_head(dst, RFB_ENCODING_CURSOR, 0, 0, 0, 0);
+		return nvnc__encode_rect_head(dst, RFB_ENCODING_CURSOR, 0, 0, 0, 0);
 
 	nvnc_transform_dimensions(image->transform, &width, &height);
 
@@ -79,7 +79,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	if (rc < 0)
 		goto failure;
 
-	rc = encode_rect_head(dst, RFB_ENCODING_CURSOR, hotspot_x, hotspot_y,
+	rc = nvnc__encode_rect_head(dst, RFB_ENCODING_CURSOR, hotspot_x, hotspot_y,
 			width, height);
 	if (rc < 0)
 		goto failure;

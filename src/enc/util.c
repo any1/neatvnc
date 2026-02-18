@@ -26,7 +26,7 @@
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
-int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
+int nvnc__encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 		uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
 	struct rfb_server_fb_rect head = {
@@ -40,13 +40,13 @@ int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 	return vec_append(dst, &head, sizeof(head));
 }
 
-uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
+uint32_t nvnc__calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 {
 	return fmt->bits_per_pixel == 32 ? UDIV_UP(fmt->depth, 8)
 	                                 : UDIV_UP(fmt->bits_per_pixel, 8);
 }
 
-uint32_t calculate_region_area(struct pixman_region16* region)
+uint32_t nvnc__calculate_region_area(struct pixman_region16* region)
 {
 	uint32_t area = 0;
 
@@ -63,7 +63,7 @@ uint32_t calculate_region_area(struct pixman_region16* region)
 	return area;
 }
 
-struct encoded_frame* encoded_frame_new(void* payload, size_t size, int n_rects,
+struct encoded_frame* nvnc__encoded_frame_new(void* payload, size_t size, int n_rects,
 		uint16_t width, uint16_t height, uint64_t pts)
 {
 	struct encoded_frame* self = calloc(1, sizeof(*self));

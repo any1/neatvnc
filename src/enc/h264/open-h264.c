@@ -175,7 +175,7 @@ static void open_h264_finish_frame(struct open_h264* self)
 	}
 
 	struct encoded_frame* result;
-	result = encoded_frame_new(buffer.data, buffer.len,
+	result = nvnc__encoded_frame_new(buffer.data, buffer.len,
 			n_rects, self->frame_width, self->frame_height, pts);
 
 	DTRACE_PROBE1(neatvnc, open_h264_finish_frame, pts);

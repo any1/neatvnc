@@ -98,7 +98,7 @@ static void zrle_encode_unichrome_tile(struct vec* dst,
 		uint8_t* colour,
 		const struct rfb_pixel_format* src_fmt)
 {
-	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
 
 	vec_fast_append_8(dst, 1);
 
@@ -132,7 +132,7 @@ static void zrle_encode_packed_tile(struct vec* dst,
 		size_t length, uint8_t* palette,
 		int palette_size)
 {
-	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
 	int src_bpp = src_fmt->bits_per_pixel / 8;
 
 	uint8_t cpalette[16 * 3];
@@ -178,7 +178,7 @@ static void zrle_encode_tile(struct vec* dst,
 		const struct rfb_pixel_format* src_fmt,
 		size_t length)
 {
-	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
 	int src_bpp = src_fmt->bits_per_pixel / 8;
 	vec_clear(dst);
 
@@ -217,7 +217,7 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		int stride, int width, int height)
 {
 	int r = -1;
-	int bytes_per_cpixel = calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
 	int src_bpp = src_fmt->bits_per_pixel / 8;
 	struct vec in;
 
@@ -232,7 +232,7 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 				16 * 3) < 0)
 		goto failure;
 
-	r = encode_rect_head(out, RFB_ENCODING_ZRLE, x_pos + x, y_pos + y,
+	r = nvnc__encode_rect_head(out, RFB_ENCODING_ZRLE, x_pos + x, y_pos + y,
 			width, height);
 	if (r < 0)
 		goto failure;
@@ -344,7 +344,7 @@ static int zrle_encoder_alloc_output_buffer(struct zrle_encoder* self,
 {
 	int n_rects = pixman_region_n_rects(&self->current_damage);
 	size_t bpp = self->output_format.bits_per_pixel / 8;
-	size_t buffer_size = calculate_region_area(&self->current_damage) * bpp
+	size_t buffer_size = nvnc__calculate_region_area(&self->current_damage) * bpp
 		+ n_rects * sizeof(struct rfb_server_fb_rect);
 
 	return vec_init(dst, buffer_size);
@@ -383,7 +383,7 @@ static void zrle_encoder_do_work(struct aml_work* work)
 	uint16_t height = nvnc_composite_fb_height(cfb);
 	uint64_t pts = nvnc_composite_fb_pts(cfb);
 
-	self->current_result = encoded_frame_new(dst.data, dst.len,
+	self->current_result = nvnc__encoded_frame_new(dst.data, dst.len,
 			self->n_rects, width, height, pts);
 	assert(self->current_result);
 

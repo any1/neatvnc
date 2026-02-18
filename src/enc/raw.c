@@ -62,7 +62,7 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 
 	int rc = -1;
 
-	rc = encode_rect_head(dst, RFB_ENCODING_RAW, x_pos + x_start,
+	rc = nvnc__encode_rect_head(dst, RFB_ENCODING_RAW, x_pos + x_start,
 			y_pos + y_start, width, height);
 	if (rc < 0)
 		return -1;
@@ -122,7 +122,7 @@ static void raw_encoder_do_work(struct aml_work* work)
 	}
 
 	size_t bpp = ctx->output_format.bits_per_pixel / 8;
-	size_t buffer_size = calculate_region_area(&ctx->damage) * bpp
+	size_t buffer_size = nvnc__calculate_region_area(&ctx->damage) * bpp
 		+ n_rects * sizeof(struct rfb_server_fb_rect);
 
 	struct vec dst;
@@ -163,7 +163,7 @@ static void raw_encoder_do_work(struct aml_work* work)
 	uint16_t height = nvnc_composite_fb_height(&ctx->composite_fb);
 	uint64_t pts = nvnc_composite_fb_pts(&ctx->composite_fb);
 
-	ctx->result = encoded_frame_new(dst.data, dst.len, n_rects, width,
+	ctx->result = nvnc__encoded_frame_new(dst.data, dst.len, n_rects, width,
 			height, pts);
 	assert(ctx->result);
 

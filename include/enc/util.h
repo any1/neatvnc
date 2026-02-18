@@ -23,10 +23,10 @@
 struct vec;
 struct pixman_region16;
 
-int encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
+int nvnc__encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 		uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-uint32_t calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt);
-uint32_t calculate_region_area(struct pixman_region16* region);
+uint32_t nvnc__calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt);
+uint32_t nvnc__calculate_region_area(struct pixman_region16* region);
 
-struct encoded_frame* encoded_frame_new(void* payload, size_t size, int n_rects,
-		uint16_t width, uint16_t height, uint64_t pts);
+struct encoded_frame* nvnc__encoded_frame_new(void* payload, size_t size,
+		int n_rects, uint16_t width, uint16_t height, uint64_t pts);

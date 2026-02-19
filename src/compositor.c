@@ -119,15 +119,9 @@ void compositor_destroy(struct compositor* self)
 	free(self);
 }
 
-static void do_work(struct aml_work* work)
+void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* csrc,
+		struct pixman_region16* damage)
 {
-	struct compositor_work* ctx = aml_get_userdata(work);
-
-	struct nvnc_composite_fb* csrc = &ctx->src;
-	struct nvnc_fb* dst = ctx->dst;
-	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
-	struct pixman_region16* damage = &dst_side_data->buffer_damage;
-
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
 
 	bool ok __attribute__((unused));
@@ -140,10 +134,8 @@ static void do_work(struct aml_work* work)
 			dst_fmt, dst->width, dst->height, dst->addr,
 			nvnc_fb_get_pixel_size(dst) * dst->stride);
 
-	/* Side data contains the union of the buffer damage and the
-	 * frame damage.
-	 */
-	pixman_image_set_clip_region(dstimg, damage);
+	if (damage)
+		pixman_image_set_clip_region(dstimg, damage);
 
 	for (int i = 0; i < csrc->n_fbs; ++i) {
 		struct nvnc_fb* src = csrc->fbs[i];
@@ -206,6 +198,22 @@ static void do_work(struct aml_work* work)
 	}
 
 	pixman_image_unref(dstimg);
+}
+
+static void do_work(struct aml_work* work)
+{
+	struct compositor_work* ctx = aml_get_userdata(work);
+
+	struct nvnc_composite_fb* csrc = &ctx->src;
+	struct nvnc_fb* dst = ctx->dst;
+	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
+
+	/* Side data contains the union of the buffer damage and the
+	 * frame damage.
+	 */
+	struct pixman_region16* damage = &dst_side_data->buffer_damage;
+
+	composite_buffer_now(dst, csrc, damage);
 
 	// Block the thread until previous jobs have completed
 	struct compositor* compositor = ctx->compositor;

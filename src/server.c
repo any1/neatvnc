@@ -569,6 +569,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 		fmt->green_max = ntohs(fmt->green_max);
 		fmt->blue_max = ntohs(fmt->blue_max);
 		memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
+		client->pixfmt.depth = rfb_pixfmt_depth(&client->pixfmt);
 	} else {
 		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
 				client);

@@ -192,6 +192,7 @@ static void client_close(struct nvnc_client* client)
 	bwe_destroy(client->bwe);
 
 #ifdef HAVE_CRYPTO
+	crypto_cipher_del(client->apple_dh_cipher);
 	crypto_key_del(client->apple_dh_secret);
 	crypto_rsa_pub_key_del(client->rsa.pub);
 #endif
@@ -1939,6 +1940,91 @@ static int on_client_fence(struct nvnc_client* client)
 	return sizeof(*msg) + length;
 }
 
+static int on_apple_client_continuous_updates(struct nvnc_client* client)
+{
+	struct rfb_apple_continuous_update_msg *msg =
+		(struct rfb_apple_continuous_update_msg*)(
+			client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	if(msg->type != RFB_CLIENT_TO_SERVER_APPLE_CONTINUOUS_UPDATES)
+		return 0;
+
+	if (msg->flag) {
+		client->continuous_updates_enabled = true;
+		client->continuous_updates.x = ntohs(msg->x);
+		client->continuous_updates.y = ntohs(msg->y);
+		client->continuous_updates.width = ntohs(msg->width);
+		client->continuous_updates.height = ntohs(msg->height);
+
+		/* If there are any pending messages left, make sure they are processed */
+		process_fb_update_requests(client);
+	} else {
+		client->continuous_updates_enabled = false;
+		client->continuous_updates.x = 0;
+		client->continuous_updates.y = 0;
+		client->continuous_updates.width = 0;
+		client->continuous_updates.height = 0;
+
+		nvnc_send_end_of_continuous_updates(client);
+	}
+
+	return sizeof(*msg);
+}
+
+static int on_apple_client_set_mode(struct nvnc_client* client)
+{
+	if (client->buffer_len - client->buffer_index < 4)
+		return 0;
+
+	uint16_t type = ntohs(*(client->msg_buffer + client->buffer_index + 2));
+
+	return 4;
+}
+
+static int on_apple_client_encrypted_event_message(struct nvnc_client* client)
+{
+	struct rfb_apple_enc_event_msg *msg = (struct rfb_apple_enc_event_msg *)(
+			client->msg_buffer + client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	assert(msg->type == RFB_CLIENT_TO_SERVER_APPLE_ENCRYPTED_EVENT_MESSAGE);
+
+	crypto_cipher_decrypt(client->apple_dh_cipher, &msg->keyboard, NULL,
+      &msg->keyboard,
+	  sizeof(*msg) - offsetof(struct rfb_apple_enc_event_msg, keyboard),
+	  NULL, 0);
+
+	struct nvnc* server = client->server;
+
+	if ((msg->keyboard != 0 && msg->keyboard != 0xff) ||
+		(msg->mouse != 0 && msg->mouse != 0xff))
+		return 0;
+
+	if (msg->keyboard == 0xff) {
+		int down_flag = msg->down_flag;
+		uint32_t keysym = ntohl(msg->key);
+		nvnc_key_fn fn = server->key_fn;
+		if (fn)
+			fn(client, keysym, !!down_flag);
+	}
+
+	if (msg->mouse == 0xff) {
+		int button_mask = msg->button_mask;
+		uint16_t x = ntohs(msg->x);
+		uint16_t y = ntohs(msg->y);
+		nvnc_pointer_fn fn = server->pointer_fn;
+		if (fn)
+			fn(client, x, y, button_mask);
+	}
+
+	return sizeof(*msg);
+}
+
 static int on_client_message(struct nvnc_client* client)
 {
 	if (client->buffer_len - client->buffer_index < 1)
@@ -1970,6 +2056,12 @@ static int on_client_message(struct nvnc_client* client)
 		return on_client_ntp(client);
 	case RFB_CLIENT_TO_SERVER_FENCE:
 		return on_client_fence(client);
+	case RFB_CLIENT_TO_SERVER_APPLE_CONTINUOUS_UPDATES:
+		return on_apple_client_continuous_updates(client);
+	case RFB_CLIENT_TO_SERVER_APPLE_SET_MODE:
+		return on_apple_client_set_mode(client);
+	case RFB_CLIENT_TO_SERVER_APPLE_ENCRYPTED_EVENT_MESSAGE:
+		return on_apple_client_encrypted_event_message(client);
 	}
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable message from client: %p",

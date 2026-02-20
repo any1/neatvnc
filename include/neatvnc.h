@@ -209,6 +209,7 @@ int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
                      const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
+int nvnc_set_des_vnc_auth(struct nvnc* self, const char* password);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);

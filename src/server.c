@@ -64,6 +64,7 @@
 #include "crypto.h"
 #include "auth/apple-dh.h"
 #include "auth/rsa-aes.h"
+#include "auth/vnc-auth.h"
 #endif
 
 #ifndef DRM_FORMAT_INVALID
@@ -331,8 +332,38 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2) {
 		return handle_unsupported_version(client);
+	}
+
+	if (major != 3 || minor < 3) {
+		return handle_unsupported_version(client);
+	}
+
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: %d.%d", major, minor);
+
+	if (minor == 3) {
+		update_min_rtt(client);
+
+#ifdef HAVE_CRYPTO
+		if (server->des_vnc_auth_enabled) {
+			uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
+			stream_write(client->net_stream, &sec_type,
+					sizeof(sec_type), NULL, NULL);
+
+			vnc_auth_send_challenge(client);
+
+			client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_VNC_AUTH;
+			return 12;
+		}
+#endif
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+		return 12;
+	}
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};
@@ -563,11 +594,12 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	                                   client->buffer_index + 4);
 
 	if (fmt->true_colour_flag) {
-		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
+		nvnc_log(NVNC_LOG_DEBUG, "Using true colour for client %p",
 				client);
 		fmt->red_max = ntohs(fmt->red_max);
 		fmt->green_max = ntohs(fmt->green_max);
 		fmt->blue_max = ntohs(fmt->blue_max);
+
 		memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 	} else {
 		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
@@ -1988,6 +2020,10 @@ static int try_read_client_message(struct nvnc_client* client)
 		return on_version_message(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_SECURITY:
 		return on_security_message(client);
+#ifdef HAVE_CRYPTO
+	case VNC_CLIENT_STATE_WAITING_FOR_DES_VNC_AUTH:
+		return vnc_auth_handle_response(client);
+#endif
 	case VNC_CLIENT_STATE_WAITING_FOR_INIT:
 		return on_init_message(client);
 #ifdef ENABLE_TLS
@@ -3104,6 +3140,33 @@ int nvnc_set_rsa_creds(struct nvnc* self, const char* path)
 	bool ok = crypto_rsa_priv_key_load(self->rsa_priv, self->rsa_pub, path);
 	return ok ? 0 : -1;
 #endif
+	return -1;
+}
+
+EXPORT
+int nvnc_set_des_vnc_auth(struct nvnc* self, const char* password)
+{
+#ifdef HAVE_CRYPTO
+	if (!password || password[0] == '\0') {
+		nvnc_log(NVNC_LOG_ERROR, "VNC Auth password cannot be empty");
+		return -1;
+	}
+
+	size_t len = strlen(password);
+	if (len > 8) {
+		nvnc_log(NVNC_LOG_WARNING,
+			"VNC Auth password truncated to 8 characters");
+		len = 8;
+	}
+
+	memset(self->des_vnc_auth_password, 0, sizeof(self->des_vnc_auth_password));
+	memcpy(self->des_vnc_auth_password, password, len);
+	self->des_vnc_auth_enabled = true;
+
+	nvnc_log(NVNC_LOG_INFO, "VNC Auth enabled");
+	return 0;
+#endif
+	nvnc_log(NVNC_LOG_ERROR, "VNC Auth requires crypto support");
 	return -1;
 }
 

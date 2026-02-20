@@ -20,6 +20,7 @@
 #include "vec.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <arpa/inet.h>
 #include <stdint.h>
 #include <pixman.h>
@@ -42,8 +43,53 @@ int nvnc__encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 
 uint32_t nvnc__calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
 {
-	return fmt->bits_per_pixel == 32 ? UDIV_UP(fmt->depth, 8)
-	                                 : UDIV_UP(fmt->bits_per_pixel, 8);
+	if (fmt->bits_per_pixel == 32) {
+		/*
+		 * CPIXEL size calculation for ZRLE/TRLE encodings.
+		 *
+		 * RFC 6143 Section 7.7.5 states cpixel is 3 bytes only when ALL
+		 * of these conditions are met:
+		 *   1. true-color-flag is non-zero
+		 *   2. bits-per-pixel is 32
+		 *   3. depth is 24 or less
+		 *   4. all RGB bits fit in the least or most significant 3 bytes
+		 *
+		 * However, we use a practical approach adopted by other major VNC
+		 * server implementations: check actual bit positions rather than
+		 * the depth field. TigerVNC, libvncserver, and TurboVNC all use
+		 * this approach - they check whether RGB values fit in 3 bytes
+		 * by examining shifts and max values, ignoring depth entirely.
+		 *
+		 * This is necessary for macOS Screen Sharing compatibility.
+		 * macOS sends bpp=32, depth=32, shifts=16,8,0 but expects
+		 * 3-byte cpixels. There is no wire negotiation for cpixel size,
+		 * so both sides must calculate it identically.
+		 *
+		 * This is a common approach among VNC implementations. If RGB
+		 * fits in 3 bytes, we use 3 bytes regardless of depth.
+		 */
+		int max_shift = fmt->red_shift;
+		if (fmt->green_shift > max_shift)
+			max_shift = fmt->green_shift;
+		if (fmt->blue_shift > max_shift)
+			max_shift = fmt->blue_shift;
+
+		int min_shift = fmt->red_shift;
+		if (fmt->green_shift < min_shift)
+			min_shift = fmt->green_shift;
+		if (fmt->blue_shift < min_shift)
+			min_shift = fmt->blue_shift;
+
+		/* fitsInLS3Bytes: RGB in least significant 3 bytes */
+		bool fits_in_ls3 = (max_shift <= 16);
+		/* fitsInMS3Bytes: RGB in most significant 3 bytes */
+		bool fits_in_ms3 = (min_shift >= 8);
+
+		if (fits_in_ls3 || fits_in_ms3)
+			return 3;
+		return 4;
+	}
+	return UDIV_UP(fmt->bits_per_pixel, 8);
 }
 
 uint32_t nvnc__calculate_region_area(struct pixman_region16* region)

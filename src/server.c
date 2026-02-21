@@ -331,8 +331,32 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2) {
 		return handle_unsupported_version(client);
+	}
+
+	if (major != 3 || minor < 3) {
+		return handle_unsupported_version(client);
+	}
+
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: %d.%d", major, minor);
+
+	if (minor == 3) {
+		update_min_rtt(client);
+
+		if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+			security_type_invalid(client,
+				"Authentication required, but not supported for RFB 3.3");
+			return -1;
+		}
+
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+		return 12;
+	}
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};
@@ -563,7 +587,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	                                   client->buffer_index + 4);
 
 	if (fmt->true_colour_flag) {
-		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
+		nvnc_log(NVNC_LOG_DEBUG, "Using true colour for client %p",
 				client);
 		fmt->red_max = ntohs(fmt->red_max);
 		fmt->green_max = ntohs(fmt->green_max);

@@ -329,8 +329,26 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2) {
 		return handle_unsupported_version(client);
+	}
+
+	if (major != 3 || minor < 3) {
+		return handle_unsupported_version(client);
+	}
+
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: %d.%d", major, minor);
+
+	if (minor == 3) {
+		update_min_rtt(client);
+
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+		return 12;
+	}
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};

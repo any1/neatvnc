@@ -20,16 +20,9 @@
 #include "common.h"
 #include "neatvnc.h"
 
-int security_handshake_failed(struct nvnc_client* client, const char* username,
-		const char* reason_string)
+static int security_send_failure_reason(struct nvnc_client* client,
+		uint32_t result_code, const char* reason_string)
 {
-	if (username)
-		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
-				username, reason_string);
-	else
-		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
-				reason_string);
-
 	char buffer[256];
 
 	uint32_t* result = (uint32_t*)buffer;
@@ -37,7 +30,7 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 	struct rfb_error_reason* reason =
 	        (struct rfb_error_reason*)(buffer + sizeof(*result));
 
-	*result = htonl(RFB_SECURITY_HANDSHAKE_FAILED);
+	*result = htonl(result_code);
 	reason->length = htonl(strlen(reason_string));
 	strcpy(reason->message, reason_string);
 
@@ -49,6 +42,29 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 
 	nvnc_client_close(client);
 	return 0;
+}
+
+int security_handshake_failed(struct nvnc_client* client, const char* username,
+		const char* reason_string)
+{
+	if (username)
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
+				username, reason_string);
+	else
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
+				reason_string);
+
+	return security_send_failure_reason(client, RFB_SECURITY_HANDSHAKE_FAILED,
+			reason_string);
+}
+
+int security_type_invalid(struct nvnc_client* client,
+		const char* reason_string)
+{
+	nvnc_log(NVNC_LOG_WARNING, "Connection rejected: %s", reason_string);
+
+	return security_send_failure_reason(client, RFB_SECURITY_TYPE_INVALID,
+			reason_string);
 }
 
 int security_handshake_ok(struct nvnc_client* client, const char* username)

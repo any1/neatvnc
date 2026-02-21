@@ -344,14 +344,8 @@ static int on_version_message(struct nvnc_client* client)
 		update_min_rtt(client);
 
 		if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
-			nvnc_log(NVNC_LOG_WARNING,
-				"Rejecting RFB 3.3 client: authentication required");
-			uint32_t sec_type = htonl(RFB_SECURITY_TYPE_INVALID);
-			stream_write(client->net_stream, &sec_type,
-					sizeof(sec_type), close_after_write,
-					client->net_stream);
-			stream_ref(client->net_stream);
-			client_close(client);
+			security_type_invalid(client,
+				"Authentication required, but not supported for RFB 3.3");
 			return -1;
 		}
 

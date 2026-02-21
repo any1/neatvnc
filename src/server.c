@@ -343,6 +343,18 @@ static int on_version_message(struct nvnc_client* client)
 	if (minor == 3) {
 		update_min_rtt(client);
 
+		if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+			nvnc_log(NVNC_LOG_WARNING,
+				"Rejecting RFB 3.3 client: authentication required");
+			uint32_t sec_type = htonl(RFB_SECURITY_TYPE_INVALID);
+			stream_write(client->net_stream, &sec_type,
+					sizeof(sec_type), close_after_write,
+					client->net_stream);
+			stream_ref(client->net_stream);
+			client_close(client);
+			return -1;
+		}
+
 		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
 		stream_write(client->net_stream, &sec_type,
 				sizeof(sec_type), NULL, NULL);

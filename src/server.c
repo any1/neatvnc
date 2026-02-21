@@ -561,7 +561,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	                                   client->buffer_index + 4);
 
 	if (fmt->true_colour_flag) {
-		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
+		nvnc_log(NVNC_LOG_DEBUG, "Using true colour for client %p",
 				client);
 		fmt->red_max = ntohs(fmt->red_max);
 		fmt->green_max = ntohs(fmt->green_max);

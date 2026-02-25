@@ -20,3 +20,27 @@ base64 = executable('base64',
 	include_directories: inc,
 )
 test('base64', base64)
+
+if nettle.found()
+	rfb_test_server = executable('rfb-test-server',
+		['rfb-test-server.c'],
+		include_directories: inc,
+		dependencies: [
+			neatvnc_dep,
+			pixman,
+			aml,
+			nettle,
+			gnutls,
+			libdrm_inc,
+		],
+	)
+
+	python3 = find_program('python3', required: false)
+	if python3.found()
+		test('rfb-handshake', python3,
+			args: [files('test_rfb_handshake.py'), rfb_test_server.full_path()],
+			depends: [rfb_test_server],
+			timeout: 30,
+		)
+	endif
+endif

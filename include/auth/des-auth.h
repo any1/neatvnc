@@ -16,7 +16,12 @@
 
 #pragma once
 
+#include <stdint.h>
+#include <stdbool.h>
+
 struct nvnc_client;
 
 int des_auth_send_challenge(struct nvnc_client* client);
 int des_auth_handle_response(struct nvnc_client* client);
+bool des_auth_verify(const uint8_t* challenge, const uint8_t* response,
+		const char* password);

@@ -287,8 +287,7 @@ static void init_security_types(struct nvnc* server)
 		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
 
-			if ((server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO)
-					&& server->des_password[0]) {
+			if (server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) {
 				ADD_SECURITY_TYPE(
 					RFB_SECURITY_TYPE_VNC_AUTH);
 			}
@@ -349,11 +348,13 @@ static int on_version_message(struct nvnc_client* client)
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: %d.%d", major, minor);
 
+	client->rfb_minor = minor;
+
 	if (minor == 3) {
 		update_min_rtt(client);
 
 #ifdef HAVE_CRYPTO
-		if (server->des_password[0] &&
+		if ((server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) &&
 				(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
 				!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
@@ -364,6 +365,12 @@ static int on_version_message(struct nvnc_client* client)
 			return 12;
 		}
 #endif
+
+		if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+			security_type_invalid(client,
+				"Authentication required, but not supported for RFB 3.3");
+			return -1;
+		}
 
 		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
 		stream_write(client->net_stream, &sec_type,
@@ -3148,32 +3155,6 @@ int nvnc_set_rsa_creds(struct nvnc* self, const char* path)
 
 	bool ok = crypto_rsa_priv_key_load(self->rsa_priv, self->rsa_pub, path);
 	return ok ? 0 : -1;
-#endif
-	return -1;
-}
-
-/* DES challenge-response requires the server to hold the password in order to
- * compute the expected response. The auth_fn callback can't be used because it
- * receives a password from the client, but in DES auth the client never sends
- * the password — only a DES-encrypted challenge response. */
-EXPORT
-int nvnc_set_des_credential(struct nvnc* self, const char* password)
-{
-#ifdef HAVE_CRYPTO
-	if (!password || password[0] == '\0') {
-		nvnc_log(NVNC_LOG_ERROR, "DES password must not be empty");
-		return -1;
-	}
-
-	size_t len = strlen(password);
-	if (len > 8)
-		nvnc_log(NVNC_LOG_WARNING,
-				"DES password longer than 8 characters; "
-				"truncating to 8 (DES key size limit)");
-
-	memset(self->des_password, 0, sizeof(self->des_password));
-	memcpy(self->des_password, password, MIN(len, 8));
-	return 0;
 #endif
 	return -1;
 }

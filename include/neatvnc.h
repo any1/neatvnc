@@ -57,6 +57,7 @@
 
 struct nvnc;
 struct nvnc_client;
+struct nvnc_auth_creds;
 struct nvnc_desktop_layout;
 struct nvnc_display;
 struct nvnc_fb;
@@ -135,8 +136,7 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
-typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
-                             void* userdata);
+typedef bool (*nvnc_auth_fn)(const struct nvnc_auth_creds*, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
@@ -211,11 +211,10 @@ int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
                      const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
 
-/* DES challenge-response requires the server to hold the password in order to
- * compute the expected response. The auth_fn callback can't be used because it
- * receives a password from the client, but in DES auth the client never sends
- * the password — only a DES-encrypted challenge response. */
-int nvnc_set_des_credential(struct nvnc* self, const char* password);
+bool nvnc_auth_creds_verify(const struct nvnc_auth_creds*,
+                            const char* password);
+const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds*);
+const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);

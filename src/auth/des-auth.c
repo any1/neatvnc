@@ -25,7 +25,6 @@
 
 #define DES_CHALLENGE_SIZE 16
 
-/* VNC uses DES with reversed bit order within each byte of the key. */
 static void des_vnc_key_reverse_bits(uint8_t* dst, const char* src)
 {
 	for (int i = 0; i < 8; i++) {
@@ -52,9 +51,16 @@ static void des_vnc_encrypt(uint8_t* dst, const uint8_t* src,
 	struct des_ctx ctx;
 	des_set_key(&ctx, vnc_key);
 
-	/* DES encrypts 8 bytes at a time; the challenge is 16 bytes. */
 	des_encrypt(&ctx, 8, dst, src);
 	des_encrypt(&ctx, 8, dst + 8, src + 8);
+}
+
+bool des_auth_verify(const uint8_t* challenge, const uint8_t* response,
+		const char* password)
+{
+	uint8_t expected[DES_CHALLENGE_SIZE];
+	des_vnc_encrypt(expected, challenge, password);
+	return memcmp(expected, response, DES_CHALLENGE_SIZE) == 0;
 }
 
 int des_auth_send_challenge(struct nvnc_client* client)
@@ -73,12 +79,18 @@ int des_auth_handle_response(struct nvnc_client* client)
 
 	uint8_t* response = client->msg_buffer + client->buffer_index;
 
-	uint8_t expected[DES_CHALLENGE_SIZE];
-	des_vnc_encrypt(expected, client->des_challenge, server->des_password);
-
 	update_min_rtt(client);
 
-	if (memcmp(response, expected, DES_CHALLENGE_SIZE) != 0) {
+	struct nvnc_auth_creds creds = {
+		.type = NVNC_AUTH_CREDS_DES,
+		.username = NULL,
+		.des = {
+			.challenge = client->des_challenge,
+			.response = response,
+		},
+	};
+
+	if (!server->auth_fn(&creds, server->auth_ud)) {
 		security_handshake_failed(client, NULL,
 				"Invalid password");
 		return -1;

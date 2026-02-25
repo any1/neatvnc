@@ -97,6 +97,7 @@ struct nvnc_client {
 	char username[256];
 	struct nvnc* server;
 	enum nvnc_client_state state;
+	uint16_t rfb_minor;
 	struct rfb_pixel_format pixfmt;
 	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
 	size_t n_encodings;
@@ -211,7 +212,6 @@ struct nvnc {
 #endif
 
 #ifdef HAVE_CRYPTO
-	char des_password[9];
 	struct crypto_rsa_pub_key* rsa_pub;
 	struct crypto_rsa_priv_key* rsa_priv;
 #endif

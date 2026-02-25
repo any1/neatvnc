@@ -16,8 +16,29 @@
 
 #pragma once
 
+#include <stdint.h>
+
 struct nvnc_client;
+
+enum nvnc_auth_creds_type {
+	NVNC_AUTH_CREDS_PLAIN,
+	NVNC_AUTH_CREDS_DES,
+};
+
+struct nvnc_auth_creds {
+	enum nvnc_auth_creds_type type;
+	const char* username;
+	union {
+		const char* password;
+		struct {
+			const uint8_t* challenge;
+			const uint8_t* response;
+		} des;
+	};
+};
 
 int security_handshake_failed(struct nvnc_client* client, const char* username,
 		const char* reason_string);
 int security_handshake_ok(struct nvnc_client* client, const char* username);
+int security_type_invalid(struct nvnc_client* client,
+		const char* reason_string);

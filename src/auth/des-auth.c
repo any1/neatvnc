@@ -19,41 +19,11 @@
 #include "auth/auth.h"
 #include "auth/des-auth.h"
 #include "crypto.h"
+#include "des-rfb.h"
 
 #include <string.h>
-#include <nettle/des.h>
 
 #define DES_CHALLENGE_SIZE 16
-
-static void des_vnc_key_reverse_bits(uint8_t* dst, const char* src)
-{
-	for (int i = 0; i < 8; i++) {
-		uint8_t b = (uint8_t)src[i];
-		b = ((b & 0xf0) >> 4) | ((b & 0x0f) << 4);
-		b = ((b & 0xcc) >> 2) | ((b & 0x33) << 2);
-		b = ((b & 0xaa) >> 1) | ((b & 0x55) << 1);
-		dst[i] = b;
-	}
-}
-
-static void des_vnc_encrypt(uint8_t* dst, const uint8_t* src,
-		const char* password)
-{
-	char key[8] = {};
-	size_t len = strlen(password);
-	if (len > 8)
-		len = 8;
-	memcpy(key, password, len);
-
-	uint8_t vnc_key[8];
-	des_vnc_key_reverse_bits(vnc_key, key);
-
-	struct des_ctx ctx;
-	des_set_key(&ctx, vnc_key);
-
-	des_encrypt(&ctx, 8, dst, src);
-	des_encrypt(&ctx, 8, dst + 8, src + 8);
-}
 
 bool des_auth_verify(const uint8_t* challenge, const uint8_t* response,
 		const char* password)

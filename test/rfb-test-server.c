@@ -24,7 +24,8 @@
 #include <aml.h>
 #include <pixman.h>
 #include <libdrm/drm_fourcc.h>
-#include <nettle/des.h>
+
+#include "des-rfb.h"
 
 static const char* auth_password = NULL;
 static const char* auth_username = NULL;
@@ -44,31 +45,6 @@ static void on_sigterm(void* handler)
 {
 	(void)handler;
 	aml_exit(aml_get_default());
-}
-
-/* DES-encrypt a 16-byte challenge with VNC key derivation */
-static void des_vnc_encrypt(uint8_t* dst, const uint8_t* src,
-		const char* password)
-{
-	char key[8] = {};
-	size_t len = strlen(password);
-	if (len > 8)
-		len = 8;
-	memcpy(key, password, len);
-
-	uint8_t vnc_key[8];
-	for (int i = 0; i < 8; i++) {
-		uint8_t b = (uint8_t)key[i];
-		b = ((b & 0xf0) >> 4) | ((b & 0x0f) << 4);
-		b = ((b & 0xcc) >> 2) | ((b & 0x33) << 2);
-		b = ((b & 0xaa) >> 1) | ((b & 0x55) << 1);
-		vnc_key[i] = b;
-	}
-
-	struct des_ctx ctx;
-	des_set_key(&ctx, vnc_key);
-	des_encrypt(&ctx, 8, dst, src);
-	des_encrypt(&ctx, 8, dst + 8, src + 8);
 }
 
 static int hex_to_bytes(const char* hex, uint8_t* out, size_t out_len)

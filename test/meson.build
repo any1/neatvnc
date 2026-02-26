@@ -23,7 +23,7 @@ test('base64', base64)
 
 if nettle.found()
 	rfb_test_server = executable('rfb-test-server',
-		['rfb-test-server.c'],
+		['rfb-test-server.c', '../src/crypto/nettle/des-rfb.c'],
 		include_directories: inc,
 		dependencies: [
 			neatvnc_dep,

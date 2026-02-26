@@ -19,7 +19,7 @@
 #include "auth/auth.h"
 #include "auth/des-auth.h"
 #include "crypto.h"
-#include "des-rfb.h"
+#include "crypto/des-rfb.h"
 
 #include <string.h>
 
@@ -29,7 +29,7 @@ bool des_auth_verify(const uint8_t* challenge, const uint8_t* response,
 		const char* password)
 {
 	uint8_t expected[DES_CHALLENGE_SIZE];
-	des_vnc_encrypt(expected, challenge, password);
+	crypto_des_rfb_encrypt(expected, challenge, password);
 	return memcmp(expected, response, DES_CHALLENGE_SIZE) == 0;
 }
 

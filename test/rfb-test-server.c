@@ -25,7 +25,7 @@
 #include <pixman.h>
 #include <libdrm/drm_fourcc.h>
 
-#include "des-rfb.h"
+#include "crypto/des-rfb.h"
 
 static const char* auth_password = NULL;
 static const char* auth_username = NULL;
@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
 			fprintf(stderr, "Invalid challenge hex\n");
 			return 1;
 		}
-		des_vnc_encrypt(response, challenge, auth_password);
+		crypto_des_rfb_encrypt(response, challenge, auth_password);
 		for (int i = 0; i < 16; i++)
 			printf("%02x", response[i]);
 		printf("\n");

@@ -166,6 +166,7 @@ if nettle.found() and hogweed.found() and gmp.found()
 	sources += [
 		'src/crypto/random.c',
 		'src/crypto/nettle/cipher.c',
+		'src/crypto/nettle/des-rfb.c',
 		'src/crypto/nettle/hash.c',
 		'src/crypto/nettle/key.c',
 		'src/crypto/nettle/rsa.c',

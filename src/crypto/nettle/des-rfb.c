@@ -12,20 +12,14 @@
  * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
  * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
- *
- * VNC DES encryption helpers.
- *
- * VNC uses DES with bit-reversed keys. These functions are shared
- * between src/auth/des-auth.c and test/rfb-test-server.c.
  */
 
-#pragma once
+#include "crypto/des-rfb.h"
 
-#include <stdint.h>
 #include <string.h>
 #include <nettle/des.h>
 
-static inline void des_vnc_key_reverse_bits(uint8_t* dst, const char* src)
+static void des_rfb_reverse_bits(uint8_t* dst, const char* src)
 {
 	for (int i = 0; i < 8; i++) {
 		uint8_t b = (uint8_t)src[i];
@@ -36,7 +30,7 @@ static inline void des_vnc_key_reverse_bits(uint8_t* dst, const char* src)
 	}
 }
 
-static inline void des_vnc_encrypt(uint8_t* dst, const uint8_t* src,
+void crypto_des_rfb_encrypt(uint8_t* dst, const uint8_t* src,
 		const char* password)
 {
 	char key[8] = {};
@@ -46,7 +40,7 @@ static inline void des_vnc_encrypt(uint8_t* dst, const uint8_t* src,
 	memcpy(key, password, len);
 
 	uint8_t vnc_key[8];
-	des_vnc_key_reverse_bits(vnc_key, key);
+	des_rfb_reverse_bits(vnc_key, key);
 
 	struct des_ctx ctx;
 	des_set_key(&ctx, vnc_key);

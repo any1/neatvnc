@@ -47,11 +47,8 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 		.fbs = { image },
 	};
 
-	uint32_t width, height;
-	width = image->width;
-	height = image->height;
-	nvnc_transform_dimensions(image->transform, &width, &height);
-
+	uint32_t width = nvnc_composite_fb_width(&cfb);
+	uint32_t height = nvnc_composite_fb_height(&cfb);
 	struct nvnc_fb* fb = nvnc_fb_new(width, height, image->fourcc_format,
 			width);
 	assert(fb);

@@ -202,7 +202,6 @@ struct nvnc {
 	struct nvnc_display* displays[NVNC_FB_COMPOSITE_MAX];
 	struct {
 		struct nvnc_fb* buffer;
-		uint32_t width, height;
 		uint32_t hotspot_x, hotspot_y;
 	} cursor;
 	uint32_t cursor_seq;

@@ -31,16 +31,13 @@
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
 int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
-		struct nvnc_fb* image, uint32_t width, uint32_t height,
-		uint32_t hotspot_x, uint32_t hotspot_y)
+		struct nvnc_fb* image, uint32_t hotspot_x, uint32_t hotspot_y)
 {
 	int rc = -1;
 
 	// Empty cursor
 	if (!image)
 		return nvnc__encode_rect_head(dst, RFB_ENCODING_CURSOR, 0, 0, 0, 0);
-
-	nvnc_transform_dimensions(image->transform, &width, &height);
 
 	if (nvnc_fb_map(image) < 0)
 		return -1;
@@ -50,17 +47,13 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 		.fbs = { image },
 	};
 
-	uint32_t transformed_width, transformed_height;
-	transformed_width = image->width;
-	transformed_height = image->height;
-	nvnc_transform_dimensions(image->transform, &transformed_width,
-			&transformed_height);
+	uint32_t width, height;
+	width = image->width;
+	height = image->height;
+	nvnc_transform_dimensions(image->transform, &width, &height);
 
-	assert(width <= transformed_width);
-	assert(height <= transformed_height);
-
-	struct nvnc_fb* fb = nvnc_fb_new(transformed_width, transformed_height,
-			image->fourcc_format, transformed_width);
+	struct nvnc_fb* fb = nvnc_fb_new(width, height, image->fourcc_format,
+			width);
 	assert(fb);
 
 	composite_buffer_now(fb, &cfb, NULL);
@@ -85,17 +78,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	uint8_t* dstdata = dst->data;
 	dstdata += dst->len;
 
-	int32_t src_byte_stride = fb->stride * (srcfmt.bits_per_pixel / 8);
-
-	if((int32_t)width == fb->stride) {
-		pixel_to_cpixel(dstdata, pixfmt, fb->buffer->addr, &srcfmt, bpp, size);
-	} else {
-		for (uint32_t y = 0; y < height; ++y) {
-			pixel_to_cpixel(dstdata + y * bpp * width, pixfmt,
-					(uint8_t*)fb->buffer->addr + y * src_byte_stride,
-					&srcfmt, bpp, width);
-		}
-	}
+	pixel_to_cpixel(dstdata, pixfmt, fb->buffer->addr, &srcfmt, bpp, size);
 
 	dst->len += size * bpp;
 	dstdata = dst->data;

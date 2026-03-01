@@ -295,9 +295,8 @@ struct nvnc_display* nvnc_desktop_layout_get_display(
 
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 
-void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t width,
-		     uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
-		     bool is_damaged);
+void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t hotspot_x,
+		uint16_t hotspot_y, bool is_damaged);
 
 void nvnc_default_logger(const struct nvnc_log_data* meta, const char* message);
 

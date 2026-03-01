@@ -817,7 +817,6 @@ static void send_cursor_update(struct nvnc_client* client)
 	vec_append(&payload, &head, sizeof(head));
 
 	int rc = cursor_encode(&payload, &client->pixfmt, server->cursor.buffer,
-			server->cursor.width, server->cursor.height,
 			server->cursor.hotspot_x, server->cursor.hotspot_y);
 	if (rc < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to send cursor to client");
@@ -3203,9 +3202,8 @@ static bool buffers_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
 }
 
 EXPORT
-void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
-		uint16_t height, uint16_t hotspot_x, uint16_t hotspot_y,
-		bool is_damaged)
+void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t hotspot_x,
+		uint16_t hotspot_y, bool is_damaged)
 {
 	bool should_send = is_damaged && !buffers_are_equal(self->cursor.buffer, fb);
 
@@ -3213,8 +3211,6 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t width,
 	nvnc_fb_unref(self->cursor.buffer);
 
 	self->cursor.buffer = fb;
-	self->cursor.width = width;
-	self->cursor.height = height;
 	self->cursor.hotspot_x = hotspot_x;
 	self->cursor.hotspot_y = hotspot_y;
 

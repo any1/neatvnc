@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -70,8 +70,6 @@ static void pixel32_to_cpixel(uint8_t* restrict dst,
 	uint32_t dst_green_bits = POPCOUNT(dst_fmt->green_max);
 	uint32_t dst_blue_bits = POPCOUNT(dst_fmt->blue_max);
 
-	uint32_t dst_endian_correction;
-
 #define CONVERT_PIXELS(cpx, px)                                                \
 	{                                                                      \
 		uint32_t r, g, b;                                              \
@@ -86,28 +84,15 @@ static void pixel32_to_cpixel(uint8_t* restrict dst,
 
 	switch (bytes_per_cpixel) {
 	case 4:
-		if (dst_fmt->big_endian_flag) {
-			while (len--) {
-				uint32_t cpx, px = *src++;
+		while (len--) {
+			uint32_t cpx, px = *src++;
 
-				CONVERT_PIXELS(cpx, px)
+			CONVERT_PIXELS(cpx, px)
 
-				*dst++ = (cpx >> 24) & 0xff;
-				*dst++ = (cpx >> 16) & 0xff;
-				*dst++ = (cpx >> 8) & 0xff;
-				*dst++ = (cpx >> 0) & 0xff;
-			}
-		} else {
-			while (len--) {
-				uint32_t cpx, px = *src++;
-
-				CONVERT_PIXELS(cpx, px)
-
-				*dst++ = (cpx >> 0) & 0xff;
-				*dst++ = (cpx >> 8) & 0xff;
-				*dst++ = (cpx >> 16) & 0xff;
-				*dst++ = (cpx >> 24) & 0xff;
-			}
+			*dst++ = (cpx >> 0) & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
+			*dst++ = (cpx >> 16) & 0xff;
+			*dst++ = (cpx >> 24) & 0xff;
 		}
 		break;
 	case 3:
@@ -123,28 +108,24 @@ static void pixel32_to_cpixel(uint8_t* restrict dst,
 			dst_blue_shift -= min_dst_shift;
 		}
 
-		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
-
 		while (len--) {
 			uint32_t cpx, px = *src++;
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
+			*dst++ = cpx & 0xff;
 			*dst++ = (cpx >> 8) & 0xff;
-			*dst++ = (cpx >> (16 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> 16) & 0xff;
 		}
 		break;
 	case 2:
-		dst_endian_correction = dst_fmt->big_endian_flag ? 8 : 0;
-
 		while (len--) {
 			uint32_t cpx, px = *src++;
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
-			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
+			*dst++ = cpx & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
 		}
 		break;
 	case 1:
@@ -202,8 +183,6 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 	uint32_t dst_green_bits = POPCOUNT(dst_fmt->green_max);
 	uint32_t dst_blue_bits = POPCOUNT(dst_fmt->blue_max);
 
-	uint32_t dst_endian_correction;
-
 #define CONVERT_PIXELS(cpx, px)                                                \
 	{                                                                      \
 		uint32_t r, g, b;                                              \
@@ -218,32 +197,17 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 
 	switch (bytes_per_cpixel) {
 	case 4:
-		if (dst_fmt->big_endian_flag) {
-			while (len--) {
-				uint32_t cpx, px = 0;
-				memcpy(&px, src, src_bpp);
-				src += src_bpp;
+		while (len--) {
+			uint32_t cpx, px = 0;
+			memcpy(&px, src, src_bpp);
+			src += src_bpp;
 
-				CONVERT_PIXELS(cpx, px)
+			CONVERT_PIXELS(cpx, px)
 
-				*dst++ = (cpx >> 24) & 0xff;
-				*dst++ = (cpx >> 16) & 0xff;
-				*dst++ = (cpx >> 8) & 0xff;
-				*dst++ = (cpx >> 0) & 0xff;
-			}
-		} else {
-			while (len--) {
-				uint32_t cpx, px = 0;
-				memcpy(&px, src, src_bpp);
-				src += src_bpp;
-
-				CONVERT_PIXELS(cpx, px)
-
-				*dst++ = (cpx >> 0) & 0xff;
-				*dst++ = (cpx >> 8) & 0xff;
-				*dst++ = (cpx >> 16) & 0xff;
-				*dst++ = (cpx >> 24) & 0xff;
-			}
+			*dst++ = (cpx >> 0) & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
+			*dst++ = (cpx >> 16) & 0xff;
+			*dst++ = (cpx >> 24) & 0xff;
 		}
 		break;
 	case 3:
@@ -259,8 +223,6 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 			dst_blue_shift -= min_dst_shift;
 		}
 
-		dst_endian_correction = dst_fmt->big_endian_flag ? 16 : 0;
-
 		while (len--) {
 			uint32_t cpx, px = 0;
 			memcpy(&px, src, src_bpp);
@@ -268,14 +230,12 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
+			*dst++ = cpx & 0xff;
 			*dst++ = (cpx >> 8) & 0xff;
-			*dst++ = (cpx >> (16 ^ dst_endian_correction)) & 0xff;
+			*dst++ = (cpx >> 16) & 0xff;
 		}
 		break;
 	case 2:
-		dst_endian_correction = dst_fmt->big_endian_flag ? 8 : 0;
-
 		while (len--) {
 			uint32_t cpx, px = 0;
 			memcpy(&px, src, src_bpp);
@@ -283,8 +243,8 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 
 			CONVERT_PIXELS(cpx, px)
 
-			*dst++ = (cpx >> (0 ^ dst_endian_correction)) & 0xff;
-			*dst++ = (cpx >> (8 ^ dst_endian_correction)) & 0xff;
+			*dst++ = cpx & 0xff;
+			*dst++ = (cpx >> 8) & 0xff;
 		}
 		break;
 	case 1:
@@ -307,7 +267,9 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 
 /* clang-format off */
 int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src) {
-	switch (src & ~DRM_FORMAT_BIG_ENDIAN) {
+	assert(!(src & DRM_FORMAT_BIG_ENDIAN));
+
+	switch (src) {
 	case DRM_FORMAT_RGBA1010102:
 	case DRM_FORMAT_RGBX1010102:
 		dst->red_shift = 22;
@@ -418,7 +380,7 @@ bpp_16:
 		return -1;
 	}
 
-	dst->big_endian_flag = !!(src & DRM_FORMAT_BIG_ENDIAN);
+	dst->big_endian_flag = 0;
 	dst->true_colour_flag = 1;
 
 	return 0;
@@ -426,7 +388,8 @@ bpp_16:
 
 int nvnc__pixel_size_from_fourcc(uint32_t fourcc)
 {
-	switch (fourcc & ~DRM_FORMAT_BIG_ENDIAN) {
+	assert(!(fourcc & DRM_FORMAT_BIG_ENDIAN));
+	switch (fourcc) {
 	case DRM_FORMAT_RGBA1010102:
 	case DRM_FORMAT_RGBX1010102:
 	case DRM_FORMAT_BGRA1010102:
@@ -562,9 +525,10 @@ static bool extract_alpha_mask_rgba16(uint8_t* dst, const uint16_t* src,
 bool extract_alpha_mask(uint8_t* dst, const void* src, uint32_t format,
 		size_t len)
 {
+	assert(!(format & DRM_FORMAT_BIG_ENDIAN));
 	memset(dst, 0, UDIV_UP(len, 8));
 
-	switch (format & ~DRM_FORMAT_BIG_ENDIAN) {
+	switch (format) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	case DRM_FORMAT_RGBA1010102:
 	case DRM_FORMAT_BGRA1010102:
@@ -822,4 +786,19 @@ double rate_pixel_format(uint32_t format, uint64_t modifier,
 	return (depth_weight * depth_rating
 	     + linear_weight * linear_rating
 	     + alpha_weight * alpha_rating) / total_weight;
+}
+
+void rfb_pixfmt_ensure_little_endian(struct rfb_pixel_format* fmt)
+{
+	if (!fmt->true_colour_flag || !fmt->big_endian_flag)
+		return;
+
+	int red_bits = POPCOUNT(fmt->red_max);
+	int green_bits = POPCOUNT(fmt->green_max);
+	int blue_bits = POPCOUNT(fmt->blue_max);
+
+	fmt->red_shift = fmt->bits_per_pixel - fmt->red_shift - red_bits;
+	fmt->green_shift = fmt->bits_per_pixel - fmt->green_shift - green_bits;
+	fmt->blue_shift = fmt->bits_per_pixel - fmt->blue_shift - blue_bits;
+	fmt->big_endian_flag = 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -570,6 +570,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 		fmt->blue_max = ntohs(fmt->blue_max);
 		memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
 		client->pixfmt.depth = rfb_pixfmt_depth(&client->pixfmt);
+		rfb_pixfmt_ensure_little_endian(&client->pixfmt);
 	} else {
 		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
 				client);

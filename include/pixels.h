@@ -52,3 +52,5 @@ void make_rgb332_pal8_map(struct rfb_set_colour_map_entries_msg* msg);
 
 double rate_pixel_format(uint32_t format, uint64_t modifier,
 		enum format_rating_flags flags, int target_depth);
+
+void rfb_pixfmt_ensure_little_endian(struct rfb_pixel_format* fmt);

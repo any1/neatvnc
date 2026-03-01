@@ -210,6 +210,29 @@ static bool test_rfb_pixfmt_to_string(void)
 	return true;
 }
 
+static bool test_rfb_pixfmt_ensure_little_endian(void)
+{
+	struct rfb_pixel_format fmt = {
+		.true_colour_flag = 1,
+		.big_endian_flag = 1,
+		.bits_per_pixel = 32,
+		.depth = 24,
+		.red_shift = 16,
+		.green_shift = 8,
+		.blue_shift = 0,
+		.red_max = 255,
+		.green_max = 255,
+		.blue_max = 255,
+	};
+
+	rfb_pixfmt_ensure_little_endian(&fmt);
+
+	return fmt.big_endian_flag == 0 &&
+		fmt.red_shift == 8 &&
+		fmt.green_shift == 16 &&
+		fmt.blue_shift == 24;
+}
+
 int main()
 {
 	bool ok = test_pixel_to_cpixel_4bpp() &&
@@ -217,6 +240,7 @@ int main()
 		test_fourcc_to_pixman_fmt() &&
 		test_extract_alpha_mask_rgba8888() &&
 		test_drm_format_to_string() &&
-		test_rfb_pixfmt_to_string();
+		test_rfb_pixfmt_to_string() &&
+		test_rfb_pixfmt_ensure_little_endian();
 	return ok ? 0 : 1;
 }

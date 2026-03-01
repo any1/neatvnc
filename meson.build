@@ -100,7 +100,6 @@ sources = [
 	'src/enc/tight.c',
 	'src/enc/util.c',
 	'src/qnum-to-evdev.c',
-	'src/resampler.c',
 	'src/transform-util.c',
 	'src/damage-refinery.c',
 	'src/enc/interface.c',

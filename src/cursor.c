@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Andri Yngvason
+ * Copyright (c) 2022 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,7 @@
 #include "rfb-proto.h"
 #include "vec.h"
 #include "enc/util.h"
-#include "resampler.h"
+#include "compositor.h"
 #include "transform-util.h"
 
 #include <stdlib.h>
@@ -29,29 +29,6 @@
 #include <assert.h>
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
-
-static struct nvnc_fb* apply_transform(struct nvnc_fb* fb)
-{
-	if (fb->transform == NVNC_TRANSFORM_NORMAL) {
-		nvnc_fb_ref(fb);
-		return fb;
-	}
-
-	uint32_t width = fb->width;
-	uint32_t height = fb->height;
-
-	nvnc_transform_dimensions(fb->transform, &width, &height);
-	struct nvnc_fb* dst = nvnc_fb_new(width, height, fb->fourcc_format,
-			width);
-	assert(dst);
-
-	// TODO: Don't assume bpp
-	memset(dst->addr, 0, width * height * 4);
-
-	resample_now(dst, fb, NULL);
-
-	return dst;
-}
 
 int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 		struct nvnc_fb* image, uint32_t width, uint32_t height,
@@ -68,14 +45,28 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	if (nvnc_fb_map(image) < 0)
 		return -1;
 
-	// This returns a new image that needs to be unreferenced later
-	image = apply_transform(image);
+	struct nvnc_composite_fb cfb = {
+		.n_fbs = 1,
+		.fbs = { image },
+	};
 
-	assert(width <= image->width);
-	assert(height <= image->height);
+	uint32_t transformed_width, transformed_height;
+	transformed_width = image->width;
+	transformed_height = image->height;
+	nvnc_transform_dimensions(image->transform, &transformed_width,
+			&transformed_height);
+
+	assert(width <= transformed_width);
+	assert(height <= transformed_height);
+
+	struct nvnc_fb* fb = nvnc_fb_new(transformed_width, transformed_height,
+			image->fourcc_format, transformed_width);
+	assert(fb);
+
+	composite_buffer_now(fb, &cfb, NULL);
 
 	struct rfb_pixel_format srcfmt = { 0 };
-	rc = rfb_pixfmt_from_fourcc(&srcfmt, image->fourcc_format);
+	rc = rfb_pixfmt_from_fourcc(&srcfmt, fb->fourcc_format);
 	if (rc < 0)
 		goto failure;
 
@@ -94,14 +85,14 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	uint8_t* dstdata = dst->data;
 	dstdata += dst->len;
 
-	int32_t src_byte_stride = image->stride * (srcfmt.bits_per_pixel / 8);
+	int32_t src_byte_stride = fb->stride * (srcfmt.bits_per_pixel / 8);
 
-	if((int32_t)width == image->stride) {
-		pixel_to_cpixel(dstdata, pixfmt, image->addr, &srcfmt, bpp, size);
+	if((int32_t)width == fb->stride) {
+		pixel_to_cpixel(dstdata, pixfmt, fb->addr, &srcfmt, bpp, size);
 	} else {
 		for (uint32_t y = 0; y < height; ++y) {
 			pixel_to_cpixel(dstdata + y * bpp * width, pixfmt,
-					(uint8_t*)image->addr + y * src_byte_stride,
+					(uint8_t*)fb->addr + y * src_byte_stride,
 					&srcfmt, bpp, width);
 		}
 	}
@@ -112,8 +103,8 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	for (uint32_t y = 0; y < height; ++y) {
 		if (!extract_alpha_mask(dstdata + y * UDIV_UP(width, 8),
-				(uint32_t*)image->addr + y * image->stride,
-				image->fourcc_format, width))
+				(uint32_t*)fb->addr + y * fb->stride,
+				fb->fourcc_format, width))
 			goto failure;
 
 		dst->len += UDIV_UP(width, 8);
@@ -121,6 +112,6 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	rc = 0;
 failure:
-	nvnc_fb_unref(image);
+	nvnc_fb_unref(fb);
 	return rc;
 }

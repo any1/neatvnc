@@ -66,7 +66,7 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
 				reason_string);
 
-	const char* reason = client->rfb_minor >= 8 ? reason_string : NULL;
+	const char* reason = client->rfb_minor_version >= 8 ? reason_string : NULL;
 	return security_send_failure(client, RFB_SECURITY_HANDSHAKE_FAILED,
 			reason);
 }

@@ -326,6 +326,21 @@ void update_min_rtt(struct nvnc_client* client)
 	}
 }
 
+static int parse_rfb_version(const char* version_string)
+{
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2)
+		return -1;
+
+	if (major != 3)
+		return -1;
+
+	if (minor == 7 || minor == 8)
+		return minor;
+
+	return 3;
+}
+
 static int on_version_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -337,18 +352,13 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	int major = 0, minor = 0;
-	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2) {
+	int minor = parse_rfb_version(version_string);
+	if (minor < 0)
 		return handle_unsupported_version(client);
-	}
 
-	if (major != 3 || minor < 3) {
-		return handle_unsupported_version(client);
-	}
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: 3.%d", minor);
 
-	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: %d.%d", major, minor);
-
-	client->rfb_minor = minor;
+	client->rfb_minor_version = minor;
 
 	if (minor == 3) {
 		update_min_rtt(client);

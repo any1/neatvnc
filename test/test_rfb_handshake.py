@@ -292,6 +292,36 @@ class TestDESAuth(unittest.TestCase):
             c.send_des_response(b'\x00' * 16)
             c.read_security_result_failure()
 
+    def test_rfb37_noauth_skips_security_result(self):
+        """RFB 3.7 no-auth: choose type 1, server sends ServerInit (no SecurityResult)."""
+        with RFBConnection(self.noauth_server.port, 'RFB 003.007\n') as c:
+            types = c.read_security_type_list()
+            self.assertIn(1, types)
+            c.choose_security_type(1)
+            # Send ClientInit (shared=1)
+            c.sock.sendall(struct.pack('!B', 1))
+            # Should get ServerInit directly (width U16 + height U16 = 64x64)
+            data = c.recv_exact(4)
+            w, h = struct.unpack('!HH', data)
+            self.assertEqual(w, 64)
+            self.assertEqual(h, 64)
+
+    def test_rfb38_noauth_sends_security_result(self):
+        """RFB 3.8 no-auth: choose type 1, server sends SecurityResult then ServerInit."""
+        with RFBConnection(self.noauth_server.port, 'RFB 003.008\n') as c:
+            types = c.read_security_type_list()
+            self.assertIn(1, types)
+            c.choose_security_type(1)
+            # Should get SecurityResult U32(0) first
+            self.assertEqual(c.read_security_result(), 0)
+            # Send ClientInit (shared=1)
+            c.sock.sendall(struct.pack('!B', 1))
+            # Then ServerInit
+            data = c.recv_exact(4)
+            w, h = struct.unpack('!HH', data)
+            self.assertEqual(w, 64)
+            self.assertEqual(h, 64)
+
 
 VENCRYPT_USERNAME = 'testuser'
 

@@ -427,7 +427,8 @@ static int on_security_message(struct nvnc_client* client)
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
-		security_handshake_ok(client, NULL);
+		if (client->rfb_minor_version != 7)
+			security_handshake_ok(client, NULL);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
 #ifdef ENABLE_TLS

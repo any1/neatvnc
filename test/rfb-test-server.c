@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <aml.h>
 #include <pixman.h>
 #include <libdrm/drm_fourcc.h>
@@ -69,21 +70,30 @@ int main(int argc, char* argv[])
 	const char* tls_cert = NULL;
 	const char* tls_key = NULL;
 
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
-			port_str = argv[++i];
-		else if (strcmp(argv[i], "--auth-mode") == 0 && i + 1 < argc)
-			auth_mode = argv[++i];
-		else if (strcmp(argv[i], "--password") == 0 && i + 1 < argc)
-			auth_password = argv[++i];
-		else if (strcmp(argv[i], "--encrypt-challenge") == 0 && i + 1 < argc)
-			encrypt_challenge = argv[++i];
-		else if (strcmp(argv[i], "--tls-cert") == 0 && i + 1 < argc)
-			tls_cert = argv[++i];
-		else if (strcmp(argv[i], "--tls-key") == 0 && i + 1 < argc)
-			tls_key = argv[++i];
-		else if (strcmp(argv[i], "--username") == 0 && i + 1 < argc)
-			auth_username = argv[++i];
+	static const struct option long_options[] = {
+		{ "port", required_argument, NULL, 'p' },
+		{ "auth-mode", required_argument, NULL, 'a' },
+		{ "password", required_argument, NULL, 'P' },
+		{ "encrypt-challenge", required_argument, NULL, 'e' },
+		{ "tls-cert", required_argument, NULL, 'c' },
+		{ "tls-key", required_argument, NULL, 'k' },
+		{ "username", required_argument, NULL, 'u' },
+		{ NULL, 0, NULL, 0 },
+	};
+
+	int opt;
+	while ((opt = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+		switch (opt) {
+		case 'p': port_str = optarg; break;
+		case 'a': auth_mode = optarg; break;
+		case 'P': auth_password = optarg; break;
+		case 'e': encrypt_challenge = optarg; break;
+		case 'c': tls_cert = optarg; break;
+		case 'k': tls_key = optarg; break;
+		case 'u': auth_username = optarg; break;
+		default:
+			return 1;
+		}
 	}
 
 	/* Encrypt mode: just compute DES response and exit */

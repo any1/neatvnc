@@ -117,6 +117,7 @@ enum nvnc_log_level {
 enum nvnc_auth_flags {
 	NVNC_AUTH_REQUIRE_AUTH = 1 << 0,
 	NVNC_AUTH_REQUIRE_ENCRYPTION = 1 << 1,
+	NVNC_AUTH_ALLOW_BROKEN_CRYPTO = 1 << 2,
 };
 
 struct nvnc_log_data {
@@ -209,6 +210,12 @@ int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
                      const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
+
+/* DES challenge-response requires the server to hold the password in order to
+ * compute the expected response. The auth_fn callback can't be used because it
+ * receives a password from the client, but in DES auth the client never sends
+ * the password — only a DES-encrypted challenge response. */
+int nvnc_set_des_credential(struct nvnc* self, const char* password);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);

@@ -62,6 +62,7 @@
 
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
+#include "auth/des-auth.h"
 #include "auth/apple-dh.h"
 #include "auth/rsa-aes.h"
 #endif
@@ -285,6 +286,12 @@ static void init_security_types(struct nvnc* server)
 
 		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
+
+			if ((server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO)
+					&& server->des_password[0]) {
+				ADD_SECURITY_TYPE(
+					RFB_SECURITY_TYPE_VNC_AUTH);
+			}
 		}
 #endif
 	} else {
@@ -331,8 +338,39 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2) {
 		return handle_unsupported_version(client);
+	}
+
+	if (major != 3 || minor < 3) {
+		return handle_unsupported_version(client);
+	}
+
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: %d.%d", major, minor);
+
+	if (minor == 3) {
+		update_min_rtt(client);
+
+#ifdef HAVE_CRYPTO
+		if (server->des_password[0] &&
+				(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
+				!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+			uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
+			stream_write(client->net_stream, &sec_type,
+					sizeof(sec_type), NULL, NULL);
+			des_auth_send_challenge(client);
+			client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+			return 12;
+		}
+#endif
+
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+		return 12;
+	}
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};
@@ -382,6 +420,10 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 #ifdef HAVE_CRYPTO
+	case RFB_SECURITY_TYPE_VNC_AUTH:
+		des_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+		break;
 	case RFB_SECURITY_TYPE_APPLE_DH:
 		apple_dh_send_public_key(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE;
@@ -1998,6 +2040,8 @@ static int try_read_client_message(struct nvnc_client* client)
 		return vencrypt_handle_message(client);
 #endif
 #ifdef HAVE_CRYPTO
+	case VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE:
+		return des_auth_handle_response(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE:
 		return apple_dh_handle_response(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY:
@@ -3104,6 +3148,32 @@ int nvnc_set_rsa_creds(struct nvnc* self, const char* path)
 
 	bool ok = crypto_rsa_priv_key_load(self->rsa_priv, self->rsa_pub, path);
 	return ok ? 0 : -1;
+#endif
+	return -1;
+}
+
+/* DES challenge-response requires the server to hold the password in order to
+ * compute the expected response. The auth_fn callback can't be used because it
+ * receives a password from the client, but in DES auth the client never sends
+ * the password — only a DES-encrypted challenge response. */
+EXPORT
+int nvnc_set_des_credential(struct nvnc* self, const char* password)
+{
+#ifdef HAVE_CRYPTO
+	if (!password || password[0] == '\0') {
+		nvnc_log(NVNC_LOG_ERROR, "DES password must not be empty");
+		return -1;
+	}
+
+	size_t len = strlen(password);
+	if (len > 8)
+		nvnc_log(NVNC_LOG_WARNING,
+				"DES password longer than 8 characters; "
+				"truncating to 8 (DES key size limit)");
+
+	memset(self->des_password, 0, sizeof(self->des_password));
+	memcpy(self->des_password, password, MIN(len, 8));
+	return 0;
 #endif
 	return -1;
 }

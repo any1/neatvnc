@@ -282,15 +282,6 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 			reason);
 }
 
-int security_type_invalid(struct nvnc_client* client,
-		const char* reason_string)
-{
-	nvnc_log(NVNC_LOG_WARNING, "Connection rejected: %s", reason_string);
-
-	return security_send_failure(client, RFB_SECURITY_TYPE_INVALID,
-			reason_string);
-}
-
 int security_handshake_ok(struct nvnc_client* client, const char* username)
 {
 	if (username) {
@@ -443,7 +434,9 @@ static int on_version_message(struct nvnc_client* client)
 #endif
 
 		if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
-			security_type_invalid(client,
+			nvnc_log(NVNC_LOG_INFO, "Connection rejected: "
+				"Authentication required, but not supported for RFB 3.3");
+			security_send_failure(client, 0,
 				"Authentication required, but not supported for RFB 3.3");
 			return -1;
 		}

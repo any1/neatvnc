@@ -398,6 +398,40 @@ static int parse_rfb_version(const char* version_string)
 	return 3;
 }
 
+static int on_version_message_rfb33(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	update_min_rtt(client);
+
+#ifdef HAVE_CRYPTO
+	if ((server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) &&
+			(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
+			!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		des_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+		return 12;
+	}
+#endif
+
+	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+		nvnc_log(NVNC_LOG_INFO, "Connection rejected: "
+			"Authentication required, but not supported for RFB 3.3");
+		security_send_failure(client, 0,
+			"Authentication required, but not supported for RFB 3.3");
+		return -1;
+	}
+
+	uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+	stream_write(client->net_stream, &sec_type,
+			sizeof(sec_type), NULL, NULL);
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	return 12;
+}
+
 static int on_version_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -417,36 +451,8 @@ static int on_version_message(struct nvnc_client* client)
 
 	client->rfb_minor_version = minor;
 
-	if (minor == 3) {
-		update_min_rtt(client);
-
-#ifdef HAVE_CRYPTO
-		if ((server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) &&
-				(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
-				!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
-			uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
-			stream_write(client->net_stream, &sec_type,
-					sizeof(sec_type), NULL, NULL);
-			des_auth_send_challenge(client);
-			client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
-			return 12;
-		}
-#endif
-
-		if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
-			nvnc_log(NVNC_LOG_INFO, "Connection rejected: "
-				"Authentication required, but not supported for RFB 3.3");
-			security_send_failure(client, 0,
-				"Authentication required, but not supported for RFB 3.3");
-			return -1;
-		}
-
-		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
-		stream_write(client->net_stream, &sec_type,
-				sizeof(sec_type), NULL, NULL);
-		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
-		return 12;
-	}
+	if (minor == 3)
+		return on_version_message_rfb33(client);
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};

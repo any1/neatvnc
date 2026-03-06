@@ -62,6 +62,7 @@
 
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
+#include "auth/des-auth.h"
 #include "auth/apple-dh.h"
 #include "auth/rsa-aes.h"
 #endif
@@ -238,6 +239,63 @@ void close_after_write(void* userdata, enum stream_req_status status)
 	stream_destroy(stream);
 }
 
+static int security_send_failure(struct nvnc_client* client,
+		uint32_t result_code, const char* reason_string)
+{
+	char buffer[256];
+
+	uint32_t* result = (uint32_t*)buffer;
+	*result = htonl(result_code);
+
+	size_t len;
+	if (reason_string) {
+		struct rfb_error_reason* reason =
+			(struct rfb_error_reason*)(buffer + sizeof(*result));
+		reason->length = htonl(strlen(reason_string));
+		strcpy(reason->message, reason_string);
+		len = sizeof(*result) + sizeof(*reason) + strlen(reason_string);
+	} else {
+		len = sizeof(*result);
+	}
+
+	stream_write(client->net_stream, buffer, len, close_after_write,
+			client->net_stream);
+
+	stream_ref(client->net_stream);
+
+	nvnc_client_close(client);
+	return 0;
+}
+
+int security_handshake_failed(struct nvnc_client* client, const char* username,
+		const char* reason_string)
+{
+	if (username)
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
+				username, reason_string);
+	else
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
+				reason_string);
+
+	const char* reason = client->rfb_minor_version >= 8 ? reason_string : NULL;
+	return security_send_failure(client, RFB_SECURITY_HANDSHAKE_FAILED,
+			reason);
+}
+
+int security_handshake_ok(struct nvnc_client* client, const char* username)
+{
+	if (username) {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
+
+		strncpy(client->username, username, sizeof(client->username));
+		client->username[sizeof(client->username) - 1] = '\0';
+	}
+
+	uint32_t result = htonl(RFB_SECURITY_HANDSHAKE_OK);
+	return stream_write(client->net_stream, &result, sizeof(result), NULL,
+			NULL);
+}
+
 static int handle_unsupported_version(struct nvnc_client* client)
 {
 	char buffer[256];
@@ -285,6 +343,11 @@ static void init_security_types(struct nvnc* server)
 
 		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
+
+			if (server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) {
+				ADD_SECURITY_TYPE(
+					RFB_SECURITY_TYPE_VNC_AUTH);
+			}
 		}
 #endif
 	} else {
@@ -320,6 +383,55 @@ void update_min_rtt(struct nvnc_client* client)
 	}
 }
 
+static int parse_rfb_version(const char* version_string)
+{
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2)
+		return -1;
+
+	if (major != 3)
+		return -1;
+
+	if (minor == 7 || minor == 8)
+		return minor;
+
+	return 3;
+}
+
+static int on_version_message_rfb33(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	update_min_rtt(client);
+
+#ifdef HAVE_CRYPTO
+	if ((server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) &&
+			(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
+			!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		des_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+		return 12;
+	}
+#endif
+
+	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+		nvnc_log(NVNC_LOG_INFO, "Connection rejected: "
+			"Authentication required, but not supported for RFB 3.3");
+		security_send_failure(client, 0,
+			"Authentication required, but not supported for RFB 3.3");
+		return -1;
+	}
+
+	uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+	stream_write(client->net_stream, &sec_type,
+			sizeof(sec_type), NULL, NULL);
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	return 12;
+}
+
 static int on_version_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -331,8 +443,16 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
+	int minor = parse_rfb_version(version_string);
+	if (minor < 0)
 		return handle_unsupported_version(client);
+
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: 3.%d", minor);
+
+	client->rfb_minor_version = minor;
+
+	if (minor == 3)
+		return on_version_message_rfb33(client);
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};
@@ -372,7 +492,8 @@ static int on_security_message(struct nvnc_client* client)
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
-		security_handshake_ok(client, NULL);
+		if (client->rfb_minor_version != 7)
+			security_handshake_ok(client, NULL);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
 #ifdef ENABLE_TLS
@@ -382,6 +503,10 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 #ifdef HAVE_CRYPTO
+	case RFB_SECURITY_TYPE_VNC_AUTH:
+		des_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+		break;
 	case RFB_SECURITY_TYPE_APPLE_DH:
 		apple_dh_send_public_key(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE;
@@ -2032,6 +2157,8 @@ static int try_read_client_message(struct nvnc_client* client)
 		return vencrypt_handle_message(client);
 #endif
 #ifdef HAVE_CRYPTO
+	case VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE:
+		return des_auth_handle_response(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE:
 		return apple_dh_handle_response(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY:

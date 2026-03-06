@@ -98,7 +98,13 @@ int apple_dh_handle_response(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	if (!server->auth_fn(username, password, server->auth_ud)) {
+	struct nvnc_auth_creds creds = {
+		.type = NVNC_AUTH_CREDS_PLAIN,
+		.username = username,
+		.password = password,
+	};
+
+	if (!server->auth_fn(&creds, server->auth_ud)) {
 		security_handshake_failed(client, username,
 				"Invalid username or password");
 		return -1;

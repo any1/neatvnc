@@ -56,6 +56,7 @@ enum nvnc_client_state {
 	VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_PLAIN_AUTH,
 #endif
 #ifdef HAVE_CRYPTO
+	VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE,
 	VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE,
 	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY,
 	VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CHALLENGE,
@@ -96,6 +97,7 @@ struct nvnc_client {
 	char username[256];
 	struct nvnc* server;
 	enum nvnc_client_state state;
+	uint16_t rfb_minor_version;
 	struct rfb_pixel_format pixfmt;
 	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
 	size_t n_encodings;
@@ -145,6 +147,7 @@ struct nvnc_client {
 	bool needs_desktop_name_update;
 
 #ifdef HAVE_CRYPTO
+	uint8_t des_challenge[16];
 	struct crypto_key* apple_dh_secret;
 
 	struct {

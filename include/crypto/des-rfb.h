@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 - 2024 Andri Yngvason
+ * Copyright (c) 2026 Andrian Budantsov
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,25 +18,5 @@
 
 #include <stdint.h>
 
-struct nvnc_client;
-
-enum nvnc_auth_creds_type {
-	NVNC_AUTH_CREDS_PLAIN,
-	NVNC_AUTH_CREDS_DES,
-};
-
-struct nvnc_auth_creds {
-	enum nvnc_auth_creds_type type;
-	const char* username;
-	union {
-		const char* password;
-		struct {
-			const uint8_t* challenge;
-			const uint8_t* response;
-		} des;
-	};
-};
-
-int security_handshake_failed(struct nvnc_client* client, const char* username,
-		const char* reason_string);
-int security_handshake_ok(struct nvnc_client* client, const char* username);
+void crypto_des_rfb_encrypt(uint8_t* dst, const uint8_t* src,
+		const char* password);

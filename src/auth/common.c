@@ -20,12 +20,11 @@
 #include "common.h"
 #include "neatvnc.h"
 
-int security_handshake_failed(struct nvnc_client* client, const char* username,
-		const char* reason_string)
+int security_handshake_failed(struct nvnc_client* client, const char* reason_string)
 {
-	if (username)
+	if (client->username[0])
 		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
-				username, reason_string);
+				client->username, reason_string);
 	else
 		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
 				reason_string);
@@ -51,16 +50,27 @@ int security_handshake_failed(struct nvnc_client* client, const char* username,
 	return 0;
 }
 
-int security_handshake_ok(struct nvnc_client* client, const char* username)
+int security_handshake_ok(struct nvnc_client* client)
 {
-	if (username) {
-		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", username);
-
-		strncpy(client->username, username, sizeof(client->username));
-		client->username[sizeof(client->username) - 1] = '\0';
+	if (client->username[0]) {
+		nvnc_log(NVNC_LOG_INFO, "User \"%s\" authenticated", client->username);
 	}
 
 	uint32_t result = htonl(RFB_SECURITY_HANDSHAKE_OK);
 	return stream_write(client->net_stream, &result, sizeof(result), NULL,
 			NULL);
+}
+
+void security_handshake_authenticate(struct nvnc_client* client,
+		const char* username, const char* password)
+{
+	struct nvnc* server = client->server;
+
+	memset(client->username, 0, sizeof(client->username));
+
+	if (username)
+		strncpy(client->username, username, sizeof(client->username) - 1);
+
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_AUTH;
+	server->auth_fn(client, username, password, server->auth_ud);
 }

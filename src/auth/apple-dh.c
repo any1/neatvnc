@@ -53,8 +53,6 @@ int apple_dh_send_public_key(struct nvnc_client* client)
 
 int apple_dh_handle_response(struct nvnc_client* client)
 {
-	struct nvnc* server = client->server;
-
 	struct rfb_apple_dh_client_msg* msg =
 	        (void*)(client->msg_buffer + client->buffer_index);
 
@@ -98,14 +96,7 @@ int apple_dh_handle_response(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	if (!server->auth_fn(username, password, server->auth_ud)) {
-		security_handshake_failed(client, username,
-				"Invalid username or password");
-		return -1;
-	}
-
-	security_handshake_ok(client, username);
-	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	security_handshake_authenticate(client, username, password);
 
 	return sizeof(*msg) + key_len;
 }

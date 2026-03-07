@@ -364,7 +364,7 @@ static int on_security_message(struct nvnc_client* client)
 	nvnc_log(NVNC_LOG_DEBUG, "Client chose security type: %d", type);
 
 	if (!is_allowed_security_type(client->server, type)) {
-		security_handshake_failed(client, NULL, "Illegal security type");
+		security_handshake_failed(client, "Illegal security type");
 		return -1;
 	}
 
@@ -372,7 +372,7 @@ static int on_security_message(struct nvnc_client* client)
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
-		security_handshake_ok(client, NULL);
+		security_handshake_ok(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
 #ifdef ENABLE_TLS
@@ -402,8 +402,7 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 	default:
-		security_handshake_failed(client, NULL,
-				"Unsupported security type");
+		security_handshake_failed(client, "Unsupported security type");
 		return -1;
 	}
 
@@ -2042,6 +2041,9 @@ static int try_read_client_message(struct nvnc_client* client)
 #endif
 	case VNC_CLIENT_STATE_READY:
 		return on_client_message(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_AUTH:
+		// No messages shall be processed while authentication is pending
+		return 0;
 	}
 
 	nvnc_log(NVNC_LOG_PANIC, "Invalid client state");
@@ -3201,4 +3203,22 @@ double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 void nvnc_set_display_sync_barrier(struct nvnc* self, int n_displays)
 {
 	self->display_sync_barrier = n_displays;
+}
+
+EXPORT
+void nvnc_client_auth_accept(struct nvnc_client* client)
+{
+	nvnc_assert(client->state == VNC_CLIENT_STATE_WAITING_FOR_AUTH,
+			"Unexpected client state during authentication");
+	security_handshake_ok(client);
+	client->state = VNC_CLIENT_STATE_READY;
+	process_client_messages(client);
+}
+
+EXPORT
+void nvnc_client_auth_reject(struct nvnc_client* client, const char* reason)
+{
+	nvnc_assert(client->state == VNC_CLIENT_STATE_WAITING_FOR_AUTH,
+			"Unexpected client state during authentication");
+	security_handshake_failed(client, reason);
 }

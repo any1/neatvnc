@@ -18,6 +18,9 @@
 
 struct nvnc_client;
 
-int security_handshake_failed(struct nvnc_client* client, const char* username,
+int security_handshake_failed(struct nvnc_client* client,
 		const char* reason_string);
-int security_handshake_ok(struct nvnc_client* client, const char* username);
+int security_handshake_ok(struct nvnc_client* client);
+
+void security_handshake_authenticate(struct nvnc_client* client,
+		const char* username, const char* password);

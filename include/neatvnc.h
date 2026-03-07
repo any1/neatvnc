@@ -134,8 +134,8 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
-typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
-                             void* userdata);
+typedef void (*nvnc_auth_fn)(struct nvnc_client* client, const char* username,
+		const char* password, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
@@ -191,6 +191,12 @@ void nvnc_client_close(struct nvnc_client* client);
 
 void nvnc_client_set_led_state(struct nvnc_client*,
 		enum nvnc_keyboard_led_state);
+
+// TODO: It would be better to have the auth function return a pointer to an
+// opaque authentication object as this precludes invalid use of these
+// functions, i.e. when the client is not in the authentication state
+void nvnc_client_auth_accept(struct nvnc_client* client);
+void nvnc_client_auth_reject(struct nvnc_client* client, const char* reason);
 
 void nvnc_set_name(struct nvnc* self, const char* name);
 

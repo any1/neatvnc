@@ -131,6 +131,7 @@ struct nvnc_client {
 	enum nvnc_keyboard_led_state led_state;
 	enum nvnc_keyboard_led_state pending_led_state;
 	bool is_blocked_by_fence;
+	bool is_processing_messages;
 	bool must_block_after_next_message;
 	struct {
 		int n_pending_requests;

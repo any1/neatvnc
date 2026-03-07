@@ -281,8 +281,6 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 			password_len)
 		return 0;
 
-	struct nvnc* server = client->server;
-
 	char username[256];
 	char password[256];
 
@@ -299,14 +297,7 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 		.password = password,
 	};
 
-	if (!server->auth_fn(&creds, server->auth_ud)) {
-		security_handshake_failed(client, username,
-				"Invalid username or password");
-		return -1;
-	}
-
-	security_handshake_ok(client, username);
-	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	security_handshake_authenticate(client, &creds);
 
 	return 2 + username_len + password_len;
 }

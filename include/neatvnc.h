@@ -56,6 +56,7 @@
 struct nvnc;
 struct nvnc_client;
 struct nvnc_auth_creds;
+struct nvnc_auth_future;
 struct nvnc_desktop_layout;
 struct nvnc_display;
 struct nvnc_frame;
@@ -139,7 +140,8 @@ typedef void (*nvnc_frame_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
-typedef bool (*nvnc_auth_fn)(const struct nvnc_auth_creds*, void* userdata);
+typedef void (*nvnc_auth_fn)(struct nvnc_auth_future*,
+		const struct nvnc_auth_creds*, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
 typedef struct nvnc_buffer* (*nvnc_buffer_alloc_fn)(struct nvnc_buffer_pool*);
@@ -336,6 +338,27 @@ const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds*);
  * Get the plaintext password from the authentication credentials.
  */
 const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
+
+
+/**
+ * Increment the reference count of the auth future.
+ */
+void nvnc_auth_future_ref(struct nvnc_auth_future*);
+
+/**
+ * Decrement the reference count of the auth future.
+ */
+void nvnc_auth_future_unref(struct nvnc_auth_future*);
+
+/**
+ * Accept an authentication request.
+ */
+void nvnc_auth_accept(struct nvnc_auth_future*);
+
+/**
+ * Reject an authentication request.
+ */
+void nvnc_auth_reject(struct nvnc_auth_future*, const char* reason);
 
 /**
  * Allocate a new buffer with the given size.

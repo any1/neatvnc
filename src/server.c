@@ -34,6 +34,7 @@
 #include "bandwidth.h"
 #include "compositor.h"
 #include "transform-util.h"
+#include "type-macros.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -393,7 +394,7 @@ static int on_version_message_rfb33(struct nvnc_client* client)
 #endif
 
 	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
-		security_handshake_failed(client, NULL,
+		security_handshake_failed(client,
 			"Authentication required, but not supported for RFB 3.3");
 		return -1;
 	}
@@ -458,7 +459,7 @@ static int on_security_message(struct nvnc_client* client)
 			security_type_to_string(type), type);
 
 	if (!is_allowed_security_type(client->server, type)) {
-		security_handshake_failed(client, NULL, "Illegal security type");
+		security_handshake_failed(client, "Illegal security type");
 		return -1;
 	}
 
@@ -467,7 +468,7 @@ static int on_security_message(struct nvnc_client* client)
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
 		if (client->rfb_minor_version >= 8)
-			security_handshake_ok(client, NULL);
+			security_handshake_ok(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
 #ifdef ENABLE_TLS
@@ -501,8 +502,7 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 	default:
-		security_handshake_failed(client, NULL,
-				"Unsupported security type");
+		security_handshake_failed(client, "Unsupported security type");
 		return -1;
 	}
 
@@ -2168,6 +2168,9 @@ static int try_read_client_message(struct nvnc_client* client)
 #endif
 	case VNC_CLIENT_STATE_READY:
 		return on_client_message(client);
+	case VNC_CLIENT_STATE_WAITING_FOR_AUTH:
+		// No messages shall be processed while authentication is pending
+		return 0;
 	}
 
 	nvnc_log(NVNC_LOG_PANIC, "Invalid client state");
@@ -2189,7 +2192,7 @@ static void process_client_messages(struct nvnc_client* client)
 		client->must_block_after_next_message = false;
 
 		int rc = try_read_client_message(client);
-		if (rc <= 0)
+		if (rc <= 0 || !client_ref.subject)
 			break;
 
 		client->buffer_index += rc;
@@ -3306,4 +3309,54 @@ const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds* creds)
 	if (creds->type == NVNC_AUTH_CREDS_PLAIN)
 		return creds->password;
 	return NULL;
+}
+
+EXPORT
+void nvnc_auth_future_ref(struct nvnc_auth_future* self)
+{
+	self->ref++;
+}
+
+EXPORT
+void nvnc_auth_future_unref(struct nvnc_auth_future* self)
+{
+	if (!self || --self->ref != 0)
+		return;
+
+	weakref_observer_deinit(&self->client);
+	free(self);
+}
+
+EXPORT
+void nvnc_auth_accept(struct nvnc_auth_future* self)
+{
+	struct nvnc_client* client = WEAKREF_CAST(self->client,
+			struct nvnc_client, weakref);
+	if (!client) {
+		nvnc_log(NVNC_LOG_DEBUG, "Client closed before it could be authenticated");
+		return;
+	}
+
+	nvnc_assert(client->state == VNC_CLIENT_STATE_WAITING_FOR_AUTH,
+			"Unexpected client state during authentication");
+
+	security_handshake_ok(client);
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	process_client_messages(client);
+}
+
+EXPORT
+void nvnc_auth_reject(struct nvnc_auth_future* self, const char* reason)
+{
+	struct nvnc_client* client = WEAKREF_CAST(self->client,
+			struct nvnc_client, weakref);
+	if (!client) {
+		nvnc_log(NVNC_LOG_DEBUG, "Client closed before it could be authenticated");
+		return;
+	}
+
+	nvnc_assert(client->state == VNC_CLIENT_STATE_WAITING_FOR_AUTH,
+			"Unexpected client state during authentication");
+
+	security_handshake_failed(client, reason);
 }

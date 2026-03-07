@@ -42,8 +42,6 @@ int des_auth_send_challenge(struct nvnc_client* client)
 
 int des_auth_handle_response(struct nvnc_client* client)
 {
-	struct nvnc* server = client->server;
-
 	if (client->buffer_len - client->buffer_index < DES_CHALLENGE_SIZE)
 		return 0;
 
@@ -60,13 +58,6 @@ int des_auth_handle_response(struct nvnc_client* client)
 		},
 	};
 
-	if (!server->auth_fn(&creds, server->auth_ud)) {
-		security_handshake_failed(client, NULL,
-				"Invalid password");
-		return -1;
-	}
-
-	security_handshake_ok(client, NULL);
-	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	security_handshake_authenticate(client, &creds);
 	return DES_CHALLENGE_SIZE;
 }

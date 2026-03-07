@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "weakref.h"
 #include <stdint.h>
 
 struct nvnc_client;
@@ -37,6 +38,13 @@ struct nvnc_auth_creds {
 	};
 };
 
-int security_handshake_failed(struct nvnc_client* client, const char* username,
-		const char* reason_string);
-int security_handshake_ok(struct nvnc_client* client, const char* username);
+struct nvnc_auth_future {
+	int ref;
+	struct weakref_observer client;
+};
+
+int security_handshake_ok(struct nvnc_client* client);
+int security_handshake_failed(struct nvnc_client* client, const char* reason);
+
+void security_handshake_authenticate(struct nvnc_client* client,
+		const struct nvnc_auth_creds* creds);

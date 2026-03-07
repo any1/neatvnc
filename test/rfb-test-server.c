@@ -31,15 +31,22 @@
 static const char* auth_password = NULL;
 static const char* auth_username = NULL;
 
-static bool on_auth(const struct nvnc_auth_creds* creds, void* ud)
+static void on_auth(struct nvnc_auth_future* future,
+		const struct nvnc_auth_creds* creds, void* ud)
 {
 	(void)ud;
 	if (auth_username) {
 		const char* u = nvnc_auth_creds_get_username(creds);
-		if (!u || strcmp(u, auth_username) != 0)
-			return false;
+		if (!u || strcmp(u, auth_username) != 0) {
+			nvnc_auth_reject(future, "Invalid username");
+			return;
+		}
 	}
-	return nvnc_auth_creds_verify(creds, auth_password);
+
+	if (nvnc_auth_creds_verify(creds, auth_password))
+		nvnc_auth_accept(future);
+	else
+		nvnc_auth_reject(future, "Invalid password");
 }
 
 static void on_sigterm(struct aml_signal* sig)

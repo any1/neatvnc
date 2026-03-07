@@ -2106,6 +2106,40 @@ static int try_read_client_message(struct nvnc_client* client)
 	return 0;
 }
 
+static void process_client_messages(struct nvnc_client* client)
+{
+	if (client->is_processing_messages)
+		return;
+	client->is_processing_messages = true;
+
+	while (!client->is_blocked_by_fence) {
+		client->is_blocked_by_fence =
+			client->must_block_after_next_message;
+		client->must_block_after_next_message = false;
+
+		int rc = try_read_client_message(client);
+		if (rc == 0)
+			break;
+
+		// This means that the client is closed, so we don't want to
+		// touch the client object again.
+		if (rc == -1)
+			return;
+
+		client->buffer_index += rc;
+	}
+
+	if (client->buffer_index > client->buffer_len)
+		nvnc_log(NVNC_LOG_PANIC, "Read-buffer index has grown out of bounds");
+
+	client->buffer_len -= client->buffer_index;
+	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,
+			client->buffer_len);
+	client->buffer_index = 0;
+
+	client->is_processing_messages = false;
+}
+
 static void on_client_event(struct stream* stream, enum stream_event event)
 {
 	struct nvnc_client* client = stream->userdata;
@@ -2144,28 +2178,7 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 
 	client->buffer_len += n_read;
 
-	while (!client->is_blocked_by_fence) {
-		client->is_blocked_by_fence =
-			client->must_block_after_next_message;
-		client->must_block_after_next_message = false;
-
-		int rc = try_read_client_message(client);
-		if (rc == 0)
-			break;
-
-		if (rc == -1)
-			return;
-
-		client->buffer_index += rc;
-	}
-
-	if (client->buffer_index > client->buffer_len)
-		nvnc_log(NVNC_LOG_PANIC, "Read-buffer index has grown out of bounds");
-
-	client->buffer_len -= client->buffer_index;
-	memmove(client->msg_buffer, client->msg_buffer + client->buffer_index,
-			client->buffer_len);
-	client->buffer_index = 0;
+	process_client_messages(client);
 }
 
 static void on_connection(struct aml_handler* poll_handle)
@@ -2612,7 +2625,7 @@ static void process_pending_fence(struct nvnc_client* client)
 	memset(&client->pending_fence, 0, sizeof(client->pending_fence));
 
 	client->is_blocked_by_fence = false;
-	on_client_event(client->net_stream, STREAM_EVENT_READ);
+	process_client_messages(client);
 }
 
 static void complete_fb_update(struct nvnc_client* client)

@@ -326,6 +326,53 @@ void update_min_rtt(struct nvnc_client* client)
 	}
 }
 
+static int parse_rfb_version(const char* version_string)
+{
+	int major = 0, minor = 0;
+	if (sscanf(version_string, "RFB %d.%d", &major, &minor) != 2)
+		return -1;
+
+	if (major != 3)
+		return -1;
+
+	if (minor == 7 || minor == 8)
+		return minor;
+
+	return 3;
+}
+
+static int on_version_message_rfb33(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+
+	update_min_rtt(client);
+
+#ifdef HAVE_CRYPTO
+	if ((server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) &&
+			(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
+			!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
+		stream_write(client->net_stream, &sec_type,
+				sizeof(sec_type), NULL, NULL);
+		des_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+		return 12;
+	}
+#endif
+
+	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
+		security_handshake_failed(client, NULL,
+			"Authentication required, but not supported for RFB 3.3");
+		return -1;
+	}
+
+	uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
+	stream_write(client->net_stream, &sec_type,
+			sizeof(sec_type), NULL, NULL);
+	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
+	return 12;
+}
+
 static int on_version_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -337,8 +384,16 @@ static int on_version_message(struct nvnc_client* client)
 	memcpy(version_string, client->msg_buffer + client->buffer_index, 12);
 	version_string[12] = '\0';
 
-	if (strcmp(RFB_VERSION_MESSAGE, version_string) != 0)
+	int minor = parse_rfb_version(version_string);
+	if (minor < 0)
 		return handle_unsupported_version(client);
+
+	nvnc_log(NVNC_LOG_DEBUG, "Client RFB version: 3.%d", minor);
+
+	client->rfb_minor_version = minor;
+
+	if (minor == 3)
+		return on_version_message_rfb33(client);
 
 	uint8_t buf[sizeof(struct rfb_security_types_msg) +
 		MAX_SECURITY_TYPES] = {};
@@ -378,7 +433,8 @@ static int on_security_message(struct nvnc_client* client)
 
 	switch (type) {
 	case RFB_SECURITY_TYPE_NONE:
-		security_handshake_ok(client, NULL);
+		if (client->rfb_minor_version >= 8)
+			security_handshake_ok(client, NULL);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 		break;
 #ifdef ENABLE_TLS

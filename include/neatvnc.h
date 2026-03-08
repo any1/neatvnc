@@ -57,6 +57,7 @@
 
 struct nvnc;
 struct nvnc_client;
+struct nvnc_auth_creds;
 struct nvnc_desktop_layout;
 struct nvnc_display;
 struct nvnc_fb;
@@ -117,6 +118,7 @@ enum nvnc_log_level {
 enum nvnc_auth_flags {
 	NVNC_AUTH_REQUIRE_AUTH = 1 << 0,
 	NVNC_AUTH_REQUIRE_ENCRYPTION = 1 << 1,
+	NVNC_AUTH_ALLOW_BROKEN_CRYPTO = 1 << 2,
 };
 
 struct nvnc_log_data {
@@ -134,8 +136,7 @@ typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
-typedef bool (*nvnc_auth_fn)(const char* username, const char* password,
-                             void* userdata);
+typedef bool (*nvnc_auth_fn)(const struct nvnc_auth_creds*, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
 typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
@@ -209,6 +210,11 @@ int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 int nvnc_set_tls_creds(struct nvnc* self, const char* privkey_path,
                      const char* cert_path);
 int nvnc_set_rsa_creds(struct nvnc* self, const char* private_key_path);
+
+bool nvnc_auth_creds_verify(const struct nvnc_auth_creds*,
+                            const char* password);
+const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds*);
+const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);

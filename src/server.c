@@ -62,6 +62,7 @@
 
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
+#include "auth/des-auth.h"
 #include "auth/apple-dh.h"
 #include "auth/rsa-aes.h"
 #endif
@@ -285,6 +286,11 @@ static void init_security_types(struct nvnc* server)
 
 		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
+
+			if (server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) {
+				ADD_SECURITY_TYPE(
+					RFB_SECURITY_TYPE_VNC_AUTH);
+			}
 		}
 #endif
 	} else {
@@ -382,6 +388,10 @@ static int on_security_message(struct nvnc_client* client)
 		break;
 #endif
 #ifdef HAVE_CRYPTO
+	case RFB_SECURITY_TYPE_VNC_AUTH:
+		des_auth_send_challenge(client);
+		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
+		break;
 	case RFB_SECURITY_TYPE_APPLE_DH:
 		apple_dh_send_public_key(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE;
@@ -2032,6 +2042,8 @@ static int try_read_client_message(struct nvnc_client* client)
 		return vencrypt_handle_message(client);
 #endif
 #ifdef HAVE_CRYPTO
+	case VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE:
+		return des_auth_handle_response(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_APPLE_DH_RESPONSE:
 		return apple_dh_handle_response(client);
 	case VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_PUBLIC_KEY:
@@ -3196,4 +3208,39 @@ double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 void nvnc_set_display_sync_barrier(struct nvnc* self, int n_displays)
 {
 	self->display_sync_barrier = n_displays;
+}
+
+EXPORT
+bool nvnc_auth_creds_verify(const struct nvnc_auth_creds* creds,
+		const char* password)
+{
+	if (!password)
+		return false;
+
+	switch (creds->type) {
+	case NVNC_AUTH_CREDS_PLAIN:
+		if (!creds->password)
+			return false;
+		return strcmp(creds->password, password) == 0;
+#ifdef HAVE_CRYPTO
+	case NVNC_AUTH_CREDS_DES:
+		return des_auth_verify(creds->des.challenge,
+				creds->des.response, password);
+#endif
+	}
+	return false;
+}
+
+EXPORT
+const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds* creds)
+{
+	return creds->username;
+}
+
+EXPORT
+const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds* creds)
+{
+	if (creds->type == NVNC_AUTH_CREDS_PLAIN)
+		return creds->password;
+	return NULL;
 }

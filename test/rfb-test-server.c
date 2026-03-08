@@ -42,9 +42,9 @@ static bool on_auth(const struct nvnc_auth_creds* creds, void* ud)
 	return nvnc_auth_creds_verify(creds, auth_password);
 }
 
-static void on_sigterm(void* handler)
+static void on_sigterm(struct aml_signal* sig)
 {
-	(void)handler;
+	(void)sig;
 	aml_exit(aml_get_default());
 }
 

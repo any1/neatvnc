@@ -26,13 +26,6 @@ static int send_byte(struct nvnc_client* client, uint8_t value)
 	return stream_write(client->net_stream, &value, 1, NULL, NULL);
 }
 
-static int send_byte_and_close(struct nvnc_client* client, uint8_t value)
-{
-	stream_ref(client->net_stream);
-	return stream_write(client->net_stream, &value, 1, close_after_write,
-			client->net_stream);
-}
-
 int vencrypt_send_version(struct nvnc_client* client)
 {
 	struct rfb_vencrypt_version_msg msg = {
@@ -81,8 +74,9 @@ static int on_vencrypt_subtype_message(struct nvnc_client* client)
 	enum rfb_vencrypt_subtype subtype = ntohl(*msg);
 
 	if (subtype != RFB_VENCRYPT_X509_PLAIN) {
-		send_byte_and_close(client, 0);
-		return sizeof(*msg);
+		send_byte(client, 0);
+		nvnc_client_close(client);
+		return -1;
 	}
 
 	update_min_rtt(client);

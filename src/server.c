@@ -233,12 +233,6 @@ static void defer_client_close(struct nvnc_client* client)
 	aml_start(aml_get_default(), client->close_task);
 }
 
-void close_after_write(void* userdata, enum stream_req_status status)
-{
-	struct stream* stream = userdata;
-	stream_destroy(stream);
-}
-
 static int handle_unsupported_version(struct nvnc_client* client)
 {
 	char buffer[256];
@@ -252,11 +246,7 @@ static int handle_unsupported_version(struct nvnc_client* client)
 	strcpy(reason->message, reason_string);
 
 	size_t len = 1 + sizeof(*reason) + strlen(reason_string);
-	stream_write(client->net_stream, buffer, len, close_after_write,
-			client->net_stream);
-
-	// Keep stream alive until the result has been sent to the client
-	stream_ref(client->net_stream);
+	stream_write(client->net_stream, buffer, len, NULL, NULL);
 
 	client_close(client);
 	return -1;

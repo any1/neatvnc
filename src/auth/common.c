@@ -41,12 +41,9 @@ static int security_send_failure(struct nvnc_client* client,
 		len = sizeof(*result);
 	}
 
-	stream_write(client->net_stream, buffer, len, close_after_write,
-			client->net_stream);
-
-	stream_ref(client->net_stream);
-
+	stream_write(client->net_stream, buffer, len, NULL, NULL);
 	nvnc_client_close(client);
+
 	return 0;
 }
 

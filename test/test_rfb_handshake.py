@@ -378,6 +378,56 @@ class TestVeNCrypt(unittest.TestCase):
             c.read_security_result_failure()
 
 
+class TestAuthBypass(unittest.TestCase):
+    """Test that selecting an unsupported security type is rejected."""
+    auth_server = None
+    noauth_server = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.auth_server = ServerProcess('des', PASSWORD)
+        cls.noauth_server = ServerProcess('none')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.auth_server.stop()
+        cls.noauth_server.stop()
+
+    def test_rfb38_select_none_when_auth_required(self):
+        """Selecting NONE (1) on auth server should fail."""
+        with RFBConnection(self.auth_server.port, 'RFB 003.008\n') as c:
+            types = c.read_security_type_list()
+            self.assertNotIn(1, types)
+            c.choose_security_type(1)
+            c.read_security_result_failure()
+
+    def test_rfb38_select_vnc_auth_when_noauth(self):
+        """Selecting VNC Auth (2) on no-auth server should fail."""
+        with RFBConnection(self.noauth_server.port, 'RFB 003.008\n') as c:
+            types = c.read_security_type_list()
+            self.assertNotIn(2, types)
+            c.choose_security_type(2)
+            c.read_security_result_failure()
+
+    def test_rfb38_select_invalid_type(self):
+        """Selecting a completely invalid type (255) should fail."""
+        with RFBConnection(self.auth_server.port, 'RFB 003.008\n') as c:
+            c.read_security_type_list()
+            c.choose_security_type(255)
+            c.read_security_result_failure()
+
+    def test_rfb37_select_none_when_auth_required(self):
+        """RFB 3.7: selecting NONE (1) on auth server should fail."""
+        with RFBConnection(self.auth_server.port, 'RFB 003.007\n') as c:
+            types = c.read_security_type_list()
+            self.assertNotIn(1, types)
+            c.choose_security_type(1)
+            # RFB 3.7: failure is just U32, no reason string
+            data = c.recv_all()
+            self.assertEqual(len(data), 4, f'Expected 4 bytes, got {len(data)}')
+            self.assertEqual(struct.unpack('!I', data)[0], 1)
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(f'Usage: {sys.argv[0]} <path-to-rfb-test-server>', file=sys.stderr)

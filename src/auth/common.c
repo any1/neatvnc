@@ -22,16 +22,23 @@
 
 #include <string.h>
 
-static int security_send_failure(struct nvnc_client* client,
-		uint32_t result_code, const char* reason_string)
+int security_handshake_failed(struct nvnc_client* client, const char* username,
+		const char* reason_string)
 {
+	if (username)
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
+				username, reason_string);
+	else
+		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
+				reason_string);
+
 	char buffer[256];
 
 	uint32_t* result = (uint32_t*)buffer;
-	*result = htonl(result_code);
+	*result = htonl(RFB_SECURITY_HANDSHAKE_FAILED);
 
 	size_t len;
-	if (reason_string) {
+	if (client->rfb_minor_version >= 8) {
 		struct rfb_error_reason* reason =
 			(struct rfb_error_reason*)(buffer + sizeof(*result));
 		reason->length = htonl(strlen(reason_string));
@@ -45,21 +52,6 @@ static int security_send_failure(struct nvnc_client* client,
 	nvnc_client_close(client);
 
 	return 0;
-}
-
-int security_handshake_failed(struct nvnc_client* client, const char* username,
-		const char* reason_string)
-{
-	if (username)
-		nvnc_log(NVNC_LOG_INFO, "Security handshake failed for \"%s\": %s",
-				username, reason_string);
-	else
-		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
-				reason_string);
-
-	const char* reason = client->rfb_minor_version >= 8 ? reason_string : NULL;
-	return security_send_failure(client, RFB_SECURITY_HANDSHAKE_FAILED,
-			reason);
 }
 
 int security_handshake_ok(struct nvnc_client* client, const char* username)

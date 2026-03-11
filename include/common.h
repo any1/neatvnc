@@ -149,6 +149,7 @@ struct nvnc_client {
 #ifdef HAVE_CRYPTO
 	uint8_t des_challenge[16];
 	struct crypto_key* apple_dh_secret;
+	struct crypto_cipher* apple_dh_cipher;
 
 	struct {
 		enum crypto_hash_type hash_type;

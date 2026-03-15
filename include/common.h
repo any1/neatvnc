@@ -26,6 +26,7 @@
 #include "stream/stream.h"
 #include "neatvnc.h"
 #include "config.h"
+#include "weakref.h"
 
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
@@ -93,6 +94,7 @@ struct cut_text {
 
 struct nvnc_client {
 	struct nvnc_common common;
+	struct weakref_subject weakref;
 	struct stream* net_stream;
 	char username[256];
 	struct nvnc* server;

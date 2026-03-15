@@ -174,6 +174,8 @@ static void client_close(struct nvnc_client* client)
 		aml_unref(task);
 	}
 
+	weakref_subject_deinit(&client->weakref);
+
 	nvnc_log(NVNC_LOG_INFO, "Closing client connection %p", client);
 
 	stream_close(client->net_stream);
@@ -2112,22 +2114,26 @@ static void process_client_messages(struct nvnc_client* client)
 		return;
 	client->is_processing_messages = true;
 
+	struct weakref_observer client_ref;
+	weakref_observer_init(&client_ref, &client->weakref);
+
 	while (!client->is_blocked_by_fence) {
 		client->is_blocked_by_fence =
 			client->must_block_after_next_message;
 		client->must_block_after_next_message = false;
 
 		int rc = try_read_client_message(client);
-		if (rc == 0)
+		if (rc <= 0)
 			break;
-
-		// This means that the client is closed, so we don't want to
-		// touch the client object again.
-		if (rc == -1)
-			return;
 
 		client->buffer_index += rc;
 	}
+
+	bool is_client_alive = !!client_ref.subject;
+	weakref_observer_deinit(&client_ref);
+
+	if (!is_client_alive)
+		return;
 
 	if (client->buffer_index > client->buffer_len)
 		nvnc_log(NVNC_LOG_PANIC, "Read-buffer index has grown out of bounds");
@@ -2189,6 +2195,8 @@ static void on_connection(struct aml_handler* poll_handle)
 	struct nvnc_client* client = calloc(1, sizeof(*client));
 	if (!client)
 		return;
+
+	weakref_subject_init(&client->weakref);
 
 	client->server = server;
 	client->quality = 10; /* default to lossless */

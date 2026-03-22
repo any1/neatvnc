@@ -1,7 +1,11 @@
 #pragma once
 
 #include "sys/queue.h"
+#include "type-macros.h"
 #include <stddef.h>
+
+#define WEAKREF_CAST(ref, type, member) \
+	((ref).subject ? container_of((ref).subject, type, member) : NULL)
 
 struct weakref_subject;
 

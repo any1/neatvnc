@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2025 Andri Yngvason
+ * Copyright (c) 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,38 +16,22 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stdbool.h>
-
-#include "neatvnc.h"
+#include "buffer.h"
 #include "weakref.h"
 #include "sys/queue.h"
 
-struct gbm_bo;
+typedef struct nvnc_buffer* (*nvnc_buffer_alloc_fn)(void* userdata);
 
-struct nvnc_buffer {
-	int ref;
-	enum nvnc_fb_type type;
-	bool is_external;
+TAILQ_HEAD(nvnc_buffer_queue, nvnc_buffer);
 
-	/* main memory buffer */
-	void* addr;
-
-	/* dmabuf attributes */
-	struct gbm_bo* bo;
-	void* bo_map_handle;
-
-	struct weakref_observer pool;
-	TAILQ_ENTRY(nvnc_buffer) link;
+struct nvnc_buffer_pool {
+	struct weakref_subject weakref;
+	struct nvnc_buffer_queue buffers;
+	nvnc_buffer_alloc_fn alloc_fn;
+	void* userdata;
 };
 
-struct nvnc_buffer* nvnc_buffer_new(size_t size);
-struct nvnc_buffer* nvnc_buffer_from_addr(void* addr);
-struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo);
-
-void nvnc_buffer_ref(struct nvnc_buffer* buffer);
-void nvnc_buffer_unref(struct nvnc_buffer* buffer);
-
-int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,
-		int32_t* stride_out);
-void nvnc_buffer_unmap(struct nvnc_buffer* buffer);
+void nvnc_buffer_pool_init(struct nvnc_buffer_pool*, nvnc_buffer_alloc_fn,
+		void* userdata);
+void nvnc_buffer_pool_deinit(struct nvnc_buffer_pool*);
+struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool*);

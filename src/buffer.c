@@ -15,6 +15,7 @@
  */
 
 #include "buffer.h"
+#include "buffer-pool.h"
 #include "pixels.h"
 #include "logging.h"
 
@@ -95,6 +96,15 @@ void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 		return;
 
 	nvnc_buffer_unmap(buffer);
+
+	struct nvnc_buffer_pool* pool =
+		WEAKREF_CAST(buffer->pool, struct nvnc_buffer_pool, weakref);
+	if (pool) {
+		weakref_observer_deinit(&buffer->pool);
+		buffer->ref = 1;
+		TAILQ_INSERT_TAIL(&pool->buffers, buffer, link);
+		return;
+	}
 
 	if (!buffer->is_external)
 		switch (buffer->type) {

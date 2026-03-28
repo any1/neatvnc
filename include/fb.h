@@ -24,7 +24,6 @@
 #include "neatvnc.h"
 #include "common.h"
 #include "buffer.h"
-#include "weakref.h"
 
 #define NVNC_FB_COMPOSITE_MAX 64
 
@@ -46,7 +45,6 @@ struct nvnc_fb {
 	int32_t stride;
 	enum nvnc_transform transform;
 	uint64_t pts; // in micro seconds
-	struct weakref_observer pool;
 
 	struct nvnc_buffer* buffer;
 };

@@ -90,6 +90,7 @@ sources = [
 	'src/enc/raw.c',
 	'src/pixels.c',
 	'src/buffer.c',
+	'src/buffer-pool.c',
 	'src/fb.c',
 	'src/fb_pool.c',
 	'src/rcbuf.c',

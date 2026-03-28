@@ -174,8 +174,6 @@ uint64_t nvnc_fb_get_pts(const struct nvnc_fb* fb)
 
 static void nvnc__fb_free(struct nvnc_fb* fb)
 {
-	weakref_observer_deinit(&fb->pool);
-
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
 	if (cleanup)
 		cleanup(fb->common.userdata);

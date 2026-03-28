@@ -118,7 +118,7 @@ static void hw_frame_desc_free(void* opaque, uint8_t* data)
 // TODO: Maybe do this once per frame inside nvnc_fb?
 static AVFrame* fb_to_avframe(struct nvnc_fb* fb)
 {
-	struct gbm_bo* bo = fb->bo;
+	struct gbm_bo* bo = fb->buffer->bo;
 
 	int n_planes = gbm_bo_get_plane_count(bo);
 
@@ -619,7 +619,7 @@ static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
 		struct nvnc_fb* fb)
 {
 	struct h264_encoder_ffmpeg* self = (struct h264_encoder_ffmpeg*)base;
-	assert(fb->type == NVNC_FB_GBM_BO);
+	assert(fb->buffer->type == NVNC_FB_GBM_BO);
 
 	// TODO: Add transform filter
 	assert(fb->transform == NVNC_TRANSFORM_NORMAL);

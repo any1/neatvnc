@@ -44,10 +44,10 @@ static int nvnc_fb_write_sixel(struct nvnc_fb* fb)
 	rc = sixel_frame_new(&frame, NULL);
 	assert(rc == SIXEL_OK);
 
-	size_t buffer_size = fb->height * fb->stride *
+	size_t buffer_size = fb->height * nvnc_fb_get_stride(fb) *
 		nvnc_fb_get_pixel_size(fb);
 	void* buffer = malloc(buffer_size);
-	memcpy(buffer, fb->addr, buffer_size);
+	memcpy(buffer, nvnc_fb_get_addr(fb), buffer_size);
 
 	sixel_frame_init(frame, buffer, fb->width, fb->height, sixel_format,
 			NULL, 256);

@@ -88,11 +88,11 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	int32_t src_byte_stride = fb->stride * (srcfmt.bits_per_pixel / 8);
 
 	if((int32_t)width == fb->stride) {
-		pixel_to_cpixel(dstdata, pixfmt, fb->addr, &srcfmt, bpp, size);
+		pixel_to_cpixel(dstdata, pixfmt, fb->buffer->addr, &srcfmt, bpp, size);
 	} else {
 		for (uint32_t y = 0; y < height; ++y) {
 			pixel_to_cpixel(dstdata + y * bpp * width, pixfmt,
-					(uint8_t*)fb->addr + y * src_byte_stride,
+					(uint8_t*)fb->buffer->addr + y * src_byte_stride,
 					&srcfmt, bpp, width);
 		}
 	}
@@ -103,7 +103,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	for (uint32_t y = 0; y < height; ++y) {
 		if (!extract_alpha_mask(dstdata + y * UDIV_UP(width, 8),
-				(uint32_t*)fb->addr + y * fb->stride,
+				(uint32_t*)fb->buffer->addr + y * fb->stride,
 				fb->fourcc_format, width))
 			goto failure;
 

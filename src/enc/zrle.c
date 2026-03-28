@@ -257,7 +257,7 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		int x_off = (x + tile_x) * src_bpp;
 
 		zrle_copy_tile(tile,
-				((uint8_t*)fb->addr) + x_off + y_off, src_bpp,
+				((uint8_t*)fb->buffer->addr) + x_off + y_off, src_bpp,
 				stride, tile_width, tile_height);
 
 		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,

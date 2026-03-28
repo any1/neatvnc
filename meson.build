@@ -89,6 +89,7 @@ sources = [
 	'src/enc/zrle.c',
 	'src/enc/raw.c',
 	'src/pixels.c',
+	'src/buffer.c',
 	'src/fb.c',
 	'src/fb_pool.c',
 	'src/rcbuf.c',

@@ -131,7 +131,7 @@ void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* csrc,
 	assert(ok);
 
 	pixman_image_t* dstimg = pixman_image_create_bits_no_clear(
-			dst_fmt, dst->width, dst->height, dst->addr,
+			dst_fmt, dst->width, dst->height, dst->buffer->addr,
 			nvnc_fb_get_pixel_size(dst) * dst->stride);
 
 	if (damage)
@@ -146,7 +146,7 @@ void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* csrc,
 		assert(ok);
 
 		pixman_image_t* srcimg = pixman_image_create_bits_no_clear(
-				src_fmt, src->width, src->height, src->addr,
+				src_fmt, src->width, src->height, src->buffer->addr,
 				nvnc_fb_get_pixel_size(src) * src->stride);
 
 		uint32_t transformed_width, transformed_height;

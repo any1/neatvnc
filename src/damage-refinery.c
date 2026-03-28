@@ -75,7 +75,7 @@ void damage_refinery_destroy(struct damage_refinery* self)
 static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 		uint32_t ty, const struct nvnc_fb* buffer)
 {
-	uint8_t* pixels = buffer->addr;
+	uint8_t* pixels = buffer->buffer->addr;
 	int bpp = nvnc__pixel_size_from_fourcc(buffer->fourcc_format);
 	int byte_stride = buffer->stride * bpp;
 

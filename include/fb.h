@@ -23,19 +23,16 @@
 
 #include "neatvnc.h"
 #include "common.h"
+#include "buffer.h"
 
 #define NVNC_FB_COMPOSITE_MAX 64
 
-struct gbm_bo;
-
 struct nvnc_fb {
 	struct nvnc_common common;
-	enum nvnc_fb_type type;
 	int ref;
 	int hold_count;
 	nvnc_fb_release_fn on_release;
 	void* release_context;
-	bool is_external;
 	uint16_t x_off;
 	uint16_t y_off;
 	uint16_t width;
@@ -43,16 +40,11 @@ struct nvnc_fb {
 	uint16_t logical_width;
 	uint16_t logical_height;
 	uint32_t fourcc_format;
+	int32_t stride;
 	enum nvnc_transform transform;
 	uint64_t pts; // in micro seconds
 
-	/* main memory buffer attributes */
-	void* addr;
-	int32_t stride;
-
-	/* dmabuf attributes */
-	struct gbm_bo* bo;
-	void* bo_map_handle;
+	struct nvnc_buffer* buffer;
 };
 
 struct nvnc_composite_fb {

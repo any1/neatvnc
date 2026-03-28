@@ -15,6 +15,7 @@
  */
 
 #include "fb.h"
+#include "buffer.h"
 #include "pixels.h"
 #include "neatvnc.h"
 #include "transform-util.h"
@@ -30,8 +31,6 @@
 #include <gbm.h>
 #endif
 
-#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
-#define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
@@ -43,24 +42,20 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 		return NULL;
 
 	uint32_t bpp = nvnc__pixel_size_from_fourcc(fourcc_format);
+	size_t size = height * stride * bpp;
 
-	fb->type = NVNC_FB_SIMPLE;
+	fb->buffer = nvnc_buffer_new(size);
+	if (!fb->buffer) {
+		free(fb);
+		return NULL;
+	}
+
 	fb->ref = 1;
 	fb->width = width;
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;
-
-	size_t size = height * stride * bpp;
-	size_t alignment = MAX(4, sizeof(void*));
-	size_t aligned_size = ALIGN_UP(size, alignment);
-
-	fb->addr = aligned_alloc(alignment, aligned_size);
-	if (!fb->addr) {
-		free(fb);
-		fb = NULL;
-	}
 
 	return fb;
 }
@@ -73,10 +68,13 @@ struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t heigh
 	if (!fb)
 		return NULL;
 
-	fb->type = NVNC_FB_SIMPLE;
+	fb->buffer = nvnc_buffer_from_addr(buffer);
+	if (!fb->buffer) {
+		free(fb);
+		return NULL;
+	}
+
 	fb->ref = 1;
-	fb->addr = buffer;
-	fb->is_external = true;
 	fb->width = width;
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
@@ -94,13 +92,17 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
 	if (!fb)
 		return NULL;
 
-	fb->type = NVNC_FB_GBM_BO;
+	fb->buffer = nvnc_buffer_from_gbm_bo(bo);
+	if (!fb->buffer) {
+		free(fb);
+		return NULL;
+	}
+
 	fb->ref = 1;
-	fb->is_external = true;
 	fb->width = gbm_bo_get_width(bo);
 	fb->height = gbm_bo_get_height(bo);
 	fb->fourcc_format = gbm_bo_get_format(bo);
-	fb->bo = bo;
+	fb->stride = 0;
 	fb->pts = NVNC_NO_PTS;
 
 	return fb;
@@ -113,7 +115,7 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
 EXPORT
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb)
 {
-	return fb->addr;
+	return fb->buffer->addr;
 }
 
 EXPORT
@@ -149,7 +151,7 @@ int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb)
 EXPORT
 struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb)
 {
-	return fb->bo;
+	return fb->buffer->bo;
 }
 
 EXPORT
@@ -161,7 +163,7 @@ enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb)
 EXPORT
 enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb)
 {
-	return fb->type;
+	return fb->buffer->type;
 }
 
 EXPORT
@@ -176,24 +178,7 @@ static void nvnc__fb_free(struct nvnc_fb* fb)
 	if (cleanup)
 		cleanup(fb->common.userdata);
 
-	nvnc_fb_unmap(fb);
-
-	if (!fb->is_external)
-		switch (fb->type) {
-		case NVNC_FB_UNSPEC:
-			abort();
-		case NVNC_FB_SIMPLE:
-			free(fb->addr);
-			break;
-		case NVNC_FB_GBM_BO:
-#ifdef HAVE_GBM
-			gbm_bo_destroy(fb->bo);
-#else
-			abort();
-#endif
-			break;
-		}
-
+	nvnc_buffer_unref(fb->buffer);
 	free(fb);
 }
 
@@ -251,37 +236,17 @@ void nvnc_fb_release(struct nvnc_fb* fb)
 
 int nvnc_fb_map(struct nvnc_fb* fb)
 {
-#ifdef HAVE_GBM
-	if (fb->type != NVNC_FB_GBM_BO || fb->bo_map_handle)
-		return 0;
-
-	uint32_t stride = 0;
-	fb->addr = gbm_bo_map(fb->bo, 0, 0, fb->width, fb->height,
-			GBM_BO_TRANSFER_READ, &stride, &fb->bo_map_handle);
-	fb->stride = stride / nvnc_fb_get_pixel_size(fb);
-	if (fb->addr)
-		return 0;
-
-	fb->bo_map_handle = NULL;
-	return -1;
-#else
-	return 0;
-#endif
+	int32_t byte_stride = 0;
+	int rc = nvnc_buffer_map(fb->buffer, fb->width, fb->height, &byte_stride);
+	/* byte_stride is only set for GBM BO buffers; skip for others */
+	if (rc == 0 && byte_stride != 0)
+		fb->stride = byte_stride / nvnc_fb_get_pixel_size(fb);
+	return rc;
 }
 
 void nvnc_fb_unmap(struct nvnc_fb* fb)
 {
-#ifdef HAVE_GBM
-	if (fb->type != NVNC_FB_GBM_BO)
-		return;
-
-	if (fb->bo_map_handle)
-		gbm_bo_unmap(fb->bo, fb->bo_map_handle);
-
-	fb->bo_map_handle = NULL;
-	fb->addr = NULL;
-	fb->stride = 0;
-#endif
+	nvnc_buffer_unmap(fb->buffer);
 }
 
 void nvnc_composite_fb_init(struct nvnc_composite_fb* self,

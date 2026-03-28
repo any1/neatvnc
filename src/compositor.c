@@ -463,7 +463,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	return rc;
 
 side_data_failure:
-	nvnc_fb_pool_release(self->pool, ctx->dst);
+	nvnc_fb_release(ctx->dst);
 acquire_failure:
 	free(ctx);
 	return -1;

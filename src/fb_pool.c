@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Andri Yngvason
+ * Copyright (c) 2021 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,6 +16,7 @@
 
 #include "fb.h"
 #include "neatvnc.h"
+#include "weakref.h"
 
 #include "sys/queue.h"
 
@@ -33,6 +34,8 @@ TAILQ_HEAD(fbq, fbq_item);
 
 struct nvnc_fb_pool {
 	int ref;
+
+	struct weakref_subject weakref;
 
 	struct fbq fbs;
 
@@ -53,6 +56,7 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 		return NULL;
 
 	self->ref = 1;
+	weakref_subject_init(&self->weakref);
 
 	TAILQ_INIT(&self->fbs);
 	self->width = width;
@@ -66,6 +70,10 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 
 static void nvnc_fb_pool__destroy_fbs(struct nvnc_fb_pool* self)
 {
+	// Notify in-flight fbs
+	weakref_subject_deinit(&self->weakref);
+	weakref_subject_init(&self->weakref);
+
 	while (!TAILQ_EMPTY(&self->fbs)) {
 		struct fbq_item* item = TAILQ_FIRST(&self->fbs);
 		TAILQ_REMOVE(&self->fbs, item, link);
@@ -112,12 +120,23 @@ void nvnc_fb_pool_unref(struct nvnc_fb_pool* self)
 		nvnc_fb_pool__destroy(self);
 }
 
+static void nvnc_fb_pool_release(struct nvnc_fb_pool* self, struct nvnc_fb* fb)
+{
+	weakref_observer_deinit(&fb->pool);
+	nvnc_fb_ref(fb);
+
+	struct fbq_item* item = calloc(1, sizeof(*item));
+	assert(item);
+	item->fb = fb;
+	TAILQ_INSERT_TAIL(&self->fbs, item, link);
+}
+
 static void nvnc_fb_pool__on_fb_release(struct nvnc_fb* fb, void* userdata)
 {
-	struct nvnc_fb_pool* pool = userdata;
-
-	nvnc_fb_pool_release(pool, fb);
-	nvnc_fb_pool_unref(pool);
+	struct nvnc_fb_pool* pool =
+		WEAKREF_CAST(fb->pool, struct nvnc_fb_pool, weakref);
+	if (pool)
+		nvnc_fb_pool_release(pool, fb);
 }
 
 static struct nvnc_fb* nvnc_fb_pool__acquire_new(struct nvnc_fb_pool* self)
@@ -127,8 +146,9 @@ static struct nvnc_fb* nvnc_fb_pool__acquire_new(struct nvnc_fb_pool* self)
 	if (!fb)
 		return NULL;
 
-	nvnc_fb_set_release_fn(fb, nvnc_fb_pool__on_fb_release, self);
-	nvnc_fb_pool_ref(self);
+	nvnc_fb_set_release_fn(fb, nvnc_fb_pool__on_fb_release, NULL);
+
+	weakref_observer_init(&fb->pool, &self->weakref);
 
 	return fb;
 }
@@ -142,7 +162,7 @@ static struct nvnc_fb* nvnc_fb_pool__acquire_from_list(struct nvnc_fb_pool* self
 	TAILQ_REMOVE(&self->fbs, item, link);
 	free(item);
 
-	nvnc_fb_pool_ref(self);
+	weakref_observer_init(&fb->pool, &self->weakref);
 
 	return fb;
 }
@@ -153,23 +173,6 @@ struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool* self)
 	return TAILQ_EMPTY(&self->fbs) ?
 		nvnc_fb_pool__acquire_new(self) :
 		nvnc_fb_pool__acquire_from_list(self);
-}
-
-EXPORT
-void nvnc_fb_pool_release(struct nvnc_fb_pool* self, struct nvnc_fb* fb)
-{
-	if (fb->width != self->width || fb->height != self->height ||
-			fb->fourcc_format != self->fourcc_format ||
-			fb->stride != self->stride) {
-		return;
-	}
-
-	nvnc_fb_ref(fb);
-
-	struct fbq_item* item = calloc(1, sizeof(*item));
-	assert(item);
-	item->fb = fb;
-	TAILQ_INSERT_TAIL(&self->fbs, item, link);
 }
 
 EXPORT

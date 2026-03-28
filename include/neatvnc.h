@@ -254,7 +254,6 @@ void nvnc_fb_pool_ref(struct nvnc_fb_pool*);
 void nvnc_fb_pool_unref(struct nvnc_fb_pool*);
 
 struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool*);
-void nvnc_fb_pool_release(struct nvnc_fb_pool*, struct nvnc_fb*);
 
 struct nvnc_display* nvnc_display_new(uint16_t x_pos, uint16_t y_pos);
 void nvnc_display_ref(struct nvnc_display*);

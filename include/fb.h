@@ -32,9 +32,6 @@ struct nvnc_fb_pool;
 struct nvnc_fb {
 	struct nvnc_common common;
 	int ref;
-	int hold_count;
-	nvnc_fb_release_fn on_release;
-	void* release_context;
 	uint16_t x_off;
 	uint16_t y_off;
 	uint16_t width;

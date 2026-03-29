@@ -140,7 +140,6 @@ typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const struct nvnc_auth_creds*, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
-typedef void (*nvnc_fb_release_fn)(struct nvnc_fb*, void* context);
 typedef struct nvnc_fb* (*nvnc_fb_alloc_fn)(uint16_t width, uint16_t height,
 		uint32_t format, uint16_t stride);
 typedef void (*nvnc_cleanup_fn)(void* userdata);
@@ -234,12 +233,11 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo);
 void nvnc_fb_ref(struct nvnc_fb* fb);
 void nvnc_fb_unref(struct nvnc_fb* fb);
 
-void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn,
-			    void* context);
 void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform);
 
 void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts);
 
+struct nvnc_buffer* nvnc_fb_get_buffer(const struct nvnc_fb* fb);
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);

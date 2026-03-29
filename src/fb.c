@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2025 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -113,6 +113,12 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
 }
 
 EXPORT
+struct nvnc_buffer* nvnc_fb_get_buffer(const struct nvnc_fb* fb)
+{
+	return fb->buffer;
+}
+
+EXPORT
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb)
 {
 	return fb->buffer->addr;
@@ -196,13 +202,6 @@ void nvnc_fb_unref(struct nvnc_fb* fb)
 }
 
 EXPORT
-void nvnc_fb_set_release_fn(struct nvnc_fb* fb, nvnc_fb_release_fn fn, void* context)
-{
-	fb->on_release = fn;
-	fb->release_context = context;
-}
-
-EXPORT
 void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform transform)
 {
 	fb->transform = transform;
@@ -216,22 +215,15 @@ void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts)
 
 void nvnc_fb_hold(struct nvnc_fb* fb)
 {
-	fb->hold_count++;
+	nvnc_buffer_ref(fb->buffer);
 }
 
 void nvnc_fb_release(struct nvnc_fb* fb)
 {
 	if (!fb)
 		return;
-
-	if (--fb->hold_count != 0)
-		return;
-
-	nvnc_fb_unmap(fb);
-	fb->pts = NVNC_NO_PTS;
-
-	if (fb->on_release)
-		fb->on_release(fb, fb->release_context);
+	assert(fb->buffer->ref > 1);
+	nvnc_buffer_unref(fb->buffer);
 }
 
 int nvnc_fb_map(struct nvnc_fb* fb)

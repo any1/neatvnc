@@ -93,6 +93,25 @@ EXPORT
 void nvnc_buffer_ref(struct nvnc_buffer* buffer)
 {
 	buffer->ref++;
+	nvnc_trace("ref: %d", buffer->ref);
+}
+
+static void nvnc__buffer_free_internal(struct nvnc_buffer* buffer)
+{
+	switch (buffer->type) {
+	case NVNC_FB_UNSPEC:
+		abort();
+	case NVNC_FB_SIMPLE:
+		free(buffer->addr);
+		break;
+	case NVNC_FB_GBM_BO:
+#ifdef HAVE_GBM
+		gbm_bo_destroy(buffer->bo);
+#else
+		abort();
+#endif
+		break;
+	}
 }
 
 EXPORT
@@ -113,25 +132,15 @@ void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 	}
 
 	if (!buffer->is_external)
-		switch (buffer->type) {
-		case NVNC_FB_UNSPEC:
-			abort();
-		case NVNC_FB_SIMPLE:
-			free(buffer->addr);
-			break;
-		case NVNC_FB_GBM_BO:
-#ifdef HAVE_GBM
-			gbm_bo_destroy(buffer->bo);
-#else
-			abort();
-#endif
-			break;
-		}
+		nvnc__buffer_free_internal(buffer);
 
 	if (buffer->common.cleanup_fn)
 		buffer->common.cleanup_fn(buffer->common.userdata);
 
-	free(buffer);
+	// The cleanup function can save the buffer from deletion and put it
+	// into its own buffer pool.
+	if (buffer->ref == 0)
+		free(buffer);
 }
 
 int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,

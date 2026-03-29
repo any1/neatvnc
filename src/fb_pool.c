@@ -121,12 +121,6 @@ void nvnc_fb_pool_unref(struct nvnc_fb_pool* self)
 		nvnc_fb_pool__destroy(self);
 }
 
-static void nvnc_fb_pool__on_fb_release(struct nvnc_fb* fb, void* userdata)
-{
-	nvnc_buffer_unref(fb->buffer);
-	fb->buffer = NULL;
-}
-
 EXPORT
 struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool* self)
 {
@@ -148,8 +142,6 @@ struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool* self)
 	fb->stride = self->stride;
 	fb->pts = NVNC_NO_PTS;
 	fb->buffer = buffer;
-
-	nvnc_fb_set_release_fn(fb, nvnc_fb_pool__on_fb_release, NULL);
 
 	return fb;
 }

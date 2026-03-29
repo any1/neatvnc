@@ -61,7 +61,28 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 }
 
 EXPORT
-struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width, uint16_t height,
+struct nvnc_fb* nvnc_fb_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
+		uint16_t height, uint32_t fourcc_format, int16_t stride)
+{
+	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	if (!fb)
+		return NULL;
+
+	fb->buffer = buffer;
+	nvnc_buffer_ref(buffer);
+
+	fb->ref = 1;
+	fb->width = width;
+	fb->height = height;
+	fb->fourcc_format = fourcc_format;
+	fb->stride = stride;
+	fb->pts = NVNC_NO_PTS;
+
+	return fb;
+}
+
+EXPORT
+struct nvnc_fb* nvnc_fb_from_raw(void* buffer, uint16_t width, uint16_t height,
 		uint32_t fourcc_format, int32_t stride)
 {
 	struct nvnc_fb* fb = calloc(1, sizeof(*fb));

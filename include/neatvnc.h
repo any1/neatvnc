@@ -230,9 +230,10 @@ struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool*);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);
-struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,
-				    uint16_t height, uint32_t fourcc_format,
-				    int32_t stride);
+struct nvnc_fb* nvnc_fb_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
+		uint16_t height, uint32_t format, int16_t stride);
+struct nvnc_fb* nvnc_fb_from_raw(void* buffer, uint16_t width, uint16_t height,
+		uint32_t fourcc_format, int32_t stride);
 struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo);
 
 void nvnc_fb_ref(struct nvnc_fb* fb);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2025 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,10 +22,13 @@
 #include "neatvnc.h"
 #include "weakref.h"
 #include "sys/queue.h"
+#include "common.h"
 
 struct gbm_bo;
 
 struct nvnc_buffer {
+	struct nvnc_common common;
+
 	int ref;
 	enum nvnc_fb_type type;
 	bool is_external;
@@ -40,13 +43,6 @@ struct nvnc_buffer {
 	struct weakref_observer pool;
 	TAILQ_ENTRY(nvnc_buffer) link;
 };
-
-struct nvnc_buffer* nvnc_buffer_new(size_t size);
-struct nvnc_buffer* nvnc_buffer_from_addr(void* addr);
-struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo);
-
-void nvnc_buffer_ref(struct nvnc_buffer* buffer);
-void nvnc_buffer_unref(struct nvnc_buffer* buffer);
 
 int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,
 		int32_t* stride_out);

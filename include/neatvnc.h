@@ -62,6 +62,7 @@ struct nvnc_desktop_layout;
 struct nvnc_display;
 struct nvnc_fb;
 struct nvnc_fb_pool;
+struct nvnc_buffer;
 struct pixman_region16;
 struct gbm_bo;
 
@@ -215,6 +216,13 @@ bool nvnc_auth_creds_verify(const struct nvnc_auth_creds*,
                             const char* password);
 const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds*);
 const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
+
+struct nvnc_buffer* nvnc_buffer_new(size_t size);
+struct nvnc_buffer* nvnc_buffer_from_addr(void* address);
+struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo);
+
+void nvnc_buffer_ref(struct nvnc_buffer* self);
+void nvnc_buffer_unref(struct nvnc_buffer* self);
 
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);

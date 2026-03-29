@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2025 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,9 +28,11 @@
 #include <gbm.h>
 #endif
 
+#define EXPORT __attribute__((visibility("default")))
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 #define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
 
+EXPORT
 struct nvnc_buffer* nvnc_buffer_new(size_t size)
 {
 	struct nvnc_buffer* buffer = calloc(1, sizeof(*buffer));
@@ -52,6 +54,7 @@ struct nvnc_buffer* nvnc_buffer_new(size_t size)
 	return buffer;
 }
 
+EXPORT
 struct nvnc_buffer* nvnc_buffer_from_addr(void* addr)
 {
 	struct nvnc_buffer* buffer = calloc(1, sizeof(*buffer));
@@ -66,6 +69,7 @@ struct nvnc_buffer* nvnc_buffer_from_addr(void* addr)
 	return buffer;
 }
 
+EXPORT
 struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo)
 {
 #ifdef HAVE_GBM
@@ -85,11 +89,13 @@ struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo)
 #endif
 }
 
+EXPORT
 void nvnc_buffer_ref(struct nvnc_buffer* buffer)
 {
 	buffer->ref++;
 }
 
+EXPORT
 void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 {
 	if (!buffer || --buffer->ref != 0)
@@ -121,6 +127,9 @@ void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 #endif
 			break;
 		}
+
+	if (buffer->common.cleanup_fn)
+		buffer->common.cleanup_fn(buffer->common.userdata);
 
 	free(buffer);
 }

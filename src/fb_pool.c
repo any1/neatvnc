@@ -16,7 +16,6 @@
 
 #include "fb.h"
 #include "buffer.h"
-#include "buffer-pool.h"
 #include "pixels.h"
 #include "neatvnc.h"
 
@@ -27,36 +26,21 @@
 struct nvnc_fb_pool {
 	int ref;
 
-	struct nvnc_buffer_pool buffer_pool;
+	struct nvnc_buffer_pool* buffer_pool;
 
 	uint16_t width;
 	uint16_t height;
 	int32_t stride;
 	uint32_t fourcc_format;
-
-	nvnc_fb_alloc_fn alloc_fn;
 };
 
-static struct nvnc_buffer* fb_pool__default_buffer_alloc(void* userdata)
+static struct nvnc_buffer* fb_pool_buffer_alloc(
+		struct nvnc_buffer_pool* pool)
 {
-	struct nvnc_fb_pool* pool = userdata;
-	uint32_t bpp = nvnc__pixel_size_from_fourcc(pool->fourcc_format);
-	size_t size = (size_t)pool->height * pool->stride * bpp;
+	struct nvnc_fb_pool* self = nvnc_get_userdata(pool);
+	uint32_t bpp = nvnc__pixel_size_from_fourcc(self->fourcc_format);
+	size_t size = (size_t)self->height * self->stride * bpp;
 	return nvnc_buffer_new(size);
-}
-
-static struct nvnc_buffer* fb_pool__custom_buffer_alloc(void* userdata)
-{
-	struct nvnc_fb_pool* pool = userdata;
-	struct nvnc_fb* fb = pool->alloc_fn(pool->width, pool->height,
-			pool->fourcc_format, pool->stride);
-	if (!fb)
-		return NULL;
-
-	struct nvnc_buffer* buffer = fb->buffer;
-	nvnc_buffer_ref(buffer);
-	nvnc_fb_unref(fb);
-	return buffer;
 }
 
 EXPORT
@@ -73,15 +57,19 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 	self->stride = stride;
 	self->fourcc_format = fourcc_format;
 
-	nvnc_buffer_pool_init(&self->buffer_pool, fb_pool__default_buffer_alloc,
-			self);
+	self->buffer_pool = nvnc_buffer_pool_new(fb_pool_buffer_alloc);
+	if (!self->buffer_pool) {
+		free(self);
+		return NULL;
+	}
+	nvnc_set_userdata(self->buffer_pool, self, NULL);
 
 	return self;
 }
 
 static void nvnc_fb_pool__destroy(struct nvnc_fb_pool* self)
 {
-	nvnc_buffer_pool_deinit(&self->buffer_pool);
+	nvnc_buffer_pool_unref(self->buffer_pool);
 	free(self);
 }
 
@@ -94,16 +82,15 @@ bool nvnc_fb_pool_resize(struct nvnc_fb_pool* self, uint16_t width,
 			stride == self->stride)
 		return false;
 
-	nvnc_buffer_pool_deinit(&self->buffer_pool);
+	nvnc_buffer_pool_unref(self->buffer_pool);
 
 	self->width = width;
 	self->height = height;
 	self->stride = stride;
 	self->fourcc_format = fourcc_format;
 
-	nvnc_buffer_alloc_fn alloc_fn = self->alloc_fn ?
-		fb_pool__custom_buffer_alloc : fb_pool__default_buffer_alloc;
-	nvnc_buffer_pool_init(&self->buffer_pool, alloc_fn, self);
+	self->buffer_pool = nvnc_buffer_pool_new(fb_pool_buffer_alloc);
+	nvnc_set_userdata(self->buffer_pool, self, NULL);
 
 	return true;
 }
@@ -125,7 +112,7 @@ EXPORT
 struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool* self)
 {
 	struct nvnc_buffer* buffer =
-		nvnc_buffer_pool_acquire(&self->buffer_pool);
+		nvnc_buffer_pool_acquire(self->buffer_pool);
 	if (!buffer)
 		return NULL;
 
@@ -144,15 +131,4 @@ struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool* self)
 	fb->buffer = buffer;
 
 	return fb;
-}
-
-EXPORT
-void nvnc_fb_pool_set_alloc_fn(struct nvnc_fb_pool* self, nvnc_fb_alloc_fn fn)
-{
-	self->alloc_fn = fn;
-
-	nvnc_buffer_alloc_fn buffer_alloc_fn = fn ?
-		fb_pool__custom_buffer_alloc : fb_pool__default_buffer_alloc;
-	nvnc_buffer_pool_deinit(&self->buffer_pool);
-	nvnc_buffer_pool_init(&self->buffer_pool, buffer_alloc_fn, self);
 }

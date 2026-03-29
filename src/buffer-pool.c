@@ -19,17 +19,26 @@
 #include "weakref.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
-void nvnc_buffer_pool_init(struct nvnc_buffer_pool* self,
-		nvnc_buffer_alloc_fn alloc_fn, void* userdata)
+#define EXPORT __attribute__((visibility("default")))
+
+EXPORT
+struct nvnc_buffer_pool* nvnc_buffer_pool_new(nvnc_buffer_alloc_fn alloc_fn)
 {
+	struct nvnc_buffer_pool* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+
+	self->ref = 1;
 	weakref_subject_init(&self->weakref);
 	TAILQ_INIT(&self->buffers);
 	self->alloc_fn = alloc_fn;
-	self->userdata = userdata;
+
+	return self;
 }
 
-void nvnc_buffer_pool_deinit(struct nvnc_buffer_pool* self)
+static void nvnc_buffer_pool__destroy(struct nvnc_buffer_pool* self)
 {
 	// Notify in-flight buffers so they free instead of returning to us
 	weakref_subject_deinit(&self->weakref);
@@ -39,12 +48,28 @@ void nvnc_buffer_pool_deinit(struct nvnc_buffer_pool* self)
 		TAILQ_REMOVE(&self->buffers, buffer, link);
 		nvnc_buffer_unref(buffer);
 	}
+
+	free(self);
+}
+
+EXPORT
+void nvnc_buffer_pool_ref(struct nvnc_buffer_pool* self)
+{
+	self->ref++;
+}
+
+EXPORT
+void nvnc_buffer_pool_unref(struct nvnc_buffer_pool* self)
+{
+	if (!self || --self->ref != 0)
+		return;
+	nvnc_buffer_pool__destroy(self);
 }
 
 static struct nvnc_buffer* nvnc_buffer_pool__acquire_new(
 		struct nvnc_buffer_pool* self)
 {
-	struct nvnc_buffer* buffer = self->alloc_fn(self->userdata);
+	struct nvnc_buffer* buffer = self->alloc_fn(self);
 	if (!buffer)
 		return NULL;
 
@@ -62,6 +87,7 @@ static struct nvnc_buffer* nvnc_buffer_pool__acquire_from_queue(
 	return buffer;
 }
 
+EXPORT
 struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool* self)
 {
 	return TAILQ_EMPTY(&self->buffers) ?

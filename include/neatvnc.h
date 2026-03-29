@@ -63,6 +63,7 @@ struct nvnc_display;
 struct nvnc_fb;
 struct nvnc_fb_pool;
 struct nvnc_buffer;
+struct nvnc_buffer_pool;
 struct pixman_region16;
 struct gbm_bo;
 
@@ -140,8 +141,7 @@ typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef bool (*nvnc_auth_fn)(const struct nvnc_auth_creds*, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
-typedef struct nvnc_fb* (*nvnc_fb_alloc_fn)(uint16_t width, uint16_t height,
-		uint32_t format, uint16_t stride);
+typedef struct nvnc_buffer* (*nvnc_buffer_alloc_fn)(struct nvnc_buffer_pool*);
 typedef void (*nvnc_cleanup_fn)(void* userdata);
 typedef void (*nvnc_log_fn)(const struct nvnc_log_data*, const char* message);
 typedef bool (*nvnc_desktop_layout_fn)(
@@ -223,6 +223,11 @@ struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo);
 void nvnc_buffer_ref(struct nvnc_buffer* self);
 void nvnc_buffer_unref(struct nvnc_buffer* self);
 
+struct nvnc_buffer_pool* nvnc_buffer_pool_new(nvnc_buffer_alloc_fn);
+void nvnc_buffer_pool_ref(struct nvnc_buffer_pool*);
+void nvnc_buffer_pool_unref(struct nvnc_buffer_pool*);
+struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool*);
+
 struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
                             uint32_t fourcc_format, uint16_t stride);
 struct nvnc_fb* nvnc_fb_from_buffer(void* buffer, uint16_t width,
@@ -253,8 +258,6 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 				      uint32_t fourcc_format, uint16_t stride);
 bool nvnc_fb_pool_resize(struct nvnc_fb_pool*, uint16_t width, uint16_t height,
 			 uint32_t fourcc_format, uint16_t stride);
-
-void nvnc_fb_pool_set_alloc_fn(struct nvnc_fb_pool*, nvnc_fb_alloc_fn);
 
 void nvnc_fb_pool_ref(struct nvnc_fb_pool*);
 void nvnc_fb_pool_unref(struct nvnc_fb_pool*);

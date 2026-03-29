@@ -16,22 +16,18 @@
 
 #pragma once
 
+#include "neatvnc.h"
+#include "common.h"
 #include "buffer.h"
 #include "weakref.h"
 #include "sys/queue.h"
 
-typedef struct nvnc_buffer* (*nvnc_buffer_alloc_fn)(void* userdata);
-
 TAILQ_HEAD(nvnc_buffer_queue, nvnc_buffer);
 
 struct nvnc_buffer_pool {
+	struct nvnc_common common;
+	int ref;
 	struct weakref_subject weakref;
 	struct nvnc_buffer_queue buffers;
 	nvnc_buffer_alloc_fn alloc_fn;
-	void* userdata;
 };
-
-void nvnc_buffer_pool_init(struct nvnc_buffer_pool*, nvnc_buffer_alloc_fn,
-		void* userdata);
-void nvnc_buffer_pool_deinit(struct nvnc_buffer_pool*);
-struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool*);

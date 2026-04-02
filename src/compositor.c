@@ -251,12 +251,6 @@ static void on_work_done(struct aml_work* work)
 	nvnc_composite_fb_release(&cfb);
 }
 
-static bool are_fractions_equal(uint32_t a_num, uint32_t a_den,
-		uint32_t b_num, uint32_t b_den)
-{
-	return a_num * b_den == b_num * a_den;
-}
-
 static void get_fb_dimensions(struct nvnc_fb* fb, uint32_t* width,
 		uint32_t* height, uint32_t* logical_width,
 		uint32_t* logical_height)
@@ -275,29 +269,10 @@ static void get_fb_dimensions(struct nvnc_fb* fb, uint32_t* width,
 	}
 }
 
-static void get_fb_scaling_factors(struct nvnc_fb* fb, double* h_scale,
-		double* v_scale)
-{
-	uint32_t width, height;
-	uint32_t logical_width, logical_height;
-	get_fb_dimensions(fb, &width, &height, &logical_width, &logical_height);
-
-	*h_scale = (double)width / logical_width;
-	*v_scale = (double)height / logical_height;
-}
-
-static bool are_all_scales_equal(const struct nvnc_composite_fb* cfb)
+static bool have_any_scaling(const struct nvnc_composite_fb* cfb)
 {
 	if (cfb->n_fbs == 0)
-		return true;
-
-	struct nvnc_fb* first_fb = cfb->fbs[0];
-	assert(first_fb);
-
-	uint32_t first_width, first_height;
-	uint32_t first_logical_width, first_logical_height;
-	get_fb_dimensions(first_fb, &first_width, &first_height,
-			&first_logical_width, &first_logical_height);
+		return false;
 
 	for (int i = 0; i < cfb->n_fbs; ++i) {
 		struct nvnc_fb* fb = cfb->fbs[i];
@@ -308,36 +283,11 @@ static bool are_all_scales_equal(const struct nvnc_composite_fb* cfb)
 		get_fb_dimensions(fb, &width, &height, &logical_width,
 				&logical_height);
 
-		if (!are_fractions_equal(first_width, first_logical_width,
-				width, logical_width))
-			return false;
-
-		if (!are_fractions_equal(first_height, first_logical_height,
-				height, logical_height))
-			return false;
+		if (logical_width != width || logical_height != height)
+			return true;
 	}
 
-	return true;
-}
-
-static bool have_any_scaling(const struct nvnc_composite_fb* cfb)
-{
-	if (cfb->n_fbs == 0)
-		return false;
-
-	struct nvnc_fb* first_fb = cfb->fbs[0];
-	assert(first_fb);
-
-	uint32_t first_width, first_height;
-	uint32_t first_logical_width, first_logical_height;
-	get_fb_dimensions(first_fb, &first_width, &first_height,
-			&first_logical_width, &first_logical_height);
-
-	if (first_logical_width != first_width ||
-			first_logical_height != first_height)
-		return true;
-
-	return !are_all_scales_equal(cfb);
+	return false;
 }
 
 static bool are_all_transforms_normal(const struct nvnc_composite_fb* cfb)
@@ -355,7 +305,7 @@ static bool are_all_transforms_normal(const struct nvnc_composite_fb* cfb)
 
 static bool is_compositing_needed(const struct nvnc_composite_fb* cfb)
 {
-	return !are_all_scales_equal(cfb) || !are_all_transforms_normal(cfb);
+	return have_any_scaling(cfb) || !are_all_transforms_normal(cfb);
 }
 
 int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
@@ -367,32 +317,8 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	nvnc_assert(cfb->n_fbs != 0, "Composite fb contains no fbs");
 
 	if (self->seq_tail == self->seq_head && !is_compositing_needed(cfb)) {
-		nvnc_trace("Direct pass-through of %d buffers", cfb->n_fbs);
-
-		// The damage region is in logical coordinates, so if all
-		// scales are equal and not equal to 1, the damage needs to be
-		// scaled to buffer coordinates.
-		if (have_any_scaling(cfb)) {
-			// All scales are equal, so we only look at the first fb.
-			double v_scale = 1.0, h_scale = 1.0;
-			struct nvnc_fb* first_fb = cfb->fbs[0];
-			assert(first_fb);
-
-			get_fb_scaling_factors(first_fb, &h_scale, &v_scale);
-
-			nvnc_trace("Scaling damage by %.2f:%.2f", h_scale,
-					v_scale);
-
-			struct pixman_region16 scaled_damage ={ 0 };
-			nvnc_region_scale(&scaled_damage, damage, h_scale,
-					v_scale);
-
-			on_done(cfb, &scaled_damage, userdata);
-			pixman_region_fini(&scaled_damage);
-		} else {
-			on_done(cfb, damage, userdata);
-		}
-
+		nvnc_trace("Direct pass-through of %d framebuffers", cfb->n_fbs);
+		on_done(cfb, damage, userdata);
 		return 0;
 	}
 

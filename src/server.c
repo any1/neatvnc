@@ -33,6 +33,7 @@
 #include "auth/auth.h"
 #include "bandwidth.h"
 #include "compositor.h"
+#include "transform-util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -490,6 +491,34 @@ static bool have_display_buffers(const struct nvnc* self)
 	return self->n_displays > 0;
 }
 
+static void calculate_desktop_extents(const struct nvnc* self,
+		uint16_t* width_out, uint16_t* height_out)
+{
+	uint32_t width = 0;
+	uint32_t height = 0;
+
+	for (int i = 0; i < self->n_displays; ++i) {
+		struct nvnc_display *display = self->displays[i];
+		uint32_t lw = display->logical_width;
+		uint32_t lh = display->logical_height;
+		if (lw == 0 || lh == 0) {
+			lw = display->buffer->width;
+			lh = display->buffer->logical_height;
+			nvnc_transform_dimensions(display->buffer->transform,
+					&lw, &lh);
+		}
+		uint32_t ew = display->x_pos + lw;
+		uint32_t eh = display->y_pos + lh;
+		if (ew > width)
+			width = ew;
+		if (eh > height)
+			height = eh;
+	}
+
+	*width_out = width;
+	*height_out = height;
+}
+
 static int send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -507,18 +536,8 @@ static int send_server_init_message(struct nvnc_client* client)
 		goto close;
 	}
 
-	uint16_t width = 0;
-	uint16_t height = 0;
-
-	for (int i = 0; i < server->n_displays; ++i) {
-		struct nvnc_display *display = server->displays[i];
-		uint16_t w = display->x_pos + display->buffer->width;
-		uint16_t h = display->y_pos + display->buffer->height;
-		if (w > width)
-			width = w;
-		if (h > height)
-			height = h;
-	}
+	uint16_t width, height;
+	calculate_desktop_extents(server, &width, &height);
 
 	uint32_t fourcc = nvnc_fb_get_fourcc_format(server->displays[0]->buffer);
 

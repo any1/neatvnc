@@ -974,6 +974,16 @@ static void on_compositing_done(struct nvnc_composite_fb* cfb,
 {
 	struct nvnc_client* client = userdata;
 
+	if (!ensure_encoder(client, cfb)) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to set up encoder");
+		return;
+	}
+
+	encoder_set_quality(client->encoder, client->quality);
+	encoder_set_output_format(client->encoder, &client->pixfmt);
+	client->encoder->on_done = on_encode_frame_done;
+	client->encoder->userdata = client;
+
 	if (encoder_encode(client->encoder, cfb, frame_damage) >= 0) {
 		if (client->n_pending_requests > 0)
 			--client->n_pending_requests;
@@ -1087,9 +1097,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	nvnc_composite_fb_validate(&cfb);
 
-	if (!ensure_encoder(client, &cfb))
-		return;
-
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
 	/* The client's damage is exchanged for an empty one */
@@ -1098,12 +1105,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	client->is_updating = true;
 	client->formats_changed = false;
-
-	encoder_set_quality(client->encoder, client->quality);
-	encoder_set_output_format(client->encoder, &client->pixfmt);
-
-	client->encoder->on_done = on_encode_frame_done;
-	client->encoder->userdata = client;
 
 	DTRACE_PROBE2(neatvnc, process_fb_update_requests__encode,
 			client, nvnc_composite_fb_pts(&cfb));

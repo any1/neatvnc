@@ -158,6 +158,18 @@ uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb)
 }
 
 EXPORT
+uint16_t nvnc_fb_get_logical_width(const struct nvnc_fb* fb)
+{
+	return fb->logical_width;
+}
+
+EXPORT
+uint16_t nvnc_fb_get_logical_height(const struct nvnc_fb* fb)
+{
+	return fb->logical_height;
+}
+
+EXPORT
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb)
 {
 	return fb->fourcc_format;
@@ -226,6 +238,18 @@ EXPORT
 void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform transform)
 {
 	fb->transform = transform;
+}
+
+EXPORT
+void nvnc_fb_set_logical_width(struct nvnc_fb* fb, uint16_t value)
+{
+	fb->logical_width = value;
+}
+
+EXPORT
+void nvnc_fb_set_logical_height(struct nvnc_fb* fb, uint16_t value)
+{
+	fb->logical_height = value;
 }
 
 EXPORT

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -240,6 +240,8 @@ void nvnc_fb_ref(struct nvnc_fb* fb);
 void nvnc_fb_unref(struct nvnc_fb* fb);
 
 void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform);
+void nvnc_fb_set_logical_width(struct nvnc_fb* fb, uint16_t value);
+void nvnc_fb_set_logical_height(struct nvnc_fb* fb, uint16_t value);
 
 void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts);
 
@@ -247,6 +249,8 @@ struct nvnc_buffer* nvnc_fb_get_buffer(const struct nvnc_fb* fb);
 void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
 uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
+uint16_t nvnc_fb_get_logical_width(const struct nvnc_fb* fb);
+uint16_t nvnc_fb_get_logical_height(const struct nvnc_fb* fb);
 uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
 int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb);
 int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb);

@@ -3169,7 +3169,7 @@ int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 	return -1;
 }
 
-static bool buffers_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
+static bool fbs_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
 {
 	if (a == b)
 		return true;
@@ -3179,6 +3179,8 @@ static bool buffers_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
 
 	if (nvnc_fb_get_width(a) != nvnc_fb_get_width(b) ||
 			nvnc_fb_get_height(a) != nvnc_fb_get_height(b) ||
+			nvnc_fb_get_logical_width(a) != nvnc_fb_get_logical_width(b) ||
+			nvnc_fb_get_logical_height(a) != nvnc_fb_get_logical_height(b) ||
 			nvnc_fb_get_stride(a) != nvnc_fb_get_stride(b) ||
 			nvnc_fb_get_pixel_size(a) != nvnc_fb_get_pixel_size(b) ||
 			nvnc_fb_get_fourcc_format(a) != nvnc_fb_get_fourcc_format(b) ||
@@ -3205,7 +3207,8 @@ EXPORT
 void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t hotspot_x,
 		uint16_t hotspot_y, bool is_damaged)
 {
-	bool should_send = is_damaged && !buffers_are_equal(self->cursor.buffer, fb);
+	bool should_send = is_damaged &&
+		!fbs_are_equal(self->cursor.buffer, fb);
 
 	nvnc_fb_release(self->cursor.buffer);
 	nvnc_fb_unref(self->cursor.buffer);

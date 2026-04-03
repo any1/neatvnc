@@ -93,7 +93,6 @@ EXPORT
 void nvnc_buffer_ref(struct nvnc_buffer* buffer)
 {
 	buffer->ref++;
-	nvnc_trace("ref: %d", buffer->ref);
 }
 
 static void nvnc__buffer_free_internal(struct nvnc_buffer* buffer)

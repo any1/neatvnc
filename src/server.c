@@ -1281,6 +1281,16 @@ static int on_client_pointer_event(struct nvnc_client* client)
 	if (fn)
 		fn(client, x, y, button_mask);
 
+	nvnc_normalised_pointer_fn norm_fn = server->normalised_pointer_fn;
+	if (norm_fn) {
+		uint16_t desktop_width, desktop_height;
+		calculate_desktop_extents(server, &desktop_width,
+				&desktop_height);
+		double x_norm = (double)x / desktop_width;
+		double y_norm = (double)y / desktop_height;
+		norm_fn(client, x_norm, y_norm, button_mask);
+	}
+
 	return message_size;
 }
 
@@ -2904,6 +2914,12 @@ EXPORT
 void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn fn)
 {
 	self->pointer_fn = fn;
+}
+
+EXPORT
+void nvnc_set_normalised_pointer_fn(struct nvnc* self, nvnc_normalised_pointer_fn fn)
+{
+	self->normalised_pointer_fn = fn;
 }
 
 EXPORT

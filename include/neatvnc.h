@@ -133,6 +133,8 @@ typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
                             bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
                                 enum nvnc_button_mask);
+typedef void (*nvnc_normalised_pointer_fn)(struct nvnc_client*, double x,
+		double y, enum nvnc_button_mask);
 typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t x, uint16_t y, uint16_t width,
                                uint16_t height);
@@ -198,6 +200,7 @@ void nvnc_set_name(struct nvnc* self, const char* name);
 void nvnc_set_key_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_key_code_fn(struct nvnc* self, nvnc_key_fn);
 void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
+void nvnc_set_normalised_pointer_fn(struct nvnc* self, nvnc_normalised_pointer_fn);
 void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);

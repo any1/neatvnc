@@ -503,7 +503,7 @@ static void calculate_desktop_extents(const struct nvnc* self,
 		uint32_t lh = display->logical_height;
 		if (lw == 0 || lh == 0) {
 			lw = display->buffer->width;
-			lh = display->buffer->logical_height;
+			lh = display->buffer->height;
 			nvnc_transform_dimensions(display->buffer->transform,
 					&lw, &lh);
 		}

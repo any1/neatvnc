@@ -56,6 +56,9 @@ struct h264_encoder_ffmpeg {
 	uint32_t width;
 	uint32_t height;
 	uint32_t format;
+	int quality;
+
+	char render_node[64];
 
 	AVRational timebase;
 	enum AVPixelFormat av_pixel_format;
@@ -352,6 +355,80 @@ static int h264_encoder__init_hw_frames_context(struct h264_encoder_ffmpeg* self
 	return 0;
 }
 
+static int get_render_node_from_bo(struct gbm_bo* bo, char* node, size_t maxlen)
+{
+	struct gbm_device* dev = gbm_bo_get_device(bo);
+	int fd = gbm_device_get_fd(dev);
+	char* name = drmGetDeviceNameFromFd2(fd);
+	if (!name)
+		return -1;
+	strncpy(node, name, maxlen - 1);
+	node[maxlen - 1] = '\0';
+	free(name);
+	return 0;
+}
+
+static void h264_encoder__teardown_pipeline(struct h264_encoder_ffmpeg* self)
+{
+	avcodec_free_context(&self->codec_ctx);
+	avfilter_graph_free(&self->filter_graph);
+	self->filter_in = NULL;
+	self->filter_out = NULL;
+	av_buffer_unref(&self->hw_frames_ctx);
+	av_buffer_unref(&self->hw_device_ctx);
+}
+
+static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
+		const char* render_node)
+{
+	const AVCodec* codec = avcodec_find_encoder_by_name("h264_vaapi");
+	if (!codec)
+		return -1;
+
+	int rc = av_hwdevice_ctx_create(&self->hw_device_ctx,
+			AV_HWDEVICE_TYPE_DRM, render_node, NULL, 0);
+	if (rc != 0)
+		return -1;
+
+	if (h264_encoder__init_hw_frames_context(self) < 0)
+		goto hw_frames_failure;
+
+	if (h264_encoder__init_filters(self) < 0)
+		goto filter_failure;
+
+	if (h264_encoder__init_codec_context(self, codec, self->quality) < 0)
+		goto codec_ctx_failure;
+
+	self->codec_ctx->hw_frames_ctx =
+		av_buffer_ref(av_buffersink_get_hw_frames_ctx(self->filter_out));
+
+	AVDictionary *opts = NULL;
+	av_dict_set_int(&opts, "async_depth", 1, 0);
+
+	rc = avcodec_open2(self->codec_ctx, codec, &opts);
+	av_dict_free(&opts);
+
+	if (rc != 0)
+		goto avcodec_open_failure;
+
+	strncpy(self->render_node, render_node, sizeof(self->render_node) - 1);
+	self->render_node[sizeof(self->render_node) - 1] = '\0';
+
+	return 0;
+
+avcodec_open_failure:
+	avcodec_free_context(&self->codec_ctx);
+codec_ctx_failure:
+	avfilter_graph_free(&self->filter_graph);
+	self->filter_in = NULL;
+	self->filter_out = NULL;
+filter_failure:
+	av_buffer_unref(&self->hw_frames_ctx);
+hw_frames_failure:
+	av_buffer_unref(&self->hw_device_ctx);
+	return -1;
+}
+
 static int h264_encoder__schedule_work(struct h264_encoder_ffmpeg* self)
 {
 	if (self->current_fb)
@@ -420,6 +497,27 @@ get_frame_failure:
 static void h264_encoder__do_work(struct aml_work* work)
 {
 	struct h264_encoder_ffmpeg* self = aml_get_userdata(work);
+
+	char render_node[64];
+	if (get_render_node_from_bo(self->current_fb->buffer->bo, render_node,
+				sizeof(render_node)) < 0) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to get render node from gbm_bo");
+		return;
+	}
+
+	if (strcmp(render_node, self->render_node) != 0) {
+		nvnc_log(NVNC_LOG_INFO,
+				"Render node changed to %s, reinitialising encoder",
+				render_node);
+		h264_encoder__teardown_pipeline(self);
+		if (h264_encoder__init_pipeline(self, render_node) < 0) {
+			nvnc_log(NVNC_LOG_ERROR,
+					"Failed to reinitialise encoder on %s",
+					render_node);
+			return;
+		}
+		self->current_frame_is_keyframe = true;
+	}
 
 	AVFrame* frame = fb_to_avframe(self->current_fb);
 	assert(frame); // TODO
@@ -515,8 +613,6 @@ static int find_render_node(char *node, size_t maxlen) {
 static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
 		uint32_t height, uint32_t format, int quality)
 {
-	int rc;
-
 	struct h264_encoder_ffmpeg* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
@@ -531,64 +627,28 @@ static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
 	if (!self->work)
 		goto worker_failure;
 
-	char render_node[64];
-	if (find_render_node(render_node, sizeof(render_node)) < 0)
-		goto render_node_failure;
-
-	rc = av_hwdevice_ctx_create(&self->hw_device_ctx,
-			AV_HWDEVICE_TYPE_DRM, render_node, NULL, 0);
-	if (rc != 0)
-		goto hwdevice_ctx_failure;
-
 	self->base.next_frame_should_be_keyframe = true;
 	TAILQ_INIT(&self->fb_queue);
 
 	self->width = width;
 	self->height = height;
 	self->format = format;
+	self->quality = quality;
 	self->timebase = (AVRational){1, 1000000};
 	self->av_pixel_format = drm_to_av_pixel_format(format);
 	if (self->av_pixel_format == AV_PIX_FMT_NONE)
 		goto pix_fmt_failure;
 
-	const AVCodec* codec = avcodec_find_encoder_by_name("h264_vaapi");
-	if (!codec)
-		goto codec_failure;
+	char render_node[64];
+	if (find_render_node(render_node, sizeof(render_node)) < 0)
+		goto pix_fmt_failure;
 
-	if (h264_encoder__init_hw_frames_context(self) < 0)
-		goto hw_frames_context_failure;
-
-	if (h264_encoder__init_filters(self) < 0)
-		goto filter_failure;
-
-	if (h264_encoder__init_codec_context(self, codec, quality) < 0)
-		goto codec_context_failure;
-
-	self->codec_ctx->hw_frames_ctx =
-		av_buffer_ref(av_buffersink_get_hw_frames_ctx(self->filter_out));
-
-	AVDictionary *opts = NULL;
-	av_dict_set_int(&opts, "async_depth", 1, 0);
-
-	rc = avcodec_open2(self->codec_ctx, codec, &opts);
-	av_dict_free(&opts);
-
-	if (rc != 0)
-		goto avcodec_open_failure;
+	if (h264_encoder__init_pipeline(self, render_node) < 0)
+		goto pix_fmt_failure;
 
 	return &self->base;
 
-avcodec_open_failure:
-	avcodec_free_context(&self->codec_ctx);
-codec_context_failure:
-filter_failure:
-	av_buffer_unref(&self->hw_frames_ctx);
-hw_frames_context_failure:
-codec_failure:
 pix_fmt_failure:
-	av_buffer_unref(&self->hw_device_ctx);
-hwdevice_ctx_failure:
-render_node_failure:
 	aml_unref(self->work);
 worker_failure:
 	vec_destroy(&self->current_packet);
@@ -607,10 +667,7 @@ static void h264_encoder_ffmpeg_destroy(struct h264_encoder* base)
 	}
 
 	vec_destroy(&self->current_packet);
-	av_buffer_unref(&self->hw_frames_ctx);
-	avcodec_free_context(&self->codec_ctx);
-	av_buffer_unref(&self->hw_device_ctx);
-	avfilter_graph_free(&self->filter_graph);
+	h264_encoder__teardown_pipeline(self);
 	aml_unref(self->work);
 	free(self);
 }

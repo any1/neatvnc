@@ -10,6 +10,7 @@ executable(
 		pixman,
 		aml,
 		libm,
+		libdrm_inc,
 	]
 )
 
@@ -25,6 +26,7 @@ if libpng.found()
 			pixman,
 			aml,
 			libpng,
+                        libdrm_inc,
 		]
 	)
 
@@ -39,6 +41,7 @@ if libpng.found()
 			pixman,
 			aml,
 			libpng,
+                        libdrm_inc,
 		]
 	)
 endif

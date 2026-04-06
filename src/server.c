@@ -454,7 +454,8 @@ static int on_security_message(struct nvnc_client* client)
 		return 0;
 
 	uint8_t type = client->msg_buffer[client->buffer_index];
-	nvnc_log(NVNC_LOG_DEBUG, "Client chose security type: %d", type);
+	nvnc_log(NVNC_LOG_DEBUG, "Client chose security type: %s (%d)",
+			security_type_to_string(type), type);
 
 	if (!is_allowed_security_type(client->server, type)) {
 		security_handshake_failed(client, NULL, "Illegal security type");

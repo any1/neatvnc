@@ -2504,70 +2504,6 @@ failure:
 	return -1;
 }
 
-EXPORT
-struct nvnc* nvnc_open(const char* address, uint16_t port)
-{
-	struct nvnc* self = nvnc_new();
-	if (!self)
-		return NULL;
-
-	if (nvnc_listen_tcp(self, address, port, NVNC_STREAM_NORMAL) < 0) {
-		nvnc_del(self);
-		return NULL;
-	}
-
-	return self;
-}
-
-EXPORT
-struct nvnc* nvnc_open_websocket(const char *address, uint16_t port)
-{
-#ifdef ENABLE_WEBSOCKET
-	struct nvnc* self = nvnc_new();
-	if (!self)
-		return NULL;
-
-	if (nvnc_listen_tcp(self, address, port, NVNC_STREAM_WEBSOCKET) < 0) {
-		nvnc_del(self);
-		return NULL;
-	}
-
-	return self;
-#else
-	return NULL;
-#endif
-}
-
-EXPORT
-struct nvnc* nvnc_open_unix(const char* address)
-{
-	struct nvnc* self = nvnc_new();
-	if (!self)
-		return NULL;
-
-	if (nvnc_listen_unix(self, address, NVNC_STREAM_NORMAL) < 0) {
-		nvnc_del(self);
-		return NULL;
-	}
-
-	return self;
-}
-
-EXPORT
-struct nvnc* nvnc_open_from_fd(int fd)
-{
-	struct nvnc* self = nvnc_new();
-	if (!self)
-		return NULL;
-
-	if (nvnc_listen(self, fd, NVNC_STREAM_NORMAL) < 0) {
-		nvnc_del(self);
-		return NULL;
-	}
-
-	return self;
-}
-
 static void unlink_fd_path(int fd)
 {
 	struct sockaddr_un addr;
@@ -2638,12 +2574,6 @@ void nvnc_del(struct nvnc* self)
 	free(self->ext_clipboard_provide_msg.buffer);
 
 	free(self);
-}
-
-EXPORT
-void nvnc_close(struct nvnc* self)
-{
-	nvnc_del(self);
 }
 
 static void process_pending_fence(struct nvnc_client* client)

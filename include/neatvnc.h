@@ -53,8 +53,6 @@
 	if (!(statement)) \
 		nvnc_log(NVNC_LOG_PANIC, fmt, ## __VA_ARGS__)
 
-#define NVNC_DEPRECATED(msg) __attribute__((deprecated(msg)))
-
 struct nvnc;
 struct nvnc_client;
 struct nvnc_auth_creds;
@@ -160,21 +158,6 @@ int nvnc_listen_tcp(struct nvnc* self, const char* addr, uint16_t port,
 		enum nvnc_stream_type type);
 int nvnc_listen_unix(struct nvnc* self, const char* path,
 		enum nvnc_stream_type type);
-
-NVNC_DEPRECATED("use nvnc_listen_tcp")
-struct nvnc* nvnc_open(const char* addr, uint16_t port);
-
-NVNC_DEPRECATED("use nvnc_listen_unix")
-struct nvnc* nvnc_open_unix(const char *addr);
-
-NVNC_DEPRECATED("use nvnc_listen_tcp")
-struct nvnc* nvnc_open_websocket(const char* addr, uint16_t port);
-
-NVNC_DEPRECATED("use nvnc_listen")
-struct nvnc* nvnc_open_from_fd(int fd);
-
-NVNC_DEPRECATED("use nvnc_del")
-void nvnc_close(struct nvnc* self);
 
 void nvnc_add_display(struct nvnc*, struct nvnc_display*);
 void nvnc_remove_display(struct nvnc*, struct nvnc_display*);
@@ -319,5 +302,3 @@ double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
 
 void nvnc_set_display_sync_barrier(struct nvnc* self, int n_displays);
-
-#undef NVNC_DEPRECATED

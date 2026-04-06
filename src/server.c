@@ -280,9 +280,9 @@ static void init_security_types(struct nvnc* server)
 		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
 
-			if (server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) {
-				ADD_SECURITY_TYPE(
-					RFB_SECURITY_TYPE_VNC_AUTH);
+			if ((server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
+			    !(server->auth_flags & NVNC_AUTH_REQUIRE_USERNAME)) {
+				ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_VNC_AUTH);
 			}
 		}
 #endif

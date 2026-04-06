@@ -119,6 +119,7 @@ enum nvnc_auth_flags {
 	NVNC_AUTH_REQUIRE_AUTH = 1 << 0,
 	NVNC_AUTH_REQUIRE_ENCRYPTION = 1 << 1,
 	NVNC_AUTH_ALLOW_BROKEN_CRYPTO = 1 << 2,
+	NVNC_AUTH_REQUIRE_USERNAME = 1 << 3,
 };
 
 struct nvnc_log_data {

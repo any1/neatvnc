@@ -255,6 +255,35 @@ static int handle_unsupported_version(struct nvnc_client* client)
 	return -1;
 }
 
+static const char* security_type_to_string(enum rfb_security_type type)
+{
+	switch (type) {
+	case RFB_SECURITY_TYPE_INVALID: return "invalid";
+	case RFB_SECURITY_TYPE_NONE: return "none";
+	case RFB_SECURITY_TYPE_VNC_AUTH: return "3des";
+	case RFB_SECURITY_TYPE_RSA_AES: return "rsa-aes128";
+	case RFB_SECURITY_TYPE_TIGHT: return "tight";
+	case RFB_SECURITY_TYPE_VENCRYPT: return "vencrypt";
+	case RFB_SECURITY_TYPE_APPLE_DH: return "apple-dh";
+	case RFB_SECURITY_TYPE_RSA_AES256: return "rsa-aes256";
+	}
+	return "UNKNOWN";
+}
+
+static void security_types_to_string_list(char* dst, size_t len,
+		enum rfb_security_type* types, size_t n)
+{
+	size_t off = 0;
+
+	if (n > 0)
+		off += snprintf(dst, len, "%s",
+				security_type_to_string(types[0]));
+
+	for (size_t i = 1; i < n && off < len; ++i)
+		off += snprintf(dst + off, len - off, ",%s",
+				security_type_to_string(types[i]));
+}
+
 static void init_security_types(struct nvnc* server)
 {
 #define ADD_SECURITY_TYPE(type) \
@@ -292,6 +321,16 @@ static void init_security_types(struct nvnc* server)
 
 	if (server->n_security_types == 0) {
 		nvnc_log(NVNC_LOG_PANIC, "Failed to satisfy requested security constraints");
+	}
+
+	static bool logged_security_types;
+	if (!logged_security_types) {
+		logged_security_types = true;
+		char enabled_types[256];
+		security_types_to_string_list(enabled_types, sizeof(enabled_types),
+				server->security_types, server->n_security_types);
+		nvnc_log(NVNC_LOG_INFO, "Enabled security types: %s",
+				enabled_types);
 	}
 
 #undef ADD_SECURITY_TYPE

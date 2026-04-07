@@ -3296,6 +3296,8 @@ bool nvnc_auth_creds_verify(const struct nvnc_auth_creds* creds,
 		return strcmp(creds->password, password) == 0;
 #ifdef HAVE_CRYPTO
 	case NVNC_AUTH_CREDS_DES:
+		if (strlen(password) > 8)
+			nvnc_log(NVNC_LOG_WARNING, "Password is longer than 8 characters; only the first 8 will be used for DES authentication");
 		return des_auth_verify(creds->des.challenge,
 				creds->des.response, password);
 #endif

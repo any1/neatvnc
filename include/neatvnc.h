@@ -716,9 +716,3 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
  */
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
-
-/**
- * Set the number of displays that must be updated before an update is encoded
- * and sent to clients.
- */
-void nvnc_set_display_sync_barrier(struct nvnc* self, int n_displays);

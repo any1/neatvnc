@@ -610,7 +610,7 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
  * Submit a frame with a damage region for encoding and transmission
  * to clients.
  */
-void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_frame*,
+void nvnc_display_feed_frame(struct nvnc_display*, struct nvnc_frame*,
 		struct pixman_region16* damage);
 
 /**

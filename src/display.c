@@ -100,10 +100,10 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display* self)
 }
 
 EXPORT
-void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_frame* fb,
+void nvnc_display_feed_frame(struct nvnc_display* self, struct nvnc_frame* fb,
 		struct pixman_region16* damage)
 {
-	DTRACE_PROBE2(neatvnc, nvnc_display_feed_buffer, self, fb->pts);
+	DTRACE_PROBE2(neatvnc, nvnc_display_feed_frame, self, fb->pts);
 
 	struct nvnc* server = self->server;
 	assert(server);

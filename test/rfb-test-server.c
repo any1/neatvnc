@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 	assert(fb);
 	struct pixman_region16 damage;
 	pixman_region_init_rect(&damage, 0, 0, 64, 64);
-	nvnc_display_feed_buffer(display, fb, &damage);
+	nvnc_display_feed_frame(display, fb, &damage);
 	pixman_region_fini(&damage);
 
 	/* SIGTERM handler for clean shutdown */

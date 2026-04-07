@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 		struct pixman_region16 damage;
 		pixman_region_init_rect(&damage, 0, 0, nvnc_frame_get_width(fb),
 				nvnc_frame_get_height(fb));
-		nvnc_display_feed_buffer(display, fb, &damage);
+		nvnc_display_feed_frame(display, fb, &damage);
 		pixman_region_fini(&damage);
 
 		nvnc_display_unref(display);

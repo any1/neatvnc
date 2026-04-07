@@ -59,11 +59,7 @@ int main(int argc, char* argv[])
 	nvnc_add_display(server, display);
 	nvnc_set_name(server, file);
 
-	struct pixman_region16 damage;
-	pixman_region_init_rect(&damage, 0, 0, nvnc_frame_get_width(fb),
-			nvnc_frame_get_height(fb));
-	nvnc_display_feed_frame(display, fb, &damage);
-	pixman_region_fini(&damage);
+	nvnc_display_feed_frame(display, fb);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);

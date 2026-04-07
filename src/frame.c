@@ -56,6 +56,7 @@ struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;
+	pixman_region_init_rect(&fb->damage, 0, 0, width, height);
 
 	return fb;
 }
@@ -77,6 +78,7 @@ struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer, uint16_t w
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;
+	pixman_region_init_rect(&fb->damage, 0, 0, width, height);
 
 	return fb;
 }
@@ -101,6 +103,7 @@ struct nvnc_frame* nvnc_frame_from_raw(void* buffer, uint16_t width, uint16_t he
 	fb->fourcc_format = fourcc_format;
 	fb->stride = stride;
 	fb->pts = NVNC_NO_PTS;
+	pixman_region_init_rect(&fb->damage, 0, 0, width, height);
 
 	return fb;
 }
@@ -125,6 +128,7 @@ struct nvnc_frame* nvnc_frame_from_gbm_bo(struct gbm_bo* bo)
 	fb->fourcc_format = gbm_bo_get_format(bo);
 	fb->stride = 0;
 	fb->pts = NVNC_NO_PTS;
+	pixman_region_init_rect(&fb->damage, 0, 0, fb->width, fb->height);
 
 	return fb;
 #else
@@ -211,6 +215,13 @@ uint64_t nvnc_frame_get_pts(const struct nvnc_frame* fb)
 	return fb->pts;
 }
 
+EXPORT
+void nvnc_frame_get_damage(const struct nvnc_frame* self,
+		struct pixman_region16* damage)
+{
+	pixman_region_copy(damage, &self->damage);
+}
+
 static void nvnc__fb_free(struct nvnc_frame* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
@@ -218,6 +229,7 @@ static void nvnc__fb_free(struct nvnc_frame* fb)
 		cleanup(fb->common.userdata);
 
 	nvnc_buffer_unref(fb->buffer);
+	pixman_region_fini(&fb->damage);
 	free(fb);
 }
 
@@ -256,6 +268,13 @@ EXPORT
 void nvnc_frame_set_pts(struct nvnc_frame* fb, uint64_t pts)
 {
 	fb->pts = pts;
+}
+
+EXPORT
+void nvnc_frame_set_damage(struct nvnc_frame* self,
+		const struct pixman_region16* damage)
+{
+	pixman_region_copy(&self->damage, damage);
 }
 
 void nvnc_frame_hold(struct nvnc_frame* fb)

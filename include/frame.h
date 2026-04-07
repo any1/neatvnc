@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <pixman.h>
 
 #include "neatvnc.h"
 #include "common.h"
@@ -42,6 +43,7 @@ struct nvnc_frame {
 	int32_t stride;
 	enum nvnc_transform transform;
 	uint64_t pts; // in micro seconds
+	struct pixman_region16 damage;
 
 	struct nvnc_buffer* buffer;
 };

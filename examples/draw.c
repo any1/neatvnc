@@ -171,7 +171,9 @@ static void update_vnc_buffer(struct draw* draw,
 	/* The buffer is now up to date, so the damage region can be cleared. */
 	pixman_region_clear(&fb_side_data->damage);
 
-	nvnc_display_feed_frame(draw->display, fb, frame_damage);
+	nvnc_frame_set_damage(fb, frame_damage);
+	nvnc_display_feed_frame(draw->display, fb);
+
 	nvnc_frame_unref(fb);
 }
 

@@ -129,6 +129,7 @@ struct nvnc_frame* nvnc_frame_pool_acquire(struct nvnc_frame_pool* self)
 	fb->stride = self->stride;
 	fb->pts = NVNC_NO_PTS;
 	fb->buffer = buffer;
+	pixman_region_init_rect(&fb->damage, 0, 0, fb->width, fb->height);
 
 	return fb;
 }

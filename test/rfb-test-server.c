@@ -174,10 +174,7 @@ int main(int argc, char* argv[])
 
 	struct nvnc_frame* fb = nvnc_frame_new(64, 64, DRM_FORMAT_RGBX8888, 64);
 	assert(fb);
-	struct pixman_region16 damage;
-	pixman_region_init_rect(&damage, 0, 0, 64, 64);
-	nvnc_display_feed_frame(display, fb, &damage);
-	pixman_region_fini(&damage);
+	nvnc_display_feed_frame(display, fb);
 
 	/* SIGTERM handler for clean shutdown */
 	struct aml_signal* sig = aml_signal_new(SIGTERM, on_sigterm,

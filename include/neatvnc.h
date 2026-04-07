@@ -468,6 +468,13 @@ void nvnc_frame_set_logical_width(struct nvnc_frame* fb, uint16_t value);
 void nvnc_frame_set_logical_height(struct nvnc_frame* fb, uint16_t value);
 
 /**
+ * Set the damage region of the frame. A new frame is assumed to be fully
+ * damaged. This narrows it down.
+ */
+void nvnc_frame_set_damage(struct nvnc_frame*,
+		const struct pixman_region16* damage);
+
+/**
  * Set the presentation timestamp of the frame.
  */
 void nvnc_frame_set_pts(struct nvnc_frame* fb, uint64_t pts);
@@ -536,6 +543,12 @@ enum nvnc_buffer_type nvnc_frame_get_type(const struct nvnc_frame* fb);
  * Get the presentation timestamp of the frame.
  */
 uint64_t nvnc_frame_get_pts(const struct nvnc_frame* fb);
+
+/**
+ * Get the damage of the frame.
+ */
+void nvnc_frame_get_damage(const struct nvnc_frame*,
+		struct pixman_region16* damage);
 
 /**
  * Create a frame pool with the given dimensions and format.
@@ -610,8 +623,7 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
  * Submit a frame with a damage region for encoding and transmission
  * to clients.
  */
-void nvnc_display_feed_frame(struct nvnc_display*, struct nvnc_frame*,
-		struct pixman_region16* damage);
+void nvnc_display_feed_frame(struct nvnc_display*, struct nvnc_frame*);
 
 /**
  * Get the total desktop width from the layout.

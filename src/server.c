@@ -2660,7 +2660,7 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		case RFB_ENCODING_OPEN_H264:
 			// h264 is useless for sw frames
 			for (int i = 0; i < fb->n_fbs; ++i)
-				if (fb->fbs[i]->buffer->type != NVNC_FB_GBM_BO)
+				if (fb->fbs[i]->buffer->type != NVNC_BUFFER_GBM_BO)
 					goto skip;
 			if (!have_working_h264_encoder())
 				break;
@@ -3248,9 +3248,9 @@ static uint32_t find_highest_client_depth(const struct nvnc* self)
 
 EXPORT
 double nvnc_rate_pixel_format(const struct nvnc* self,
-		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier)
+		enum nvnc_buffer_type fb_type, uint32_t format, uint64_t modifier)
 {
-	if (fb_type == NVNC_FB_SIMPLE && modifier) {
+	if (fb_type == NVNC_BUFFER_SIMPLE && modifier) {
 		nvnc_log(NVNC_LOG_ERROR, "modifier should be 0 for simple buffers");
 		return 0;
 	}
@@ -3260,9 +3260,9 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
 
 EXPORT
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
-		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier)
+		enum nvnc_buffer_type fb_type, uint32_t format, uint64_t modifier)
 {
-	if (fb_type == NVNC_FB_SIMPLE && modifier) {
+	if (fb_type == NVNC_BUFFER_SIMPLE && modifier) {
 		nvnc_log(NVNC_LOG_ERROR, "modifier should be 0 for simple buffers");
 		return 0;
 	}

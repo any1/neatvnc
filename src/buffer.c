@@ -40,7 +40,7 @@ struct nvnc_buffer* nvnc_buffer_new(size_t size)
 		return NULL;
 
 	buffer->ref = 1;
-	buffer->type = NVNC_FB_SIMPLE;
+	buffer->type = NVNC_BUFFER_SIMPLE;
 
 	size_t alignment = MAX(4, sizeof(void*));
 	size_t aligned_size = ALIGN_UP(size, alignment);
@@ -62,7 +62,7 @@ struct nvnc_buffer* nvnc_buffer_from_addr(void* addr)
 		return NULL;
 
 	buffer->ref = 1;
-	buffer->type = NVNC_FB_SIMPLE;
+	buffer->type = NVNC_BUFFER_SIMPLE;
 	buffer->is_external = true;
 	buffer->addr = addr;
 
@@ -78,7 +78,7 @@ struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo)
 		return NULL;
 
 	buffer->ref = 1;
-	buffer->type = NVNC_FB_GBM_BO;
+	buffer->type = NVNC_BUFFER_GBM_BO;
 	buffer->is_external = true;
 	buffer->bo = bo;
 
@@ -100,10 +100,10 @@ static void nvnc__buffer_free_internal(struct nvnc_buffer* buffer)
 	switch (buffer->type) {
 	case NVNC_FB_UNSPEC:
 		abort();
-	case NVNC_FB_SIMPLE:
+	case NVNC_BUFFER_SIMPLE:
 		free(buffer->addr);
 		break;
-	case NVNC_FB_GBM_BO:
+	case NVNC_BUFFER_GBM_BO:
 #ifdef HAVE_GBM
 		gbm_bo_destroy(buffer->bo);
 #else
@@ -146,7 +146,7 @@ int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,
 		int32_t* stride_out)
 {
 #ifdef HAVE_GBM
-	if (buffer->type != NVNC_FB_GBM_BO || buffer->bo_map_handle)
+	if (buffer->type != NVNC_BUFFER_GBM_BO || buffer->bo_map_handle)
 		return 0;
 
 	uint32_t stride = 0;
@@ -167,7 +167,7 @@ int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,
 void nvnc_buffer_unmap(struct nvnc_buffer* buffer)
 {
 #ifdef HAVE_GBM
-	if (buffer->type != NVNC_FB_GBM_BO)
+	if (buffer->type != NVNC_BUFFER_GBM_BO)
 		return;
 
 	if (buffer->bo_map_handle)

@@ -77,10 +77,10 @@ enum nvnc_button_mask {
 	NVNC_BUTTON_FORWARD = 1 << 8,
 };
 
-enum nvnc_frame_type {
+enum nvnc_buffer_type {
 	NVNC_FB_UNSPEC = 0,
-	NVNC_FB_SIMPLE,
-	NVNC_FB_GBM_BO,
+	NVNC_BUFFER_SIMPLE,
+	NVNC_BUFFER_GBM_BO,
 };
 
 enum nvnc_stream_type {
@@ -343,21 +343,21 @@ const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
  * The buffer is allocated from main memory using aligned_alloc with an
  * alignment of min(4, sizeof(void*)).
  *
- * The buffer will have a type of NVNC_FB_SIMPLE.
+ * The buffer will have a type of NVNC_BUFFER_SIMPLE.
  */
 struct nvnc_buffer* nvnc_buffer_new(size_t size);
 
 /**
  * Wrap an external memory address into a buffer object.
  *
- * The buffer will have a type of NVNC_FB_SIMPLE.
+ * The buffer will have a type of NVNC_BUFFER_SIMPLE.
  */
 struct nvnc_buffer* nvnc_buffer_from_addr(void* address);
 
 /**
  * Wrap a GBM buffer object into a buffer object.
  *
- * The buffer will have a type of NVNC_FB_GBM_BO.
+ * The buffer will have a type of NVNC_BUFFER_GBM_BO.
  */
 struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo);
 
@@ -412,7 +412,7 @@ struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool*);
  * and format.
  *
  * An nvnc_buffer object will be allocated internally by this function with a
- * type of NVNC_FB_SIMPLE. See nvnc_buffer_new();
+ * type of NVNC_BUFFER_SIMPLE. See nvnc_buffer_new();
  */
 struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 		uint32_t fourcc_format, uint16_t stride);
@@ -530,7 +530,7 @@ enum nvnc_transform nvnc_frame_get_transform(const struct nvnc_frame* fb);
 /**
  * Get the type of the frame (simple, GBM BO, etc.).
  */
-enum nvnc_frame_type nvnc_frame_get_type(const struct nvnc_frame* fb);
+enum nvnc_buffer_type nvnc_frame_get_type(const struct nvnc_frame* fb);
 
 /**
  * Get the presentation timestamp of the frame.
@@ -707,7 +707,7 @@ void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
  * The score is in the closed range between 0.0 and 1.0.
  */
 double nvnc_rate_pixel_format(const struct nvnc* self,
-		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier);
+		enum nvnc_buffer_type fb_type, uint32_t format, uint64_t modifier);
 
 /**
  * Rate how well a pixel format is supported for cursor images.
@@ -715,4 +715,4 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
  * The score is in the closed range between 0.0 and 1.0.
  */
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
-		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier);
+		enum nvnc_buffer_type fb_type, uint32_t format, uint64_t modifier);

@@ -676,7 +676,7 @@ static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
 		struct nvnc_frame* fb)
 {
 	struct h264_encoder_ffmpeg* self = (struct h264_encoder_ffmpeg*)base;
-	assert(fb->buffer->type == NVNC_FB_GBM_BO);
+	assert(fb->buffer->type == NVNC_BUFFER_GBM_BO);
 
 	// TODO: Add transform filter
 	assert(fb->transform == NVNC_TRANSFORM_NORMAL);

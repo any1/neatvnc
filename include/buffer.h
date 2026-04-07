@@ -30,7 +30,7 @@ struct nvnc_buffer {
 	struct nvnc_common common;
 
 	int ref;
-	enum nvnc_frame_type type;
+	enum nvnc_buffer_type type;
 	bool is_external;
 
 	/* main memory buffer */

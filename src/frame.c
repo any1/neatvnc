@@ -200,7 +200,7 @@ enum nvnc_transform nvnc_frame_get_transform(const struct nvnc_frame* fb)
 }
 
 EXPORT
-enum nvnc_frame_type nvnc_frame_get_type(const struct nvnc_frame* fb)
+enum nvnc_buffer_type nvnc_frame_get_type(const struct nvnc_frame* fb)
 {
 	return fb->buffer->type;
 }

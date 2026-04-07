@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "fb.h"
+#include "frame.h"
 #include "buffer.h"
 #include "pixels.h"
 #include "neatvnc.h"
@@ -23,7 +23,7 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-struct nvnc_fb_pool {
+struct nvnc_frame_pool {
 	int ref;
 
 	struct nvnc_buffer_pool* buffer_pool;
@@ -37,17 +37,17 @@ struct nvnc_fb_pool {
 static struct nvnc_buffer* fb_pool_buffer_alloc(
 		struct nvnc_buffer_pool* pool)
 {
-	struct nvnc_fb_pool* self = nvnc_get_userdata(pool);
+	struct nvnc_frame_pool* self = nvnc_get_userdata(pool);
 	uint32_t bpp = nvnc__pixel_size_from_fourcc(self->fourcc_format);
 	size_t size = (size_t)self->height * self->stride * bpp;
 	return nvnc_buffer_new(size);
 }
 
 EXPORT
-struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
+struct nvnc_frame_pool* nvnc_frame_pool_new(uint16_t width, uint16_t height,
 		uint32_t fourcc_format, uint16_t stride)
 {
-	struct nvnc_fb_pool* self = calloc(1, sizeof(*self));
+	struct nvnc_frame_pool* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
 
@@ -67,14 +67,14 @@ struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
 	return self;
 }
 
-static void nvnc_fb_pool__destroy(struct nvnc_fb_pool* self)
+static void nvnc_frame_pool__destroy(struct nvnc_frame_pool* self)
 {
 	nvnc_buffer_pool_unref(self->buffer_pool);
 	free(self);
 }
 
 EXPORT
-bool nvnc_fb_pool_resize(struct nvnc_fb_pool* self, uint16_t width,
+bool nvnc_frame_pool_resize(struct nvnc_frame_pool* self, uint16_t width,
 		uint16_t height, uint32_t fourcc_format, uint16_t stride)
 {
 	if (width == self->width && height == self->height &&
@@ -96,27 +96,27 @@ bool nvnc_fb_pool_resize(struct nvnc_fb_pool* self, uint16_t width,
 }
 
 EXPORT
-void nvnc_fb_pool_ref(struct nvnc_fb_pool* self)
+void nvnc_frame_pool_ref(struct nvnc_frame_pool* self)
 {
 	self->ref++;
 }
 
 EXPORT
-void nvnc_fb_pool_unref(struct nvnc_fb_pool* self)
+void nvnc_frame_pool_unref(struct nvnc_frame_pool* self)
 {
 	if (--self->ref == 0)
-		nvnc_fb_pool__destroy(self);
+		nvnc_frame_pool__destroy(self);
 }
 
 EXPORT
-struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool* self)
+struct nvnc_frame* nvnc_frame_pool_acquire(struct nvnc_frame_pool* self)
 {
 	struct nvnc_buffer* buffer =
 		nvnc_buffer_pool_acquire(self->buffer_pool);
 	if (!buffer)
 		return NULL;
 
-	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	struct nvnc_frame* fb = calloc(1, sizeof(*fb));
 	if (!fb) {
 		nvnc_buffer_unref(buffer);
 		return NULL;

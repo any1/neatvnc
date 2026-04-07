@@ -19,7 +19,7 @@
 #include <stdint.h>
 
 struct pixman_region16;
-struct nvnc_fb;
+struct nvnc_frame;
 struct XXH3_state_s;
 
 struct damage_refinery {
@@ -38,4 +38,4 @@ void damage_refinery_destroy(struct damage_refinery* self);
 void damage_refine(struct damage_refinery* self,
 		struct pixman_region16* refined, 
 		struct pixman_region16* hint,
-		struct nvnc_fb* buffer);
+		struct nvnc_frame* buffer);

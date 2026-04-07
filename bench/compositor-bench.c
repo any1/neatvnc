@@ -1,6 +1,6 @@
 #include "compositor.h"
 #include "transform-util.h"
-#include "fb.h"
+#include "frame.h"
 
 #include <aml.h>
 #include <pixman.h>
@@ -10,7 +10,7 @@
 #include <drm_fourcc.h>
 #include <math.h>
 
-struct nvnc_fb* read_png_file(const char *filename);
+struct nvnc_frame* read_png_file(const char *filename);
 
 static int drm_fourcc_to_sixel_format(uint32_t fourcc)
 {
@@ -32,7 +32,7 @@ static int drm_fourcc_to_sixel_format(uint32_t fourcc)
 	}
 }
 
-static int nvnc_fb_write_sixel(struct nvnc_fb* fb)
+static int nvnc_frame_write_sixel(struct nvnc_frame* fb)
 {
 	sixel_encoder_t* encoder = NULL;
 	int rc = sixel_encoder_new(&encoder, NULL);
@@ -44,10 +44,10 @@ static int nvnc_fb_write_sixel(struct nvnc_fb* fb)
 	rc = sixel_frame_new(&frame, NULL);
 	assert(rc == SIXEL_OK);
 
-	size_t buffer_size = fb->height * nvnc_fb_get_stride(fb) *
-		nvnc_fb_get_pixel_size(fb);
+	size_t buffer_size = fb->height * nvnc_frame_get_stride(fb) *
+		nvnc_frame_get_pixel_size(fb);
 	void* buffer = malloc(buffer_size);
-	memcpy(buffer, nvnc_fb_get_addr(fb), buffer_size);
+	memcpy(buffer, nvnc_frame_get_addr(fb), buffer_size);
 
 	sixel_frame_init(frame, buffer, fb->width, fb->height, sixel_format,
 			NULL, 256);
@@ -76,7 +76,7 @@ static void on_done(struct nvnc_composite_fb* cfb,
 		struct pixman_region16* damage, void* userdata)
 {
 	aml_exit(aml_get_default());
-	nvnc_fb_write_sixel(cfb->fbs[0]);
+	nvnc_frame_write_sixel(cfb->fbs[0]);
 }
 
 int main(int argc, char* argv[])
@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 		enum nvnc_transform transform = atoi(argv[i + 1]);
 		double scale = strtod(argv[i + 2], NULL);
 
-		struct nvnc_fb* fb = read_png_file(file);
+		struct nvnc_frame* fb = read_png_file(file);
 		if (!fb) {
 			printf("Failed to read png file: %s\n", file);
 			goto out;

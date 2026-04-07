@@ -19,7 +19,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 
-struct nvnc_fb;
+struct nvnc_frame;
 struct h264_encoder;
 
 typedef void (*h264_encoder_packet_handler_fn)(const void* payload, size_t size,
@@ -29,7 +29,7 @@ struct h264_encoder_impl {
 	struct h264_encoder* (*create)(uint32_t width, uint32_t height,
 			uint32_t format, int quality);
 	void (*destroy)(struct h264_encoder*);
-	void (*feed)(struct h264_encoder*, struct nvnc_fb*);
+	void (*feed)(struct h264_encoder*, struct nvnc_frame*);
 };
 
 struct h264_encoder {
@@ -48,6 +48,6 @@ void h264_encoder_set_packet_handler_fn(struct h264_encoder*,
 		h264_encoder_packet_handler_fn);
 void h264_encoder_set_userdata(struct h264_encoder*, void* userdata);
 
-void h264_encoder_feed(struct h264_encoder*, struct nvnc_fb*);
+void h264_encoder_feed(struct h264_encoder*, struct nvnc_frame*);
 
 void h264_encoder_request_keyframe(struct h264_encoder*);

@@ -16,7 +16,7 @@
 
 #include "enc/h264-encoder.h"
 #include "neatvnc.h"
-#include "fb.h"
+#include "frame.h"
 #include "pixels.h"
 
 #include <assert.h>
@@ -50,7 +50,7 @@ struct h264_encoder_v4l2m2m_src_buf {
 	struct v4l2_plane planes[4];
 	int fd;
 	bool is_taken;
-	struct nvnc_fb* fb;
+	struct nvnc_frame* fb;
 };
 
 struct h264_encoder_v4l2m2m {
@@ -387,9 +387,9 @@ static void process_src_bufs(struct h264_encoder_v4l2m2m* self)
 		// TODO: This assumes that there's only one fd
 		close(srcbuf->planes[0].m.fd);
 
-		nvnc_fb_unmap(srcbuf->fb);
-		nvnc_fb_release(srcbuf->fb);
-		nvnc_fb_unref(srcbuf->fb);
+		nvnc_frame_unmap(srcbuf->fb);
+		nvnc_frame_release(srcbuf->fb);
+		nvnc_frame_unref(srcbuf->fb);
 		srcbuf->fb = NULL;
 	}
 }
@@ -460,7 +460,7 @@ static void force_key_frame(struct h264_encoder_v4l2m2m* self)
 }
 
 static void encode_buffer(struct h264_encoder_v4l2m2m* self,
-		struct nvnc_fb* fb)
+		struct nvnc_frame* fb)
 {
 	struct h264_encoder_v4l2m2m_src_buf* srcbuf = take_src_buffer(self);
 	if (!srcbuf) {
@@ -470,18 +470,18 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 
 	assert(!srcbuf->fb);
 
-	nvnc_fb_ref(fb);
-	nvnc_fb_hold(fb);
+	nvnc_frame_ref(fb);
+	nvnc_frame_hold(fb);
 
 	/* For some reason the v4l2m2m h264 encoder in the Rapberry Pi 4 gets
 	 * really glitchy unless the buffer is mapped first.
 	 * This should probably be handled by the driver, but it's not.
 	 */
-	nvnc_fb_map(fb);
+	nvnc_frame_map(fb);
 
 	srcbuf->fb = fb;
 
-	struct gbm_bo* bo = nvnc_fb_get_gbm_bo(fb);
+	struct gbm_bo* bo = nvnc_frame_get_gbm_bo(fb);
 
 	int n_planes = gbm_bo_get_plane_count(bo);
 	int fd = gbm_bo_get_fd(bo);
@@ -729,7 +729,7 @@ static void h264_encoder_v4l2m2m_destroy(struct h264_encoder* base)
 }
 
 static void h264_encoder_v4l2m2m_feed(struct h264_encoder* base,
-		struct nvnc_fb* fb)
+		struct nvnc_frame* fb)
 {
 	struct h264_encoder_v4l2m2m* self = (struct h264_encoder_v4l2m2m*)base;
 	process_src_bufs(self);

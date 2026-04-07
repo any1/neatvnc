@@ -19,7 +19,7 @@
 #include "rfb-proto.h"
 #include "enc/util.h"
 #include "vec.h"
-#include "fb.h"
+#include "frame.h"
 #include "enc/encoder.h"
 #include "usdt.h"
 #include "neatvnc.h"
@@ -229,7 +229,7 @@ static void open_h264_destroy(struct encoder* enc)
 	free(self);
 }
 
-static int open_h264_resize(struct open_h264_context* self, struct nvnc_fb* fb)
+static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* fb)
 {
 	int quality = 51 - round((50.0 / 9.0) * (float)self->parent->quality);
 
@@ -255,7 +255,7 @@ static int open_h264_resize(struct open_h264_context* self, struct nvnc_fb* fb)
 	return 0;
 }
 
-static int open_h264_ctx_encode(struct open_h264_context* self, struct nvnc_fb* fb)
+static int open_h264_ctx_encode(struct open_h264_context* self, struct nvnc_frame* fb)
 {
 	DTRACE_PROBE1(neatvnc, open_h264_encode, fb->pts);
 
@@ -340,7 +340,7 @@ static int open_h264_encode(struct encoder* enc,
 	self->frame_height = nvnc_composite_fb_height(composite);
 
 	for (int i = 0; i < composite->n_fbs; ++i) {
-		struct nvnc_fb* fb = composite->fbs[i];
+		struct nvnc_frame* fb = composite->fbs[i];
 		assert(fb);
 
 		struct pixman_box16 box = {

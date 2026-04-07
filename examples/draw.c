@@ -52,12 +52,12 @@ struct draw {
 	uint32_t* whiteboard_buffer;
 
 	struct nvnc_display* display;
-	struct nvnc_fb_pool* fb_pool;
+	struct nvnc_frame_pool* fb_pool;
 
 	struct fb_side_data_list fb_side_data_list;
 };
 
-static struct nvnc_fb* create_cursor()
+static struct nvnc_frame* create_cursor()
 {
 	static char ascii_art[] =
 		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -93,7 +93,7 @@ static struct nvnc_fb* create_cursor()
 		"XX                              "
 		"X                               ";
 
-	struct nvnc_fb* fb = nvnc_fb_new(32, 32, DRM_FORMAT_RGBA8888, 32);
+	struct nvnc_frame* fb = nvnc_frame_new(32, 32, DRM_FORMAT_RGBA8888, 32);
 	assert(fb);
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -102,7 +102,7 @@ static struct nvnc_fb* create_cursor()
 	uint32_t colour = 0xff00ff00ULL;
 #endif
 
-	uint32_t* pixels = nvnc_fb_get_addr(fb);
+	uint32_t* pixels = nvnc_frame_get_addr(fb);
 
 	for (int i = 0; i < 32 * 32; ++i) {
 		pixels[i] = ascii_art[i] != ' ' ? colour : 0;
@@ -137,7 +137,7 @@ static void damage_all_buffers(struct draw* draw,
 static void update_vnc_buffer(struct draw* draw,
 		struct pixman_region16* frame_damage)
 {
-	struct nvnc_fb *fb = nvnc_fb_pool_acquire(draw->fb_pool);
+	struct nvnc_frame *fb = nvnc_frame_pool_acquire(draw->fb_pool);
 	assert(fb);
 
 	struct fb_side_data* fb_side_data = nvnc_get_userdata(fb);
@@ -155,7 +155,7 @@ static void update_vnc_buffer(struct draw* draw,
 
 	pixman_image_t* dstimg = pixman_image_create_bits_no_clear(
 			PIXMAN_r8g8b8x8, draw->width, draw->height,
-			nvnc_fb_get_addr(fb), 4 * draw->width);
+			nvnc_frame_get_addr(fb), 4 * draw->width);
 
 	/* Clip region is set to limit copying to only the damaged region. */
 	pixman_image_set_clip_region(dstimg, &fb_side_data->damage);
@@ -172,7 +172,7 @@ static void update_vnc_buffer(struct draw* draw,
 	pixman_region_clear(&fb_side_data->damage);
 
 	nvnc_display_feed_buffer(draw->display, fb, frame_damage);
-	nvnc_fb_unref(fb);
+	nvnc_frame_unref(fb);
 }
 
 static void composite_dot(struct draw *draw, uint32_t* image,
@@ -245,7 +245,7 @@ static bool on_desktop_layout_event(struct nvnc_client* client,
 	struct draw* draw = nvnc_get_userdata(server);
 	assert(draw);
 
-	nvnc_fb_pool_resize(draw->fb_pool, width, height, draw->format, width);
+	nvnc_frame_pool_resize(draw->fb_pool, width, height, draw->format, width);
 
 	uint32_t* buffer = malloc(width * height * 4);
 	assert(buffer);
@@ -306,7 +306,7 @@ int main(int argc, char* argv[])
 			draw.width * 4);
 	assert(draw.whiteboard);
 
-	draw.fb_pool = nvnc_fb_pool_new(draw.width, draw.height, draw.format,
+	draw.fb_pool = nvnc_frame_pool_new(draw.width, draw.height, draw.format,
 			draw.width);
 	assert(draw.fb_pool);
 
@@ -326,11 +326,11 @@ int main(int argc, char* argv[])
 	nvnc_set_desktop_layout_fn(server, on_desktop_layout_event);
 	nvnc_set_userdata(server, &draw, NULL);
 
-	struct nvnc_fb* cursor = create_cursor();
+	struct nvnc_frame* cursor = create_cursor();
 	assert(cursor);
 
 	nvnc_set_cursor(server, cursor, 0, 0, true);
-	nvnc_fb_unref(cursor);
+	nvnc_frame_unref(cursor);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);
@@ -345,7 +345,7 @@ int main(int argc, char* argv[])
 
 	nvnc_del(server);
 	nvnc_display_unref(draw.display);
-	nvnc_fb_pool_unref(draw.fb_pool);
+	nvnc_frame_pool_unref(draw.fb_pool);
 	pixman_image_unref(draw.whiteboard);
 	free(draw.whiteboard_buffer);
 	aml_unref(aml);

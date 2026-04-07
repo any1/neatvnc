@@ -23,13 +23,13 @@
 #include <pixels.h>
 
 struct nvnc;
-struct nvnc_fb;
+struct nvnc_frame;
 
 struct nvnc_display {
 	int ref;
 	struct nvnc* server;
 	uint16_t x_pos, y_pos;
 	uint16_t logical_width, logical_height;
-	struct nvnc_fb* buffer;
+	struct nvnc_frame* buffer;
 	struct damage_refinery damage_refinery;
 };

@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
 	nvnc_add_display(server, display);
 	nvnc_set_name(server, "test");
 
-	struct nvnc_fb* fb = nvnc_fb_new(64, 64, DRM_FORMAT_RGBX8888, 64);
+	struct nvnc_frame* fb = nvnc_frame_new(64, 64, DRM_FORMAT_RGBX8888, 64);
 	assert(fb);
 	struct pixman_region16 damage;
 	pixman_region_init_rect(&damage, 0, 0, 64, 64);
@@ -193,7 +193,7 @@ int main(int argc, char* argv[])
 
 	nvnc_del(server);
 	nvnc_display_unref(display);
-	nvnc_fb_unref(fb);
+	nvnc_frame_unref(fb);
 	aml_unref(aml);
 
 	return 0;

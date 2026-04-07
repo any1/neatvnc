@@ -16,7 +16,7 @@
 
 #include "cursor.h"
 
-#include "fb.h"
+#include "frame.h"
 #include "pixels.h"
 #include "rfb-proto.h"
 #include "vec.h"
@@ -31,7 +31,7 @@
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
 int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
-		struct nvnc_fb* image, uint32_t hotspot_x, uint32_t hotspot_y)
+		struct nvnc_frame* image, uint32_t hotspot_x, uint32_t hotspot_y)
 {
 	int rc = -1;
 
@@ -39,7 +39,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	if (!image)
 		return nvnc__encode_rect_head(dst, RFB_ENCODING_CURSOR, 0, 0, 0, 0);
 
-	if (nvnc_fb_map(image) < 0)
+	if (nvnc_frame_map(image) < 0)
 		return -1;
 
 	struct nvnc_composite_fb cfb = {
@@ -49,7 +49,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	uint32_t width = nvnc_composite_fb_width(&cfb);
 	uint32_t height = nvnc_composite_fb_height(&cfb);
-	struct nvnc_fb* fb = nvnc_fb_new(width, height, image->fourcc_format,
+	struct nvnc_frame* fb = nvnc_frame_new(width, height, image->fourcc_format,
 			width);
 	assert(fb);
 
@@ -92,6 +92,6 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	rc = 0;
 failure:
-	nvnc_fb_unref(fb);
+	nvnc_frame_unref(fb);
 	return rc;
 }

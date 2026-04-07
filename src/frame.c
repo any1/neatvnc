@@ -14,7 +14,7 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "fb.h"
+#include "frame.h"
 #include "buffer.h"
 #include "pixels.h"
 #include "neatvnc.h"
@@ -34,10 +34,10 @@
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
-struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
+struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 		uint32_t fourcc_format, uint16_t stride)
 {
-	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	struct nvnc_frame* fb = calloc(1, sizeof(*fb));
 	if (!fb)
 		return NULL;
 
@@ -61,10 +61,10 @@ struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
 }
 
 EXPORT
-struct nvnc_fb* nvnc_fb_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
+struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
 		uint16_t height, uint32_t fourcc_format, int16_t stride)
 {
-	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	struct nvnc_frame* fb = calloc(1, sizeof(*fb));
 	if (!fb)
 		return NULL;
 
@@ -82,10 +82,10 @@ struct nvnc_fb* nvnc_fb_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
 }
 
 EXPORT
-struct nvnc_fb* nvnc_fb_from_raw(void* buffer, uint16_t width, uint16_t height,
+struct nvnc_frame* nvnc_frame_from_raw(void* buffer, uint16_t width, uint16_t height,
 		uint32_t fourcc_format, int32_t stride)
 {
-	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	struct nvnc_frame* fb = calloc(1, sizeof(*fb));
 	if (!fb)
 		return NULL;
 
@@ -106,10 +106,10 @@ struct nvnc_fb* nvnc_fb_from_raw(void* buffer, uint16_t width, uint16_t height,
 }
 
 EXPORT
-struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
+struct nvnc_frame* nvnc_frame_from_gbm_bo(struct gbm_bo* bo)
 {
 #ifdef HAVE_GBM
-	struct nvnc_fb* fb = calloc(1, sizeof(*fb));
+	struct nvnc_frame* fb = calloc(1, sizeof(*fb));
 	if (!fb)
 		return NULL;
 
@@ -128,90 +128,90 @@ struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo)
 
 	return fb;
 #else
-	nvnc_log(NVNC_LOG_ERROR, "nvnc_fb_from_gbm_bo was not enabled during build time");
+	nvnc_log(NVNC_LOG_ERROR, "nvnc_frame_from_gbm_bo was not enabled during build time");
 	return NULL;
 #endif
 }
 
 EXPORT
-struct nvnc_buffer* nvnc_fb_get_buffer(const struct nvnc_fb* fb)
+struct nvnc_buffer* nvnc_frame_get_buffer(const struct nvnc_frame* fb)
 {
 	return fb->buffer;
 }
 
 EXPORT
-void* nvnc_fb_get_addr(const struct nvnc_fb* fb)
+void* nvnc_frame_get_addr(const struct nvnc_frame* fb)
 {
 	return fb->buffer->addr;
 }
 
 EXPORT
-uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb)
+uint16_t nvnc_frame_get_width(const struct nvnc_frame* fb)
 {
 	return fb->width;
 }
 
 EXPORT
-uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb)
+uint16_t nvnc_frame_get_height(const struct nvnc_frame* fb)
 {
 	return fb->height;
 }
 
 EXPORT
-uint16_t nvnc_fb_get_logical_width(const struct nvnc_fb* fb)
+uint16_t nvnc_frame_get_logical_width(const struct nvnc_frame* fb)
 {
 	return fb->logical_width;
 }
 
 EXPORT
-uint16_t nvnc_fb_get_logical_height(const struct nvnc_fb* fb)
+uint16_t nvnc_frame_get_logical_height(const struct nvnc_frame* fb)
 {
 	return fb->logical_height;
 }
 
 EXPORT
-uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb)
+uint32_t nvnc_frame_get_fourcc_format(const struct nvnc_frame* fb)
 {
 	return fb->fourcc_format;
 }
 
 EXPORT
-int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb)
+int32_t nvnc_frame_get_stride(const struct nvnc_frame* fb)
 {
 	return fb->stride;
 }
 
 EXPORT
-int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb)
+int nvnc_frame_get_pixel_size(const struct nvnc_frame* fb)
 {
 	return nvnc__pixel_size_from_fourcc(fb->fourcc_format);
 }
 
 EXPORT
-struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb)
+struct gbm_bo* nvnc_frame_get_gbm_bo(const struct nvnc_frame* fb)
 {
 	return fb->buffer->bo;
 }
 
 EXPORT
-enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb)
+enum nvnc_transform nvnc_frame_get_transform(const struct nvnc_frame* fb)
 {
 	return fb->transform;
 }
 
 EXPORT
-enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb)
+enum nvnc_frame_type nvnc_frame_get_type(const struct nvnc_frame* fb)
 {
 	return fb->buffer->type;
 }
 
 EXPORT
-uint64_t nvnc_fb_get_pts(const struct nvnc_fb* fb)
+uint64_t nvnc_frame_get_pts(const struct nvnc_frame* fb)
 {
 	return fb->pts;
 }
 
-static void nvnc__fb_free(struct nvnc_fb* fb)
+static void nvnc__fb_free(struct nvnc_frame* fb)
 {
 	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
 	if (cleanup)
@@ -222,48 +222,48 @@ static void nvnc__fb_free(struct nvnc_fb* fb)
 }
 
 EXPORT
-void nvnc_fb_ref(struct nvnc_fb* fb)
+void nvnc_frame_ref(struct nvnc_frame* fb)
 {
 	fb->ref++;
 }
 
 EXPORT
-void nvnc_fb_unref(struct nvnc_fb* fb)
+void nvnc_frame_unref(struct nvnc_frame* fb)
 {
 	if (fb && --fb->ref == 0)
 		nvnc__fb_free(fb);
 }
 
 EXPORT
-void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform transform)
+void nvnc_frame_set_transform(struct nvnc_frame* fb, enum nvnc_transform transform)
 {
 	fb->transform = transform;
 }
 
 EXPORT
-void nvnc_fb_set_logical_width(struct nvnc_fb* fb, uint16_t value)
+void nvnc_frame_set_logical_width(struct nvnc_frame* fb, uint16_t value)
 {
 	fb->logical_width = value;
 }
 
 EXPORT
-void nvnc_fb_set_logical_height(struct nvnc_fb* fb, uint16_t value)
+void nvnc_frame_set_logical_height(struct nvnc_frame* fb, uint16_t value)
 {
 	fb->logical_height = value;
 }
 
 EXPORT
-void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts)
+void nvnc_frame_set_pts(struct nvnc_frame* fb, uint64_t pts)
 {
 	fb->pts = pts;
 }
 
-void nvnc_fb_hold(struct nvnc_fb* fb)
+void nvnc_frame_hold(struct nvnc_frame* fb)
 {
 	nvnc_buffer_ref(fb->buffer);
 }
 
-void nvnc_fb_release(struct nvnc_fb* fb)
+void nvnc_frame_release(struct nvnc_frame* fb)
 {
 	if (!fb)
 		return;
@@ -271,23 +271,23 @@ void nvnc_fb_release(struct nvnc_fb* fb)
 	nvnc_buffer_unref(fb->buffer);
 }
 
-int nvnc_fb_map(struct nvnc_fb* fb)
+int nvnc_frame_map(struct nvnc_frame* fb)
 {
 	int32_t byte_stride = 0;
 	int rc = nvnc_buffer_map(fb->buffer, fb->width, fb->height, &byte_stride);
 	/* byte_stride is only set for GBM BO buffers; skip for others */
 	if (rc == 0 && byte_stride != 0)
-		fb->stride = byte_stride / nvnc_fb_get_pixel_size(fb);
+		fb->stride = byte_stride / nvnc_frame_get_pixel_size(fb);
 	return rc;
 }
 
-void nvnc_fb_unmap(struct nvnc_fb* fb)
+void nvnc_frame_unmap(struct nvnc_frame* fb)
 {
 	nvnc_buffer_unmap(fb->buffer);
 }
 
 void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
-		struct nvnc_fb* fbs[])
+		struct nvnc_frame* fbs[])
 {
 	int i;
 	for (i = 0; fbs[i]; ++i) {
@@ -299,36 +299,36 @@ void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
 void nvnc_composite_fb_ref(struct nvnc_composite_fb* self)
 {
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* fb = self->fbs[i];
+		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
-		nvnc_fb_ref(fb);
+		nvnc_frame_ref(fb);
 	}
 }
 
 void nvnc_composite_fb_unref(struct nvnc_composite_fb* self)
 {
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* fb = self->fbs[i];
+		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
-		nvnc_fb_unref(fb);
+		nvnc_frame_unref(fb);
 	}
 }
 
 void nvnc_composite_fb_hold(struct nvnc_composite_fb* self)
 {
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* fb = self->fbs[i];
+		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
-		nvnc_fb_hold(fb);
+		nvnc_frame_hold(fb);
 	}
 }
 
 void nvnc_composite_fb_release(struct nvnc_composite_fb* self)
 {
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* fb = self->fbs[i];
+		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
-		nvnc_fb_release(fb);
+		nvnc_frame_release(fb);
 	}
 }
 
@@ -336,9 +336,9 @@ int nvnc_composite_fb_map(struct nvnc_composite_fb* self)
 {
 	int rc = 0;
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* fb = self->fbs[i];
+		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
-		if (nvnc_fb_map(fb) < 0)
+		if (nvnc_frame_map(fb) < 0)
 			rc = 1;
 	}
 	return rc;
@@ -357,7 +357,7 @@ static void nvnc_composite_fb_dimensions(const struct nvnc_composite_fb* self,
 	uint16_t width = 0;
 	uint16_t height = 0;
 	for (int i = 0; i < self->n_fbs; ++i) {
-		const struct nvnc_fb* fb = self->fbs[i];
+		const struct nvnc_frame* fb = self->fbs[i];
 		uint32_t fb_width;
 		uint32_t fb_height;
 		if (fb->logical_width) {
@@ -415,7 +415,7 @@ uint64_t nvnc_composite_fb_pts(const struct nvnc_composite_fb* self)
 	return latest;
 }
 
-static bool nvnc_fbs_overlap(const struct nvnc_fb* a, const struct nvnc_fb* b)
+static bool nvnc_frames_overlap(const struct nvnc_frame* a, const struct nvnc_frame* b)
 {
 	int a_x0 = a->x_off;
 	int a_x1 = a->x_off + a->width;
@@ -435,7 +435,7 @@ static bool nvnc_composite_fb_starts_at_zero(
 	int y_min = INT_MAX;
 
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* fb = self->fbs[i];
+		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
 
 		x_min = MIN(x_min, (int)fb->x_off);
@@ -449,14 +449,14 @@ static bool nvnc_composite_fb_contains_overlaps(
 		const struct nvnc_composite_fb* self)
 {
 	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_fb* a = self->fbs[i];
+		struct nvnc_frame* a = self->fbs[i];
 		assert(a);
 
 		for (int j = i + 1; j < self->n_fbs; ++j) {
-			struct nvnc_fb* b = self->fbs[j];
+			struct nvnc_frame* b = self->fbs[j];
 			assert(b);
 
-			return nvnc_fbs_overlap(a, b);
+			return nvnc_frames_overlap(a, b);
 		}
 	}
 

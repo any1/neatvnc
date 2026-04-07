@@ -21,7 +21,7 @@
 #include "vec.h"
 #include "config.h"
 #include "enc/util.h"
-#include "fb.h"
+#include "frame.h"
 #include "enc/encoder.h"
 
 #include <stdlib.h>
@@ -197,7 +197,7 @@ static void tight_encoder_resize(struct tight_encoder* self)
 	}
 
 	for (int i = 0; i < self->composite_fb.n_fbs; ++i) {
-		struct nvnc_fb* fb = self->composite_fb.fbs[i];
+		struct nvnc_frame* fb = self->composite_fb.fbs[i];
 		assert(fb);
 
 		struct tight_encoder_grid *grid = &self->grid[i];
@@ -255,7 +255,7 @@ static int tight_apply_damage(struct tight_encoder* self,
 	int n_damaged = 0;
 
 	for (int fbi = 0; fbi < self->composite_fb.n_fbs; ++fbi) {
-		struct nvnc_fb* fb = self->composite_fb.fbs[fbi];
+		struct nvnc_frame* fb = self->composite_fb.fbs[fbi];
 		struct tight_encoder_grid *grid = &self->grid[fbi];
 
 		for (uint32_t y = 0; y < grid->height; ++y) {
@@ -336,10 +336,10 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	else
 		memcpy(&cfmt, &self->dfmt, sizeof(cfmt));
 
-	struct nvnc_fb* fb = self->composite_fb.fbs[fb_index];
-	uint8_t* addr = nvnc_fb_get_addr(fb);
+	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
+	uint8_t* addr = nvnc_frame_get_addr(fb);
 	int32_t bpp = self->sfmt[fb_index].bits_per_pixel / 8;
-	int32_t byte_stride = nvnc_fb_get_stride(fb) * bpp;
+	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
 	int32_t xoff = x * bpp;
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
@@ -391,8 +391,8 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 
 	int quality = 11 * self->quality + 1;
 
-	struct nvnc_fb* fb = self->composite_fb.fbs[fb_index];
-	uint32_t fourcc = nvnc_fb_get_fourcc_format(fb);
+	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
+	uint32_t fourcc = nvnc_frame_get_fourcc_format(fb);
 	enum TJPF tjfmt = tight_get_jpeg_pixfmt(fourcc);
 	if (tjfmt == TJPF_UNKNOWN)
 		return -1;
@@ -401,9 +401,9 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	if (!handle)
 		return -1;
 
-	uint8_t* addr = nvnc_fb_get_addr(fb);
+	uint8_t* addr = nvnc_frame_get_addr(fb);
 	int32_t bpp = self->sfmt[fb_index].bits_per_pixel / 8;
-	int32_t byte_stride = nvnc_fb_get_stride(fb) * bpp;
+	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
 	int32_t xoff = x * bpp;
 	uint8_t* img = addr + xoff + y * byte_stride;
 
@@ -515,7 +515,7 @@ static void tight_finish_tile(struct tight_encoder* self,
 {
 	struct tight_tile* tile = tight_tile(self, fb_index, gx, gy);
 
-	struct nvnc_fb* fb = self->composite_fb.fbs[fb_index];
+	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
 	uint16_t x_pos = fb->x_off;
 	uint16_t y_pos = fb->y_off;
 
@@ -630,11 +630,11 @@ static int tight_encoder_encode(struct encoder* encoder,
 	int rc;
 
 	for (int i = 0; i < composite_fb->n_fbs; ++i) {
-		struct nvnc_fb* fb = composite_fb->fbs[i];
+		struct nvnc_frame* fb = composite_fb->fbs[i];
 		assert(fb);
 
 		rc = rfb_pixfmt_from_fourcc(&self->sfmt[i],
-				nvnc_fb_get_fourcc_format(fb));
+				nvnc_frame_get_fourcc_format(fb));
 		nvnc_assert(rc == 0, "Unhandled pixel format for input buffer");
 	}
 

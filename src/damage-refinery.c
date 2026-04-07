@@ -21,7 +21,7 @@
 #include <pixman.h>
 #include <sys/param.h>
 
-#include "fb.h"
+#include "frame.h"
 #include "pixels.h"
 #include "damage-refinery.h"
 
@@ -73,7 +73,7 @@ void damage_refinery_destroy(struct damage_refinery* self)
 }
 
 static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
-		uint32_t ty, const struct nvnc_fb* buffer)
+		uint32_t ty, const struct nvnc_frame* buffer)
 {
 	uint8_t* pixels = buffer->buffer->addr;
 	int bpp = nvnc__pixel_size_from_fourcc(buffer->fourcc_format);
@@ -104,7 +104,7 @@ static uint32_t* damage_tile_hash_ptr(struct damage_refinery* self,
 
 static void damage_refine_tile(struct damage_refinery* self,
 		struct pixman_region16* refined, uint32_t tx, uint32_t ty,
-		const struct nvnc_fb* buffer)
+		const struct nvnc_frame* buffer)
 {
 	uint32_t hash = damage_hash_tile(self, tx, ty, buffer);
 	uint32_t* old_hash_ptr = damage_tile_hash_ptr(self, tx, ty);
@@ -135,12 +135,12 @@ static void tile_region_from_region(struct pixman_region16* dst,
 void damage_refine(struct damage_refinery* self,
 		struct pixman_region16* refined,
 		struct pixman_region16* hint,
-		struct nvnc_fb* buffer)
+		struct nvnc_frame* buffer)
 {
 	assert(self->width == (uint32_t)buffer->width &&
 			self->height == (uint32_t)buffer->height);
 
-	nvnc_fb_map(buffer);
+	nvnc_frame_map(buffer);
 
 	struct pixman_region16 tile_region;
 	pixman_region_init(&tile_region);

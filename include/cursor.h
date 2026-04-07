@@ -19,8 +19,8 @@
 #include <stdint.h>
 
 struct vec;
-struct nvnc_fb;
+struct nvnc_frame;
 struct rfb_pixel_format;
 
 int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
-		struct nvnc_fb* image, uint32_t x_hotspot, uint32_t y_hotspot);
+		struct nvnc_frame* image, uint32_t x_hotspot, uint32_t y_hotspot);

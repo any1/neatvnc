@@ -16,7 +16,7 @@
 
 #include "compositor.h"
 #include "neatvnc.h"
-#include "fb.h"
+#include "frame.h"
 #include "transform-util.h"
 #include "region.h"
 #include "pixels.h"
@@ -37,7 +37,7 @@ struct fb_side_data {
 LIST_HEAD(fb_side_data_list, fb_side_data);
 
 struct compositor {
-	struct nvnc_fb_pool* pool;
+	struct nvnc_frame_pool* pool;
 	struct fb_side_data_list fb_side_data_list;
 	uint32_t seq_head, seq_tail;
 	pthread_mutex_t mutex;
@@ -49,7 +49,7 @@ struct compositor_work {
 	struct compositor* compositor;
 	struct pixman_region16 frame_damage;
 	struct nvnc_composite_fb src;
-	struct nvnc_fb* dst;
+	struct nvnc_frame* dst;
 	uint32_t seq;
 	compositor_fn on_done;
 	void* userdata;
@@ -79,7 +79,7 @@ static void compositor_work_free(void* userdata)
 	nvnc_composite_fb_release(&work->src);
 	nvnc_composite_fb_unref(&work->src);
 
-	nvnc_fb_unref(work->dst);
+	nvnc_frame_unref(work->dst);
 
 	pixman_region_fini(&work->frame_damage);
 
@@ -92,7 +92,7 @@ struct compositor* compositor_create(void)
 	if (!self)
 		return NULL;
 
-	self->pool = nvnc_fb_pool_new(0, 0, DRM_FORMAT_INVALID, 0);
+	self->pool = nvnc_frame_pool_new(0, 0, DRM_FORMAT_INVALID, 0);
 	if (!self->pool) {
 		free(self);
 		return NULL;
@@ -115,11 +115,11 @@ void compositor_destroy(struct compositor* self)
 		aml_dispatch(aml_get_default());
 	}
 
-	nvnc_fb_pool_unref(self->pool);
+	nvnc_frame_pool_unref(self->pool);
 	free(self);
 }
 
-void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* csrc,
+void composite_buffer_now(struct nvnc_frame* dst, struct nvnc_composite_fb* csrc,
 		struct pixman_region16* damage)
 {
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
@@ -132,13 +132,13 @@ void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* csrc,
 
 	pixman_image_t* dstimg = pixman_image_create_bits_no_clear(
 			dst_fmt, dst->width, dst->height, dst->buffer->addr,
-			nvnc_fb_get_pixel_size(dst) * dst->stride);
+			nvnc_frame_get_pixel_size(dst) * dst->stride);
 
 	if (damage)
 		pixman_image_set_clip_region(dstimg, damage);
 
 	for (int i = 0; i < csrc->n_fbs; ++i) {
-		struct nvnc_fb* src = csrc->fbs[i];
+		struct nvnc_frame* src = csrc->fbs[i];
 		assert(src);
 
 		pixman_format_code_t src_fmt = 0;
@@ -147,7 +147,7 @@ void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* csrc,
 
 		pixman_image_t* srcimg = pixman_image_create_bits_no_clear(
 				src_fmt, src->width, src->height, src->buffer->addr,
-				nvnc_fb_get_pixel_size(src) * src->stride);
+				nvnc_frame_get_pixel_size(src) * src->stride);
 
 		uint32_t transformed_width, transformed_height;
 		transformed_width = src->width;
@@ -205,7 +205,7 @@ static void do_work(struct aml_work* work)
 	struct compositor_work* ctx = aml_get_userdata(work);
 
 	struct nvnc_composite_fb* csrc = &ctx->src;
-	struct nvnc_fb* dst = ctx->dst;
+	struct nvnc_frame* dst = ctx->dst;
 	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
 
 	/* Side data contains the union of the buffer damage and the
@@ -240,7 +240,7 @@ static void on_work_done(struct aml_work* work)
 	LIST_INSERT_HEAD(&compositor->fb_side_data_list, fb_side_data, link);
 
 	struct nvnc_composite_fb cfb;
-	struct nvnc_fb *fbs[] = { ctx->dst, NULL };
+	struct nvnc_frame *fbs[] = { ctx->dst, NULL };
 	nvnc_composite_fb_init(&cfb, fbs);
 
 	nvnc_trace("Compositor job done, seq=%u", ctx->seq);
@@ -251,7 +251,7 @@ static void on_work_done(struct aml_work* work)
 	nvnc_composite_fb_release(&cfb);
 }
 
-static void get_fb_dimensions(struct nvnc_fb* fb, uint32_t* width,
+static void get_fb_dimensions(struct nvnc_frame* fb, uint32_t* width,
 		uint32_t* height, uint32_t* logical_width,
 		uint32_t* logical_height)
 {
@@ -275,7 +275,7 @@ static bool have_any_scaling(const struct nvnc_composite_fb* cfb)
 		return false;
 
 	for (int i = 0; i < cfb->n_fbs; ++i) {
-		struct nvnc_fb* fb = cfb->fbs[i];
+		struct nvnc_frame* fb = cfb->fbs[i];
 		assert(fb);
 
 		uint32_t width, height;
@@ -293,7 +293,7 @@ static bool have_any_scaling(const struct nvnc_composite_fb* cfb)
 static bool are_all_transforms_normal(const struct nvnc_composite_fb* cfb)
 {
 	for (int i = 0; i < cfb->n_fbs; ++i) {
-		struct nvnc_fb* fb = cfb->fbs[i];
+		struct nvnc_frame* fb = cfb->fbs[i];
 		assert(fb);
 
 		if (fb->transform != NVNC_TRANSFORM_NORMAL)
@@ -325,10 +325,10 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	uint32_t width = nvnc_composite_fb_width(cfb);
 	uint32_t height = nvnc_composite_fb_height(cfb);
 
-	struct nvnc_fb* first_fb = cfb->fbs[0];
+	struct nvnc_frame* first_fb = cfb->fbs[0];
 	assert(first_fb);
 
-	nvnc_fb_pool_resize(self->pool, width, height, first_fb->fourcc_format,
+	nvnc_frame_pool_resize(self->pool, width, height, first_fb->fourcc_format,
 			width);
 
 	struct aml* aml = aml_get_default();
@@ -341,7 +341,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	pixman_region_init(&ctx->frame_damage);
 	pixman_region_copy(&ctx->frame_damage, damage);
 
-	ctx->dst = nvnc_fb_pool_acquire(self->pool);
+	ctx->dst = nvnc_frame_pool_acquire(self->pool);
 	if (!ctx->dst)
 		goto acquire_failure;
 
@@ -361,7 +361,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 
 	compositor_damage_all_buffers(self, damage);
 
-	nvnc_fb_hold(ctx->dst);
+	nvnc_frame_hold(ctx->dst);
 
 	// The side data entry is removed from the list when damaging is done
 	// and added back when the job is finished.
@@ -389,7 +389,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	return rc;
 
 side_data_failure:
-	nvnc_fb_release(ctx->dst);
+	nvnc_frame_release(ctx->dst);
 acquire_failure:
 	free(ctx);
 	return -1;

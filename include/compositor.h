@@ -18,7 +18,7 @@
 
 #include <stdint.h>
 
-struct nvnc_fb;
+struct nvnc_frame;
 struct pixman_region16;
 struct nvnc_composite_fb;
 
@@ -27,7 +27,7 @@ struct compositor;
 typedef void (*compositor_fn)(struct nvnc_composite_fb*,
 		struct pixman_region16* damage, void* userdata);
 
-void composite_buffer_now(struct nvnc_fb* dst, struct nvnc_composite_fb* src,
+void composite_buffer_now(struct nvnc_frame* dst, struct nvnc_composite_fb* src,
 		struct pixman_region16* damage);
 
 struct compositor* compositor_create(void);

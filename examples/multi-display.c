@@ -22,7 +22,7 @@
 #include <assert.h>
 #include <pixman.h>
 
-struct nvnc_fb* read_png_file(const char* filename);
+struct nvnc_frame* read_png_file(const char* filename);
 
 static void on_sigint()
 {
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
 		const char* file = argv[i];
 		printf("Adding %s\n", file);
 
-		struct nvnc_fb* fb = read_png_file(file);
+		struct nvnc_frame* fb = read_png_file(file);
 		if (!fb) {
 			printf("Failed to read png file: %s\n", file);
 			goto out;
@@ -58,19 +58,19 @@ int main(int argc, char* argv[])
 		struct nvnc_display* display = nvnc_display_new(x_pos, 0);
 		assert(display);
 
-		x_pos += nvnc_fb_get_width(fb);
+		x_pos += nvnc_frame_get_width(fb);
 
 		nvnc_add_display(server, display);
 		nvnc_set_name(server, file);
 
 		struct pixman_region16 damage;
-		pixman_region_init_rect(&damage, 0, 0, nvnc_fb_get_width(fb),
-				nvnc_fb_get_height(fb));
+		pixman_region_init_rect(&damage, 0, 0, nvnc_frame_get_width(fb),
+				nvnc_frame_get_height(fb));
 		nvnc_display_feed_buffer(display, fb, &damage);
 		pixman_region_fini(&damage);
 
 		nvnc_display_unref(display);
-		nvnc_fb_unref(fb);
+		nvnc_frame_unref(fb);
 	}
 
 	int rc = nvnc_listen_tcp(server, "127.0.0.1", 5900, NVNC_STREAM_NORMAL);

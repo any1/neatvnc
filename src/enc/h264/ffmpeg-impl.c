@@ -16,7 +16,7 @@
 
 #include "enc/h264-encoder.h"
 #include "neatvnc.h"
-#include "fb.h"
+#include "frame.h"
 #include "sys/queue.h"
 #include "vec.h"
 #include "usdt.h"
@@ -44,7 +44,7 @@
 struct h264_encoder;
 
 struct fb_queue_entry {
-	struct nvnc_fb* fb;
+	struct nvnc_frame* fb;
 	TAILQ_ENTRY(fb_queue_entry) link;
 };
 
@@ -78,7 +78,7 @@ struct h264_encoder_ffmpeg {
 	struct fb_queue fb_queue;
 
 	struct aml_work* work;
-	struct nvnc_fb* current_fb;
+	struct nvnc_frame* current_fb;
 	struct vec current_packet;
 	bool current_frame_is_keyframe;
 
@@ -118,8 +118,8 @@ static void hw_frame_desc_free(void* opaque, uint8_t* data)
 	free(desc);
 }
 
-// TODO: Maybe do this once per frame inside nvnc_fb?
-static AVFrame* fb_to_avframe(struct nvnc_fb* fb)
+// TODO: Maybe do this once per frame inside nvnc_frame?
+static AVFrame* fb_to_avframe(struct nvnc_frame* fb)
 {
 	struct gbm_bo* bo = fb->buffer->bo;
 
@@ -178,27 +178,27 @@ static AVFrame* fb_to_avframe(struct nvnc_fb* fb)
 	return frame;
 }
 
-static struct nvnc_fb* fb_queue_dequeue(struct fb_queue* queue)
+static struct nvnc_frame* fb_queue_dequeue(struct fb_queue* queue)
 {
 	if (TAILQ_EMPTY(queue))
 		return NULL;
 
 	struct fb_queue_entry* entry = TAILQ_FIRST(queue);
 	TAILQ_REMOVE(queue, entry, link);
-	struct nvnc_fb* fb = entry->fb;
+	struct nvnc_frame* fb = entry->fb;
 	free(entry);
 
 	return fb;
 }
 
-static int fb_queue_enqueue(struct fb_queue* queue, struct nvnc_fb* fb)
+static int fb_queue_enqueue(struct fb_queue* queue, struct nvnc_frame* fb)
 {
 	struct fb_queue_entry* entry = calloc(1, sizeof(*entry));
 	if (!entry)
 		return -1;
 
 	entry->fb = fb;
-	nvnc_fb_ref(fb);
+	nvnc_frame_ref(fb);
 	TAILQ_INSERT_TAIL(queue, entry, link);
 
 	return 0;
@@ -557,9 +557,9 @@ static void h264_encoder__on_work_done(struct aml_work* work)
 {
 	struct h264_encoder_ffmpeg* self = aml_get_userdata(work);
 
-	uint64_t pts = nvnc_fb_get_pts(self->current_fb);
-	nvnc_fb_release(self->current_fb);
-	nvnc_fb_unref(self->current_fb);
+	uint64_t pts = nvnc_frame_get_pts(self->current_fb);
+	nvnc_frame_release(self->current_fb);
+	nvnc_frame_unref(self->current_fb);
 	self->current_fb = NULL;
 
 	DTRACE_PROBE1(neatvnc, h264_encode_frame_end, pts);
@@ -673,7 +673,7 @@ static void h264_encoder_ffmpeg_destroy(struct h264_encoder* base)
 }
 
 static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
-		struct nvnc_fb* fb)
+		struct nvnc_frame* fb)
 {
 	struct h264_encoder_ffmpeg* self = (struct h264_encoder_ffmpeg*)base;
 	assert(fb->buffer->type == NVNC_FB_GBM_BO);
@@ -684,7 +684,7 @@ static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
 	int rc __attribute__((unused)) = fb_queue_enqueue(&self->fb_queue, fb);
 	assert(rc == 0); // TODO
 
-	nvnc_fb_hold(fb);
+	nvnc_frame_hold(fb);
 
 	rc = h264_encoder__schedule_work(self);
 	assert(rc == 0); // TODO

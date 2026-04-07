@@ -64,7 +64,7 @@ void h264_encoder_set_userdata(struct h264_encoder* self, void* userdata)
 	self->userdata = userdata;
 }
 
-void h264_encoder_feed(struct h264_encoder* self, struct nvnc_fb* fb)
+void h264_encoder_feed(struct h264_encoder* self, struct nvnc_frame* fb)
 {
 	self->impl->feed(self, fb);
 }

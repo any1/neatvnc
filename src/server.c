@@ -16,7 +16,7 @@
 
 #include "rfb-proto.h"
 #include "vec.h"
-#include "fb.h"
+#include "frame.h"
 #include "desktop-layout.h"
 #include "display.h"
 #include "neatvnc.h"
@@ -579,7 +579,7 @@ static int send_server_init_message(struct nvnc_client* client)
 	uint16_t width, height;
 	calculate_desktop_extents(server, &width, &height);
 
-	uint32_t fourcc = nvnc_fb_get_fourcc_format(server->displays[0]->buffer);
+	uint32_t fourcc = nvnc_frame_get_fourcc_format(server->displays[0]->buffer);
 
 	if (rfb_pixfmt_from_fourcc(&client->pixfmt, fourcc) < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to convert buffer format to RFB pixel format");
@@ -1127,7 +1127,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	};
 	for (int i = 0; i < server->n_displays; ++i) {
 		struct nvnc_display* display = server->displays[i];
-		struct nvnc_fb* fb = display->buffer;
+		struct nvnc_frame* fb = display->buffer;
 		cfb.fbs[i] = fb;
 	}
 
@@ -1193,7 +1193,7 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 
 	DTRACE_PROBE1(neatvnc, update_fb_request, client);
 
-	nvnc_fb_req_fn fn = server->fb_req_fn;
+	nvnc_frame_req_fn fn = server->fb_req_fn;
 	if (fn)
 		fn(client, incremental, x, y, width, height);
 
@@ -2568,8 +2568,8 @@ void nvnc_del(struct nvnc* self)
 		nvnc_display_unref(display);
 	}
 
-	nvnc_fb_release(self->cursor.buffer);
-	nvnc_fb_unref(self->cursor.buffer);
+	nvnc_frame_release(self->cursor.buffer);
+	nvnc_frame_unref(self->cursor.buffer);
 	self->cursor.buffer = NULL;
 
 	// The stream is closed first to stop all communication and to make sure
@@ -2887,7 +2887,7 @@ void nvnc_set_normalised_pointer_fn(struct nvnc* self, nvnc_normalised_pointer_f
 }
 
 EXPORT
-void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn fn)
+void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_frame_req_fn fn)
 {
 	self->fb_req_fn = fn;
 }
@@ -3149,7 +3149,7 @@ int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 	return -1;
 }
 
-static bool fbs_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
+static bool fbs_are_equal(struct nvnc_frame* a, struct nvnc_frame* b)
 {
 	if (a == b)
 		return true;
@@ -3157,24 +3157,24 @@ static bool fbs_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
 	if ((a && !b) || (!a && b))
 		return false;
 
-	if (nvnc_fb_get_width(a) != nvnc_fb_get_width(b) ||
-			nvnc_fb_get_height(a) != nvnc_fb_get_height(b) ||
-			nvnc_fb_get_logical_width(a) != nvnc_fb_get_logical_width(b) ||
-			nvnc_fb_get_logical_height(a) != nvnc_fb_get_logical_height(b) ||
-			nvnc_fb_get_stride(a) != nvnc_fb_get_stride(b) ||
-			nvnc_fb_get_pixel_size(a) != nvnc_fb_get_pixel_size(b) ||
-			nvnc_fb_get_fourcc_format(a) != nvnc_fb_get_fourcc_format(b) ||
-			nvnc_fb_get_transform(a) != nvnc_fb_get_transform(b))
+	if (nvnc_frame_get_width(a) != nvnc_frame_get_width(b) ||
+			nvnc_frame_get_height(a) != nvnc_frame_get_height(b) ||
+			nvnc_frame_get_logical_width(a) != nvnc_frame_get_logical_width(b) ||
+			nvnc_frame_get_logical_height(a) != nvnc_frame_get_logical_height(b) ||
+			nvnc_frame_get_stride(a) != nvnc_frame_get_stride(b) ||
+			nvnc_frame_get_pixel_size(a) != nvnc_frame_get_pixel_size(b) ||
+			nvnc_frame_get_fourcc_format(a) != nvnc_frame_get_fourcc_format(b) ||
+			nvnc_frame_get_transform(a) != nvnc_frame_get_transform(b))
 		return false;
 
-	nvnc_fb_map(a);
-	nvnc_fb_map(b);
+	nvnc_frame_map(a);
+	nvnc_frame_map(b);
 
-	const uint8_t* data_a = nvnc_fb_get_addr(a);
-	const uint8_t* data_b = nvnc_fb_get_addr(b);
+	const uint8_t* data_a = nvnc_frame_get_addr(a);
+	const uint8_t* data_b = nvnc_frame_get_addr(b);
 
-	uint32_t size = nvnc_fb_get_stride(a) * nvnc_fb_get_pixel_size(a) *
-		nvnc_fb_get_height(a);
+	uint32_t size = nvnc_frame_get_stride(a) * nvnc_frame_get_pixel_size(a) *
+		nvnc_frame_get_height(a);
 	bool result = true;
 
 	for (uint32_t i = 0; i < size; ++i)
@@ -3184,22 +3184,22 @@ static bool fbs_are_equal(struct nvnc_fb* a, struct nvnc_fb* b)
 }
 
 EXPORT
-void nvnc_set_cursor(struct nvnc* self, struct nvnc_fb* fb, uint16_t hotspot_x,
+void nvnc_set_cursor(struct nvnc* self, struct nvnc_frame* fb, uint16_t hotspot_x,
 		uint16_t hotspot_y, bool is_damaged)
 {
 	bool should_send = is_damaged &&
 		!fbs_are_equal(self->cursor.buffer, fb);
 
-	nvnc_fb_release(self->cursor.buffer);
-	nvnc_fb_unref(self->cursor.buffer);
+	nvnc_frame_release(self->cursor.buffer);
+	nvnc_frame_unref(self->cursor.buffer);
 
 	self->cursor.buffer = fb;
 	self->cursor.hotspot_x = hotspot_x;
 	self->cursor.hotspot_y = hotspot_y;
 
 	if (fb) {
-		nvnc_fb_ref(fb);
-		nvnc_fb_hold(fb);
+		nvnc_frame_ref(fb);
+		nvnc_frame_hold(fb);
 	}
 
 	if (!should_send)
@@ -3248,7 +3248,7 @@ static uint32_t find_highest_client_depth(const struct nvnc* self)
 
 EXPORT
 double nvnc_rate_pixel_format(const struct nvnc* self,
-		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier)
+		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier)
 {
 	if (fb_type == NVNC_FB_SIMPLE && modifier) {
 		nvnc_log(NVNC_LOG_ERROR, "modifier should be 0 for simple buffers");
@@ -3260,7 +3260,7 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
 
 EXPORT
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
-		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier)
+		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier)
 {
 	if (fb_type == NVNC_FB_SIMPLE && modifier) {
 		nvnc_log(NVNC_LOG_ERROR, "modifier should be 0 for simple buffers");

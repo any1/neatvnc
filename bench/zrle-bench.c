@@ -15,7 +15,7 @@
  */
 
 #include "enc/encoder.h"
-#include "fb.h"
+#include "frame.h"
 #include "rfb-proto.h"
 #include "neatvnc.h"
 #include "pixels.h"
@@ -177,7 +177,7 @@ static double calc_second_order_entropy(const uint32_t* data, size_t length)
 	return entropy;
 }
 
-struct nvnc_fb* read_png_file(const char *filename);
+struct nvnc_frame* read_png_file(const char *filename);
 
 static void on_encoding_done(struct encoder* enc, struct encoded_frame* frame)
 {
@@ -190,7 +190,7 @@ static int run_benchmark(const char *image)
 {
 	int rc = -1;
 
-	struct nvnc_fb* fb = read_png_file(image);
+	struct nvnc_frame* fb = read_png_file(image);
 	if (!fb)
 		return -1;
 
@@ -198,10 +198,10 @@ static int run_benchmark(const char *image)
 
 	struct stopwatch stopwatch;
 
-	void *addr = nvnc_fb_get_addr(fb);
-	int width = nvnc_fb_get_width(fb);
-	int height = nvnc_fb_get_height(fb);
-	int stride = nvnc_fb_get_stride(fb);
+	void *addr = nvnc_frame_get_addr(fb);
+	int width = nvnc_frame_get_width(fb);
+	int height = nvnc_frame_get_height(fb);
+	int stride = nvnc_frame_get_stride(fb);
 
 	struct rfb_pixel_format pixfmt;
 	rfb_pixfmt_from_fourcc(&pixfmt, DRM_FORMAT_ARGB8888);
@@ -233,7 +233,7 @@ static int run_benchmark(const char *image)
 	free(dummy);
 
 	struct nvnc_composite_fb cfb;
-	struct nvnc_fb *fbs[] = { fb, NULL };
+	struct nvnc_frame *fbs[] = { fb, NULL };
 	nvnc_composite_fb_init(&cfb, fbs);
 
 	stopwatch_start(&stopwatch);
@@ -277,7 +277,7 @@ static int run_benchmark(const char *image)
 failure:
 	pixman_region_fini(&region);
 	encoded_frame_unref(encoded_frame);
-	nvnc_fb_unref(fb);
+	nvnc_frame_unref(fb);
 	return 0;
 }
 

@@ -17,7 +17,7 @@
 #include "neatvnc.h"
 #include "rfb-proto.h"
 #include "vec.h"
-#include "fb.h"
+#include "frame.h"
 #include "pixels.h"
 #include "enc/util.h"
 #include "enc/encoder.h"
@@ -53,7 +53,7 @@ static inline struct raw_encoder* raw_encoder(struct encoder* encoder)
 
 static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 		const struct rfb_pixel_format* dst_fmt,
-		const struct nvnc_fb* fb,
+		const struct nvnc_frame* fb,
 		const struct rfb_pixel_format* src_fmt, int x_start,
 		int y_start, int stride, int width, int height)
 {
@@ -100,7 +100,7 @@ static void raw_encoder_do_work(struct aml_work* work)
 	int n_rects = 0;
 	struct pixman_region16 subregions[NVNC_FB_COMPOSITE_MAX] = { 0 };
 	for (int i = 0; i < ctx->composite_fb.n_fbs; ++i) {
-		struct nvnc_fb* fb = ctx->composite_fb.fbs[i];
+		struct nvnc_frame* fb = ctx->composite_fb.fbs[i];
 		assert(fb);
 
 		pixman_region_init(&subregions[i]);
@@ -113,7 +113,7 @@ static void raw_encoder_do_work(struct aml_work* work)
 		n_rects = ctx->composite_fb.n_fbs;
 
 		for (int i = 0; i < ctx->composite_fb.n_fbs; ++i) {
-			struct nvnc_fb* fb = ctx->composite_fb.fbs[i];
+			struct nvnc_frame* fb = ctx->composite_fb.fbs[i];
 			assert(fb);
 			pixman_region_fini(&subregions[i]);
 			pixman_region_init_rect(&subregions[i], fb->x_off,
@@ -130,15 +130,15 @@ static void raw_encoder_do_work(struct aml_work* work)
 	assert(rc == 0);
 
 	for (int i = 0; i < ctx->composite_fb.n_fbs; ++i) {
-		struct nvnc_fb* fb = ctx->composite_fb.fbs[i];
+		struct nvnc_frame* fb = ctx->composite_fb.fbs[i];
 		assert(fb);
 
 		struct rfb_pixel_format src_fmt;
 		rc = rfb_pixfmt_from_fourcc(&src_fmt,
-				nvnc_fb_get_fourcc_format(fb));
+				nvnc_frame_get_fourcc_format(fb));
 		assert(rc == 0);
 
-		rc = nvnc_fb_map(fb);
+		rc = nvnc_frame_map(fb);
 		nvnc_assert(rc == 0, "Failed to map framebuffer for encoding");
 
 		int n_subrects = 0;

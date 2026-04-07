@@ -18,7 +18,7 @@
 #include "vec.h"
 #include "neatvnc.h"
 #include "pixels.h"
-#include "fb.h"
+#include "frame.h"
 #include "enc/util.h"
 #include "enc/encoder.h"
 #include "parallel-deflate.h"
@@ -212,7 +212,7 @@ static void zrle_encode_tile(struct vec* dst,
 
 static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		const struct rfb_pixel_format* dst_fmt,
-		const struct nvnc_fb* fb,
+		const struct nvnc_frame* fb,
 		const struct rfb_pixel_format* src_fmt, int x, int y,
 		int stride, int width, int height)
 {
@@ -280,7 +280,7 @@ failure:
 
 static int zrle_encode_frame(struct zrle_encoder* self,
 		struct vec* dst, const struct rfb_pixel_format* dst_fmt,
-		struct nvnc_fb* src, const struct rfb_pixel_format* src_fmt,
+		struct nvnc_frame* src, const struct rfb_pixel_format* src_fmt,
 		struct pixman_region16* region)
 {
 	int rc __attribute__((unused)) = -1;
@@ -288,7 +288,7 @@ static int zrle_encode_frame(struct zrle_encoder* self,
 	int n_rects = 0;
 	struct pixman_box16* box = pixman_region_rectangles(region, &n_rects);
 
-	rc = nvnc_fb_map(src);
+	rc = nvnc_frame_map(src);
 	if (rc < 0)
 		return -1;
 
@@ -316,7 +316,7 @@ static void zlre_encoder_init_damage_subregions(struct zrle_encoder* self,
 
 	int n_rects = 0;
 	for (int i = 0; i < cfb->n_fbs; ++i) {
-		struct nvnc_fb* fb = cfb->fbs[i];
+		struct nvnc_frame* fb = cfb->fbs[i];
 		assert(fb);
 
 		pixman_region_init(&subregions[i]);
@@ -330,7 +330,7 @@ static void zlre_encoder_init_damage_subregions(struct zrle_encoder* self,
 		n_rects = cfb->n_fbs;
 
 		for (int i = 0; i < cfb->n_fbs; ++i) {
-			struct nvnc_fb* fb = cfb->fbs[i];
+			struct nvnc_frame* fb = cfb->fbs[i];
 			assert(fb);
 			pixman_region_fini(&subregions[i]);
 			pixman_region_init_rect(&subregions[i], fb->x_off,
@@ -367,11 +367,11 @@ static void zrle_encoder_do_work(struct aml_work* work)
 	self->n_rects = 0;
 
 	for (int i = 0; i < cfb->n_fbs; ++i) {
-		struct nvnc_fb* fb = cfb->fbs[i];
+		struct nvnc_frame* fb = cfb->fbs[i];
 		assert(fb);
 
 		struct rfb_pixel_format src_fmt;
-		rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_fb_get_fourcc_format(fb));
+		rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_frame_get_fourcc_format(fb));
 		nvnc_assert(rc == 0, "Unsupported pixel format");
 
 		rc = zrle_encode_frame(self, &dst, &self->output_format, fb,

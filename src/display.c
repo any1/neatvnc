@@ -17,7 +17,7 @@
 #include "display.h"
 #include "neatvnc.h"
 #include "common.h"
-#include "fb.h"
+#include "frame.h"
 #include "region.h"
 #include "transform-util.h"
 #include "enc/encoder.h"
@@ -54,8 +54,8 @@ refinery_failure:
 static void nvnc__display_free(struct nvnc_display* self)
 {
 	if (self->buffer) {
-		nvnc_fb_release(self->buffer);
-		nvnc_fb_unref(self->buffer);
+		nvnc_frame_release(self->buffer);
+		nvnc_frame_unref(self->buffer);
 	}
 	damage_refinery_destroy(&self->damage_refinery);
 	free(self);
@@ -100,7 +100,7 @@ struct nvnc* nvnc_display_get_server(const struct nvnc_display* self)
 }
 
 EXPORT
-void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
+void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_frame* fb,
 		struct pixman_region16* damage)
 {
 	DTRACE_PROBE2(neatvnc, nvnc_display_feed_buffer, self, fb->pts);
@@ -130,13 +130,13 @@ void nvnc_display_feed_buffer(struct nvnc_display* self, struct nvnc_fb* fb,
 	fb->logical_height = self->logical_height;
 
 	if (self->buffer) {
-		nvnc_fb_release(self->buffer);
-		nvnc_fb_unref(self->buffer);
+		nvnc_frame_release(self->buffer);
+		nvnc_frame_unref(self->buffer);
 	}
 
 	self->buffer = fb;
-	nvnc_fb_ref(fb);
-	nvnc_fb_hold(fb);
+	nvnc_frame_ref(fb);
+	nvnc_frame_hold(fb);
 
 	assert(self->server);
 

@@ -27,9 +27,9 @@
 
 #define NVNC_FB_COMPOSITE_MAX 64
 
-struct nvnc_fb_pool;
+struct nvnc_frame_pool;
 
-struct nvnc_fb {
+struct nvnc_frame {
 	struct nvnc_common common;
 	int ref;
 	uint16_t x_off;
@@ -47,17 +47,17 @@ struct nvnc_fb {
 };
 
 struct nvnc_composite_fb {
-	struct nvnc_fb* fbs[NVNC_FB_COMPOSITE_MAX];
+	struct nvnc_frame* fbs[NVNC_FB_COMPOSITE_MAX];
 	int n_fbs;
 };
 
-void nvnc_fb_hold(struct nvnc_fb* fb);
-void nvnc_fb_release(struct nvnc_fb* fb);
-int nvnc_fb_map(struct nvnc_fb* fb);
-void nvnc_fb_unmap(struct nvnc_fb* fb);
+void nvnc_frame_hold(struct nvnc_frame* fb);
+void nvnc_frame_release(struct nvnc_frame* fb);
+int nvnc_frame_map(struct nvnc_frame* fb);
+void nvnc_frame_unmap(struct nvnc_frame* fb);
 
 void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
-		struct nvnc_fb* fbs[]);
+		struct nvnc_frame* fbs[]);
 void nvnc_composite_fb_ref(struct nvnc_composite_fb* self);
 void nvnc_composite_fb_unref(struct nvnc_composite_fb* self);
 void nvnc_composite_fb_hold(struct nvnc_composite_fb* self);

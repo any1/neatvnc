@@ -58,8 +58,8 @@ struct nvnc_client;
 struct nvnc_auth_creds;
 struct nvnc_desktop_layout;
 struct nvnc_display;
-struct nvnc_fb;
-struct nvnc_fb_pool;
+struct nvnc_frame;
+struct nvnc_frame_pool;
 struct nvnc_buffer;
 struct nvnc_buffer_pool;
 struct pixman_region16;
@@ -77,7 +77,7 @@ enum nvnc_button_mask {
 	NVNC_BUTTON_FORWARD = 1 << 8,
 };
 
-enum nvnc_fb_type {
+enum nvnc_frame_type {
 	NVNC_FB_UNSPEC = 0,
 	NVNC_FB_SIMPLE,
 	NVNC_FB_GBM_BO,
@@ -134,7 +134,7 @@ typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
                                 enum nvnc_button_mask);
 typedef void (*nvnc_normalised_pointer_fn)(struct nvnc_client*, double x,
 		double y, enum nvnc_button_mask);
-typedef void (*nvnc_fb_req_fn)(struct nvnc_client*, bool is_incremental,
+typedef void (*nvnc_frame_req_fn)(struct nvnc_client*, bool is_incremental,
                                uint16_t x, uint16_t y, uint16_t width,
                                uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
@@ -275,9 +275,9 @@ void nvnc_set_normalised_pointer_fn(struct nvnc* self,
 		nvnc_normalised_pointer_fn);
 
 /**
- * Set a handler for framebuffer update requests.
+ * Set a handler for frame update requests.
  */
-void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_fb_req_fn);
+void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_frame_req_fn);
 
 /**
  * Set a handler that is invoked when a new client connects.
@@ -405,169 +405,169 @@ void nvnc_buffer_pool_unref(struct nvnc_buffer_pool*);
 struct nvnc_buffer* nvnc_buffer_pool_acquire(struct nvnc_buffer_pool*);
 
 /**
- * Allocate a new framebuffer with the given dimensions and format.
+ * Allocate a new frame with the given dimensions and format.
  *
- * A framebuffer is a wrapper around buffer that contains information about how
+ * A frame is a wrapper around buffer that contains information about how
  * to interpret the buffer, such as, but not limited to: width, height, stride
  * and format.
  *
  * An nvnc_buffer object will be allocated internally by this function with a
  * type of NVNC_FB_SIMPLE. See nvnc_buffer_new();
  */
-struct nvnc_fb* nvnc_fb_new(uint16_t width, uint16_t height,
+struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 		uint32_t fourcc_format, uint16_t stride);
 
 /**
- * Create a framebuffer backed by an existing buffer object.
+ * Create a frame backed by an existing buffer object.
  *
  * This function increases the reference count of the buffer object, so
  * remember to call nvnc_buffer_unref() afterwards.
  */
-struct nvnc_fb* nvnc_fb_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
+struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
 		uint16_t height, uint32_t format, int16_t stride);
 
 /**
- * Create a framebuffer from a raw memory address.
+ * Create a frame from a raw memory address.
  *
  * This function calls nvnc_buffer_from_addr() internally.
  */
-struct nvnc_fb* nvnc_fb_from_raw(void* buffer, uint16_t width, uint16_t height,
+struct nvnc_frame* nvnc_frame_from_raw(void* buffer, uint16_t width, uint16_t height,
 		uint32_t fourcc_format, int32_t stride);
 
 /**
- * Create a framebuffer from a GBM buffer object.
+ * Create a frame from a GBM buffer object.
  *
  * This function calls nvnc_buffer_from_gbm_bo() internally and assigns the
- * dimensions and format of the bo to the framebuffer object.
+ * dimensions and format of the bo to the frame object.
  */
-struct nvnc_fb* nvnc_fb_from_gbm_bo(struct gbm_bo* bo);
+struct nvnc_frame* nvnc_frame_from_gbm_bo(struct gbm_bo* bo);
 
 /**
- * Increment the reference count of the framebuffer.
+ * Increment the reference count of the frame.
  */
-void nvnc_fb_ref(struct nvnc_fb* fb);
+void nvnc_frame_ref(struct nvnc_frame* fb);
 
 /**
- * Decrement the reference count of the framebuffer.
+ * Decrement the reference count of the frame.
  */
-void nvnc_fb_unref(struct nvnc_fb* fb);
+void nvnc_frame_unref(struct nvnc_frame* fb);
 
 /**
- * Set the rotation/flip transformation applied to the framebuffer.
+ * Set the rotation/flip transformation applied to the frame.
  */
-void nvnc_fb_set_transform(struct nvnc_fb* fb, enum nvnc_transform);
+void nvnc_frame_set_transform(struct nvnc_frame* fb, enum nvnc_transform);
 
 /**
  * Set the logical width used for display scaling.
  */
-void nvnc_fb_set_logical_width(struct nvnc_fb* fb, uint16_t value);
+void nvnc_frame_set_logical_width(struct nvnc_frame* fb, uint16_t value);
 
 /**
  * Set the logical height used for display scaling.
  */
-void nvnc_fb_set_logical_height(struct nvnc_fb* fb, uint16_t value);
+void nvnc_frame_set_logical_height(struct nvnc_frame* fb, uint16_t value);
 
 /**
- * Set the presentation timestamp of the framebuffer.
+ * Set the presentation timestamp of the frame.
  */
-void nvnc_fb_set_pts(struct nvnc_fb* fb, uint64_t pts);
+void nvnc_frame_set_pts(struct nvnc_frame* fb, uint64_t pts);
 
 /**
- * Get the underlying buffer object of a framebuffer.
+ * Get the underlying buffer object of a frame.
  */
-struct nvnc_buffer* nvnc_fb_get_buffer(const struct nvnc_fb* fb);
+struct nvnc_buffer* nvnc_frame_get_buffer(const struct nvnc_frame* fb);
 
 /**
- * Get the memory address of the framebuffer pixel data.
+ * Get the memory address of the frame pixel data.
  */
-void* nvnc_fb_get_addr(const struct nvnc_fb* fb);
+void* nvnc_frame_get_addr(const struct nvnc_frame* fb);
 
 /**
- * Get the width of the framebuffer in pixels.
+ * Get the width of the frame in pixels.
  */
-uint16_t nvnc_fb_get_width(const struct nvnc_fb* fb);
+uint16_t nvnc_frame_get_width(const struct nvnc_frame* fb);
 
 /**
- * Get the height of the framebuffer in pixels.
+ * Get the height of the frame in pixels.
  */
-uint16_t nvnc_fb_get_height(const struct nvnc_fb* fb);
+uint16_t nvnc_frame_get_height(const struct nvnc_frame* fb);
 
 /**
- * Get the logical width of the framebuffer.
+ * Get the logical width of the frame.
  */
-uint16_t nvnc_fb_get_logical_width(const struct nvnc_fb* fb);
+uint16_t nvnc_frame_get_logical_width(const struct nvnc_frame* fb);
 
 /**
- * Get the logical height of the framebuffer.
+ * Get the logical height of the frame.
  */
-uint16_t nvnc_fb_get_logical_height(const struct nvnc_fb* fb);
+uint16_t nvnc_frame_get_logical_height(const struct nvnc_frame* fb);
 
 /**
- * Get the DRM fourcc pixel format of the framebuffer.
+ * Get the DRM fourcc pixel format of the frame.
  */
-uint32_t nvnc_fb_get_fourcc_format(const struct nvnc_fb* fb);
+uint32_t nvnc_frame_get_fourcc_format(const struct nvnc_frame* fb);
 
 /**
- * Get the stride (bytes per row) of the framebuffer.
+ * Get the stride (bytes per row) of the frame.
  */
-int32_t nvnc_fb_get_stride(const struct nvnc_fb* fb);
+int32_t nvnc_frame_get_stride(const struct nvnc_frame* fb);
 
 /**
- * Get the number of bytes per pixel for the framebuffer's format.
+ * Get the number of bytes per pixel for the frame's format.
  */
-int nvnc_fb_get_pixel_size(const struct nvnc_fb* fb);
+int nvnc_frame_get_pixel_size(const struct nvnc_frame* fb);
 
 /**
- * Get the GBM buffer object backing the framebuffer, if any.
+ * Get the GBM buffer object backing the frame, if any.
  */
-struct gbm_bo* nvnc_fb_get_gbm_bo(const struct nvnc_fb* fb);
+struct gbm_bo* nvnc_frame_get_gbm_bo(const struct nvnc_frame* fb);
 
 /**
- * Get the rotation/flip transformation of the framebuffer.
+ * Get the rotation/flip transformation of the frame.
  */
-enum nvnc_transform nvnc_fb_get_transform(const struct nvnc_fb* fb);
+enum nvnc_transform nvnc_frame_get_transform(const struct nvnc_frame* fb);
 
 /**
- * Get the type of the framebuffer (simple, GBM BO, etc.).
+ * Get the type of the frame (simple, GBM BO, etc.).
  */
-enum nvnc_fb_type nvnc_fb_get_type(const struct nvnc_fb* fb);
+enum nvnc_frame_type nvnc_frame_get_type(const struct nvnc_frame* fb);
 
 /**
- * Get the presentation timestamp of the framebuffer.
+ * Get the presentation timestamp of the frame.
  */
-uint64_t nvnc_fb_get_pts(const struct nvnc_fb* fb);
+uint64_t nvnc_frame_get_pts(const struct nvnc_frame* fb);
 
 /**
- * Create a framebuffer pool with the given dimensions and format.
+ * Create a frame pool with the given dimensions and format.
  *
- * A framebuffer pool is just a wrapper around a buffer pool that contains the
+ * A frame pool is just a wrapper around a buffer pool that contains the
  * meta data required to allocate an nvnc_buffer and to fill in the same values
- * of an nvnc_fb.
+ * of an nvnc_frame.
  */
-struct nvnc_fb_pool* nvnc_fb_pool_new(uint16_t width, uint16_t height,
+struct nvnc_frame_pool* nvnc_frame_pool_new(uint16_t width, uint16_t height,
 		uint32_t fourcc_format, uint16_t stride);
 
 /**
- * Resize the pool's framebuffer parameters. Returns true if changed.
+ * Resize the pool's frame parameters. Returns true if changed.
  */
-bool nvnc_fb_pool_resize(struct nvnc_fb_pool*, uint16_t width, uint16_t height,
+bool nvnc_frame_pool_resize(struct nvnc_frame_pool*, uint16_t width, uint16_t height,
 		uint32_t fourcc_format, uint16_t stride);
 
 /**
- * Increment the reference count of the framebuffer pool.
+ * Increment the reference count of the frame pool.
  */
-void nvnc_fb_pool_ref(struct nvnc_fb_pool*);
+void nvnc_frame_pool_ref(struct nvnc_frame_pool*);
 
 /**
- * Decrement the reference count of the framebuffer pool.
+ * Decrement the reference count of the frame pool.
  */
-void nvnc_fb_pool_unref(struct nvnc_fb_pool*);
+void nvnc_frame_pool_unref(struct nvnc_frame_pool*);
 
 /**
- * Acquire a framebuffer from the pool, allocating a new one if no framebuffer
+ * Acquire a frame from the pool, allocating a new one if no frame
  * is free.
  */
-struct nvnc_fb* nvnc_fb_pool_acquire(struct nvnc_fb_pool*);
+struct nvnc_frame* nvnc_frame_pool_acquire(struct nvnc_frame_pool*);
 
 /**
  * Create a display at the given position in the composite layout.
@@ -607,10 +607,10 @@ void nvnc_display_set_logical_size(struct nvnc_display* self, uint16_t width,
 struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
 
 /**
- * Submit a framebuffer with a damage region for encoding and transmission
+ * Submit a frame with a damage region for encoding and transmission
  * to clients.
  */
-void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_fb*,
+void nvnc_display_feed_buffer(struct nvnc_display*, struct nvnc_frame*,
 		struct pixman_region16* damage);
 
 /**
@@ -666,7 +666,7 @@ void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 /**
  * Set the cursor image and hotspot; set is_damaged to trigger an update.
  */
-void nvnc_set_cursor(struct nvnc*, struct nvnc_fb*, uint16_t hotspot_x,
+void nvnc_set_cursor(struct nvnc*, struct nvnc_frame*, uint16_t hotspot_x,
 		uint16_t hotspot_y, bool is_damaged);
 
 /**
@@ -702,12 +702,12 @@ void nvnc_set_log_filter(const char* value);
 void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
 
 /**
- * Rate how well a pixel format is supported for framebuffer encoding.
+ * Rate how well a pixel format is supported for frame encoding.
  *
  * The score is in the closed range between 0.0 and 1.0.
  */
 double nvnc_rate_pixel_format(const struct nvnc* self,
-		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
+		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier);
 
 /**
  * Rate how well a pixel format is supported for cursor images.
@@ -715,4 +715,4 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
  * The score is in the closed range between 0.0 and 1.0.
  */
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
-		enum nvnc_fb_type fb_type, uint32_t format, uint64_t modifier);
+		enum nvnc_frame_type fb_type, uint32_t format, uint64_t modifier);

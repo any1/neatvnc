@@ -22,7 +22,7 @@
 #include <assert.h>
 #include <pixman.h>
 
-struct nvnc_fb* read_png_file(const char* filename);
+struct nvnc_frame* read_png_file(const char* filename);
 
 static void on_sigint()
 {
@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	struct nvnc_fb* fb = read_png_file(file);
+	struct nvnc_frame* fb = read_png_file(file);
 	if (!fb) {
 		printf("Failed to read png file\n");
 		return 1;
@@ -60,8 +60,8 @@ int main(int argc, char* argv[])
 	nvnc_set_name(server, file);
 
 	struct pixman_region16 damage;
-	pixman_region_init_rect(&damage, 0, 0, nvnc_fb_get_width(fb),
-			nvnc_fb_get_height(fb));
+	pixman_region_init_rect(&damage, 0, 0, nvnc_frame_get_width(fb),
+			nvnc_frame_get_height(fb));
 	nvnc_display_feed_buffer(display, fb, &damage);
 	pixman_region_fini(&damage);
 
@@ -73,6 +73,6 @@ int main(int argc, char* argv[])
 
 	nvnc_del(server);
 	nvnc_display_unref(display);
-	nvnc_fb_unref(fb);
+	nvnc_frame_unref(fb);
 	aml_unref(aml);
 }

@@ -424,7 +424,7 @@ struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
  * remember to call nvnc_buffer_unref() afterwards.
  */
 struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
-		uint16_t height, uint32_t format, int16_t stride);
+		uint16_t height, uint32_t format, int32_t stride);
 
 /**
  * Create a frame from a raw memory address.

@@ -62,7 +62,7 @@ struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 
 EXPORT
 struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
-		uint16_t height, uint32_t fourcc_format, int16_t stride)
+		uint16_t height, uint32_t fourcc_format, int32_t stride)
 {
 	struct nvnc_frame* fb = calloc(1, sizeof(*fb));
 	if (!fb)

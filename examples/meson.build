@@ -1,4 +1,5 @@
 libpng = dependency('libpng', required: false)
+libavformat = dependency('libavformat', required: false)
 
 executable(
 	'draw',
@@ -13,6 +14,27 @@ executable(
 		libdrm_inc,
 	]
 )
+
+if gbm.found() and libavcodec.found() and libavutil.found() and \
+   libavformat.found() and libavfilter.found()
+	executable(
+		'video-player',
+		[
+			'video-player.c',
+		],
+		dependencies: [
+			neatvnc_dep,
+			aml,
+			gbm,
+			libdrm_inc,
+			libm,
+			libavformat,
+			libavcodec,
+			libavutil,
+			libavfilter,
+		]
+	)
+endif
 
 if libpng.found()
 	executable(

@@ -51,7 +51,7 @@ int main(int argc, char* argv[])
 	assert(server);
 
 	int rc = nvnc_listen_tcp(server, "127.0.0.1", 5900, NVNC_STREAM_NORMAL);
-	assert(rc == 0);
+	nvnc_assert(rc == 0, "Failed to create listening socket");
 
 	struct nvnc_display* display = nvnc_display_new(0, 0);
 	assert(display);

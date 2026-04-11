@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 	}
 
 	int rc = nvnc_listen_tcp(server, "127.0.0.1", 5900, NVNC_STREAM_NORMAL);
-	assert(rc == 0);
+	nvnc_assert(rc == 0, "Failed to create listening socket");
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);
 	aml_start(aml_get_default(), sig);

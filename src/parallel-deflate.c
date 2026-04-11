@@ -17,6 +17,7 @@
 #include "parallel-deflate.h"
 #include "vec.h"
 #include "sys/queue.h"
+#include "neatvnc.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -211,7 +212,7 @@ static void schedule_deflate_job(struct parallel_deflate* self,
 	job->seq = self->seq++;
 	int rc = deflateInit2(&job->zs, self->level, Z_DEFLATED,
 			self->window_bits, self->mem_level, self->strategy);
-	assert(rc == Z_OK);
+	nvnc_assert(rc == Z_OK, "deflateInit2 failed");
 
 	vec_init(&job->output, len);
 

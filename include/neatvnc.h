@@ -358,6 +358,9 @@ struct nvnc_buffer* nvnc_buffer_from_addr(void* address);
  * Wrap a GBM buffer object into a buffer object.
  *
  * The buffer will have a type of NVNC_BUFFER_GBM_BO.
+ *
+ * The nvnc_buffer object does not take over ownership of the gbm_bo object, so
+ * make sure to release/free it inside the cleanup callback for nvnc_buffer.
  */
 struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo);
 

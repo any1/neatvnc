@@ -32,7 +32,9 @@ int security_handshake_failed(struct nvnc_client* client,
 		nvnc_log(NVNC_LOG_INFO, "Security handshake failed: %s",
 				reason_string);
 
-	char buffer[256];
+	const size_t max_reason_length = 256;
+	char buffer[sizeof(uint32_t) + sizeof(struct rfb_error_reason)
+		+ max_reason_length];
 
 	uint32_t* result = (uint32_t*)buffer;
 	*result = htonl(RFB_SECURITY_HANDSHAKE_FAILED);
@@ -41,9 +43,12 @@ int security_handshake_failed(struct nvnc_client* client,
 	if (client->rfb_minor_version >= 8) {
 		struct rfb_error_reason* reason =
 			(struct rfb_error_reason*)(buffer + sizeof(*result));
-		reason->length = htonl(strlen(reason_string));
-		strcpy(reason->message, reason_string);
-		len = sizeof(*result) + sizeof(*reason) + strlen(reason_string);
+		size_t reason_len = strlen(reason_string);
+		if (reason_len > max_reason_length)
+			reason_len = max_reason_length;
+		reason->length = htonl(reason_len);
+		memcpy(reason->message, reason_string, reason_len);
+		len = sizeof(*result) + sizeof(*reason) + reason_len;
 	} else {
 		len = sizeof(*result);
 	}

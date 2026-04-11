@@ -76,7 +76,6 @@ static void compositor_work_free(void* userdata)
 {
 	struct compositor_work* work = userdata;
 
-	nvnc_composite_fb_release(&work->src);
 	nvnc_composite_fb_unref(&work->src);
 
 	nvnc_frame_unref(work->dst);
@@ -248,7 +247,6 @@ static void on_work_done(struct aml_work* work)
 	if (!compositor->is_being_destroyed)
 		ctx->on_done(&cfb, &ctx->frame_damage, ctx->userdata);
 
-	nvnc_composite_fb_release(&cfb);
 }
 
 static void get_fb_dimensions(struct nvnc_frame* fb, uint32_t* width,
@@ -361,14 +359,11 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 
 	compositor_damage_all_buffers(self, damage);
 
-	nvnc_frame_hold(ctx->dst);
-
 	// The side data entry is removed from the list when damaging is done
 	// and added back when the job is finished.
 	LIST_REMOVE(fb_side_data, link);
 
 	nvnc_composite_fb_copy(&ctx->src, cfb);
-	nvnc_composite_fb_hold(&ctx->src);
 
 	ctx->compositor = self;
 	ctx->on_done = on_done;
@@ -389,7 +384,6 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	return rc;
 
 side_data_failure:
-	nvnc_frame_release(ctx->dst);
 acquire_failure:
 	free(ctx);
 	return -1;

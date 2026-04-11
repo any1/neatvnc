@@ -53,8 +53,6 @@ struct nvnc_composite_fb {
 	int n_fbs;
 };
 
-void nvnc_frame_hold(struct nvnc_frame* fb);
-void nvnc_frame_release(struct nvnc_frame* fb);
 int nvnc_frame_map(struct nvnc_frame* fb);
 void nvnc_frame_unmap(struct nvnc_frame* fb);
 
@@ -62,8 +60,6 @@ void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
 		struct nvnc_frame* fbs[]);
 void nvnc_composite_fb_ref(struct nvnc_composite_fb* self);
 void nvnc_composite_fb_unref(struct nvnc_composite_fb* self);
-void nvnc_composite_fb_hold(struct nvnc_composite_fb* self);
-void nvnc_composite_fb_release(struct nvnc_composite_fb* self);
 int nvnc_composite_fb_map(struct nvnc_composite_fb* self);
 void nvnc_composite_fb_copy(struct nvnc_composite_fb* dst,
 		const struct nvnc_composite_fb* src);

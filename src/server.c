@@ -2571,7 +2571,6 @@ void nvnc_del(struct nvnc* self)
 		nvnc_display_unref(display);
 	}
 
-	nvnc_frame_release(self->cursor.buffer);
 	nvnc_frame_unref(self->cursor.buffer);
 	self->cursor.buffer = NULL;
 
@@ -3193,7 +3192,6 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_frame* fb, uint16_t hotspot_
 	bool should_send = is_damaged &&
 		!fbs_are_equal(self->cursor.buffer, fb);
 
-	nvnc_frame_release(self->cursor.buffer);
 	nvnc_frame_unref(self->cursor.buffer);
 
 	self->cursor.buffer = fb;
@@ -3202,7 +3200,6 @@ void nvnc_set_cursor(struct nvnc* self, struct nvnc_frame* fb, uint16_t hotspot_
 
 	if (fb) {
 		nvnc_frame_ref(fb);
-		nvnc_frame_hold(fb);
 	}
 
 	if (!should_send)

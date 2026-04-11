@@ -555,7 +555,6 @@ static void on_tight_finished(struct aml_work* work)
 {
 	struct tight_encoder* self = aml_get_userdata(work);
 
-	nvnc_composite_fb_release(&self->composite_fb);
 	nvnc_composite_fb_unref(&self->composite_fb);
 	memset(&self->composite_fb, 0, sizeof(self->composite_fb));
 
@@ -653,8 +652,6 @@ static int tight_encoder_encode(struct encoder* encoder,
 
 	self->n_rects = tight_apply_damage(self, damage);
 	assert(self->n_rects > 0);
-
-	nvnc_composite_fb_hold(composite_fb);
 
 	rc = tight_schedule_encoding_jobs(self);
 	nvnc_assert(rc == 0, "Failed to schedule encoding jobs");

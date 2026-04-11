@@ -215,7 +215,6 @@ static void raw_encoder_set_output_format(struct encoder* encoder,
 static void raw_encoder_work_destroy(void* obj)
 {
 	struct raw_encoder_work* ctx = obj;
-	nvnc_composite_fb_release(&ctx->composite_fb);
 	nvnc_composite_fb_unref(&ctx->composite_fb);
 	pixman_region_fini(&ctx->damage);
 	if (ctx->result)
@@ -247,7 +246,6 @@ static int raw_encoder_encode(struct encoder* encoder,
 	nvnc_composite_fb_copy(&ctx->composite_fb, fb);
 	memcpy(&ctx->output_format, &self->output_format,
 			sizeof(ctx->output_format));
-	nvnc_composite_fb_hold(&ctx->composite_fb);
 	pixman_region_copy(&ctx->damage, damage);
 
 	int rc = aml_start(aml_get_default(), self->work);

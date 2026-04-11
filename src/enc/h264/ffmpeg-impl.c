@@ -558,7 +558,6 @@ static void h264_encoder__on_work_done(struct aml_work* work)
 	struct h264_encoder_ffmpeg* self = aml_get_userdata(work);
 
 	uint64_t pts = nvnc_frame_get_pts(self->current_fb);
-	nvnc_frame_release(self->current_fb);
 	nvnc_frame_unref(self->current_fb);
 	self->current_fb = NULL;
 
@@ -683,8 +682,6 @@ static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
 
 	int rc __attribute__((unused)) = fb_queue_enqueue(&self->fb_queue, fb);
 	assert(rc == 0); // TODO
-
-	nvnc_frame_hold(fb);
 
 	rc = h264_encoder__schedule_work(self);
 	assert(rc == 0); // TODO

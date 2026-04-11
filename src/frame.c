@@ -277,19 +277,6 @@ void nvnc_frame_set_damage(struct nvnc_frame* self,
 	pixman_region_copy(&self->damage, damage);
 }
 
-void nvnc_frame_hold(struct nvnc_frame* fb)
-{
-	nvnc_buffer_ref(fb->buffer);
-}
-
-void nvnc_frame_release(struct nvnc_frame* fb)
-{
-	if (!fb)
-		return;
-	assert(fb->buffer->ref > 1);
-	nvnc_buffer_unref(fb->buffer);
-}
-
 int nvnc_frame_map(struct nvnc_frame* fb)
 {
 	int32_t byte_stride = 0;
@@ -330,24 +317,6 @@ void nvnc_composite_fb_unref(struct nvnc_composite_fb* self)
 		struct nvnc_frame* fb = self->fbs[i];
 		assert(fb);
 		nvnc_frame_unref(fb);
-	}
-}
-
-void nvnc_composite_fb_hold(struct nvnc_composite_fb* self)
-{
-	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_frame* fb = self->fbs[i];
-		assert(fb);
-		nvnc_frame_hold(fb);
-	}
-}
-
-void nvnc_composite_fb_release(struct nvnc_composite_fb* self)
-{
-	for (int i = 0; i < self->n_fbs; ++i) {
-		struct nvnc_frame* fb = self->fbs[i];
-		assert(fb);
-		nvnc_frame_release(fb);
 	}
 }
 

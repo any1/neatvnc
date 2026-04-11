@@ -388,7 +388,6 @@ static void process_src_bufs(struct h264_encoder_v4l2m2m* self)
 		close(srcbuf->planes[0].m.fd);
 
 		nvnc_frame_unmap(srcbuf->fb);
-		nvnc_frame_release(srcbuf->fb);
 		nvnc_frame_unref(srcbuf->fb);
 		srcbuf->fb = NULL;
 	}
@@ -471,7 +470,6 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 	assert(!srcbuf->fb);
 
 	nvnc_frame_ref(fb);
-	nvnc_frame_hold(fb);
 
 	/* For some reason the v4l2m2m h264 encoder in the Rapberry Pi 4 gets
 	 * really glitchy unless the buffer is mapped first.

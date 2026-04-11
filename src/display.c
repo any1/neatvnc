@@ -54,7 +54,6 @@ refinery_failure:
 static void nvnc__display_free(struct nvnc_display* self)
 {
 	if (self->buffer) {
-		nvnc_frame_release(self->buffer);
 		nvnc_frame_unref(self->buffer);
 	}
 	damage_refinery_destroy(&self->damage_refinery);
@@ -130,13 +129,11 @@ void nvnc_display_feed_frame(struct nvnc_display* self, struct nvnc_frame* fb)
 	fb->logical_height = self->logical_height;
 
 	if (self->buffer) {
-		nvnc_frame_release(self->buffer);
 		nvnc_frame_unref(self->buffer);
 	}
 
 	self->buffer = fb;
 	nvnc_frame_ref(fb);
-	nvnc_frame_hold(fb);
 
 	assert(self->server);
 

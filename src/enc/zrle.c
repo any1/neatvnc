@@ -397,7 +397,6 @@ static void zrle_encoder_on_done(struct aml_work* work)
 
 	assert(self->current_result);
 
-	nvnc_composite_fb_release(&self->current_fb);
 	nvnc_composite_fb_unref(&self->current_fb);
 	memset(&self->current_fb, 0, sizeof(self->current_fb));
 
@@ -476,7 +475,6 @@ static int zrle_encoder_encode(struct encoder* encoder,
 		return -1;
 
 	nvnc_composite_fb_copy(&self->current_fb, fb);
-	nvnc_composite_fb_hold(&self->current_fb);
 	pixman_region_copy(&self->current_damage, damage);
 
 	encoder_ref(&self->encoder);

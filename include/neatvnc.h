@@ -79,7 +79,7 @@ enum nvnc_button_mask {
 };
 
 enum nvnc_buffer_type {
-	NVNC_FB_UNSPEC = 0,
+	NVNC_BUFFER_UNSPEC = 0,
 	NVNC_BUFFER_SIMPLE,
 	NVNC_BUFFER_GBM_BO,
 };

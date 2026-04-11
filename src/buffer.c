@@ -98,7 +98,7 @@ void nvnc_buffer_ref(struct nvnc_buffer* buffer)
 static void nvnc__buffer_free_internal(struct nvnc_buffer* buffer)
 {
 	switch (buffer->type) {
-	case NVNC_FB_UNSPEC:
+	case NVNC_BUFFER_UNSPEC:
 		abort();
 	case NVNC_BUFFER_SIMPLE:
 		free(buffer->addr);

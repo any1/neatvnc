@@ -53,6 +53,8 @@ refinery_failure:
 
 static void nvnc__display_free(struct nvnc_display* self)
 {
+	if (self->common.cleanup_fn)
+		self->common.cleanup_fn(self->common.userdata);
 	if (self->buffer) {
 		nvnc_frame_unref(self->buffer);
 	}

@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <pixman.h>
 #include <aml.h>
+#include <zlib.h>
 
 #define TILE_LENGTH 64
 

@@ -14,10 +14,11 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "client.h"
+#include "server.h"
 #include "auth/auth.h"
 #include "stream/stream.h"
 #include "rfb-proto.h"
-#include "common.h"
 #include "neatvnc.h"
 
 #include <string.h>

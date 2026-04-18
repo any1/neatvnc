@@ -14,7 +14,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "common.h"
+#include "client.h"
+#include "server.h"
 #include "stream/stream.h"
 #include "auth/auth.h"
 #include "auth/apple-dh.h"

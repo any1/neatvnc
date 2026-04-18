@@ -9,6 +9,7 @@
 #include <sixel.h>
 #include <drm_fourcc.h>
 #include <math.h>
+#include <string.h>
 
 struct nvnc_frame* read_png_file(const char *filename);
 

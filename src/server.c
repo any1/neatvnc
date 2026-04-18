@@ -35,6 +35,7 @@
 #include "compositor.h"
 #include "transform-util.h"
 #include "type-macros.h"
+#include "server.h"
 
 #include <stdio.h>
 #include <stdlib.h>

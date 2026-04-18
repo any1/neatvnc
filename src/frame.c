@@ -20,6 +20,7 @@
 #include "neatvnc.h"
 #include "transform-util.h"
 
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/param.h>

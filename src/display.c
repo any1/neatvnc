@@ -17,6 +17,7 @@
 #include "display.h"
 #include "neatvnc.h"
 #include "common.h"
+#include "server.h"
 #include "frame.h"
 #include "region.h"
 #include "transform-util.h"

@@ -14,7 +14,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "common.h"
+#include "server.h"
+#include "client.h"
 #include "stream/stream.h"
 #include "auth/auth.h"
 #include "auth/des-auth.h"

@@ -16,9 +16,13 @@
 
 #pragma once
 
-#include "neatvnc.h"
+#include <unistd.h>
+#include <stdbool.h>
 
-struct nvnc_common {
-	void* userdata;
-	nvnc_cleanup_fn cleanup_fn;
+struct cut_text {
+	char* buffer;
+	size_t length;
+	size_t index;
+	bool is_zlib;
+	bool is_text_provide;
 };

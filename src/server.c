@@ -1160,8 +1160,6 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 static int on_client_fb_update_request(struct nvnc_client* client)
 {
-	struct nvnc* server = client->server;
-
 	struct rfb_client_fb_update_req_msg* msg =
 	        (struct rfb_client_fb_update_req_msg*)(client->msg_buffer +
 	                                               client->buffer_index);
@@ -1192,10 +1190,6 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	}
 
 	DTRACE_PROBE1(neatvnc, update_fb_request, client);
-
-	nvnc_frame_req_fn fn = server->fb_req_fn;
-	if (fn)
-		fn(client, incremental, x, y, width, height);
 
 	if (!incremental &&
 	    client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE)) {
@@ -2886,12 +2880,6 @@ EXPORT
 void nvnc_set_normalised_pointer_fn(struct nvnc* self, nvnc_normalised_pointer_fn fn)
 {
 	self->normalised_pointer_fn = fn;
-}
-
-EXPORT
-void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_frame_req_fn fn)
-{
-	self->fb_req_fn = fn;
 }
 
 EXPORT

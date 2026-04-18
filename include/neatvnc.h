@@ -135,9 +135,6 @@ typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
                                 enum nvnc_button_mask);
 typedef void (*nvnc_normalised_pointer_fn)(struct nvnc_client*, double x,
 		double y, enum nvnc_button_mask);
-typedef void (*nvnc_frame_req_fn)(struct nvnc_client*, bool is_incremental,
-                               uint16_t x, uint16_t y, uint16_t width,
-                               uint16_t height);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
 typedef void (*nvnc_auth_fn)(struct nvnc_auth_future*,
@@ -275,11 +272,6 @@ void nvnc_set_pointer_fn(struct nvnc* self, nvnc_pointer_fn);
  */
 void nvnc_set_normalised_pointer_fn(struct nvnc* self,
 		nvnc_normalised_pointer_fn);
-
-/**
- * Set a handler for frame update requests.
- */
-void nvnc_set_fb_req_fn(struct nvnc* self, nvnc_frame_req_fn);
 
 /**
  * Set a handler that is invoked when a new client connects.

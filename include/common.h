@@ -195,7 +195,6 @@ struct nvnc {
 	nvnc_key_fn key_code_fn;
 	nvnc_pointer_fn pointer_fn;
 	nvnc_normalised_pointer_fn normalised_pointer_fn;
-	nvnc_frame_req_fn fb_req_fn;
 	nvnc_client_fn new_client_fn;
 	nvnc_cut_text_fn cut_text_fn;
 	struct cut_text ext_clipboard_provide_msg;

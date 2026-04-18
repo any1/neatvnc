@@ -71,7 +71,7 @@ static int rsa_aes_send_challenge(struct nvnc_client* client,
 			client->rsa.challenge, client->rsa.challenge_len);
 	msg->length = htons(len);
 
-	stream_write(client->net_stream, buffer, sizeof(*msg) + len, NULL, NULL);
+	stream_write(client->net_stream, buffer, sizeof(*msg) + len);
 	return 0;
 }
 
@@ -199,7 +199,7 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	update_min_rtt(client);
 
 	stream_write(client->net_stream, server_hash,
-			client_rsa_aes_hash_len(client), NULL, NULL);
+			client_rsa_aes_hash_len(client));
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CLIENT_HASH;
 
@@ -260,7 +260,7 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 
 	// TODO: Read this from config
 	uint8_t subtype = RFB_RSA_AES_CRED_SUBTYPE_USER_AND_PASS;
-	stream_write(client->net_stream, &subtype, 1, NULL, NULL);
+	stream_write(client->net_stream, &subtype, 1);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_RSA_AES_CREDENTIALS;
 	return client_rsa_aes_hash_len(client);

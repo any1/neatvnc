@@ -38,7 +38,7 @@ int des_auth_send_challenge(struct nvnc_client* client)
 {
 	crypto_random(client->des_challenge, DES_CHALLENGE_SIZE);
 	return stream_write(client->net_stream, client->des_challenge,
-			DES_CHALLENGE_SIZE, NULL, NULL);
+			DES_CHALLENGE_SIZE);
 }
 
 int des_auth_handle_response(struct nvnc_client* client)

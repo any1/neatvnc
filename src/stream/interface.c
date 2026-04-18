@@ -49,11 +49,10 @@ int stream_send_first(struct stream* self, struct rcbuf* payload)
 	return self->impl->send_first(self, payload);
 }
 
-int stream_write(struct stream* self, const void* payload, size_t len,
-		stream_req_fn on_done, void* userdata)
+int stream_write(struct stream* self, const void* payload, size_t len)
 {
 	struct rcbuf* buf = rcbuf_from_mem(payload, len);
-	return buf ? stream_send(self, buf, on_done, userdata) : -1;
+	return buf ? stream_send(self, buf, NULL, NULL) : -1;
 }
 
 ssize_t stream_read(struct stream* self, void* dst, size_t size)

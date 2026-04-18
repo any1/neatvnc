@@ -54,7 +54,7 @@ int security_handshake_failed(struct nvnc_client* client,
 		len = sizeof(*result);
 	}
 
-	stream_write(client->net_stream, buffer, len, NULL, NULL);
+	stream_write(client->net_stream, buffer, len);
 	nvnc_client_close(client);
 
 	return 0;
@@ -68,8 +68,7 @@ int security_handshake_ok(struct nvnc_client* client)
 	}
 
 	uint32_t result = htonl(RFB_SECURITY_HANDSHAKE_OK);
-	return stream_write(client->net_stream, &result, sizeof(result), NULL,
-			NULL);
+	return stream_write(client->net_stream, &result, sizeof(result));
 }
 
 static struct nvnc_auth_future* nvnc_auth_future_create(

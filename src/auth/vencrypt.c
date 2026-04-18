@@ -24,7 +24,7 @@
 
 static int send_byte(struct nvnc_client* client, uint8_t value)
 {
-	return stream_write(client->net_stream, &value, 1, NULL, NULL);
+	return stream_write(client->net_stream, &value, 1);
 }
 
 int vencrypt_send_version(struct nvnc_client* client)
@@ -34,7 +34,7 @@ int vencrypt_send_version(struct nvnc_client* client)
 		.minor = 2,
 	};
 
-	return stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	return stream_write(client->net_stream, &msg, sizeof(msg));
 }
 
 static int on_vencrypt_version_message(struct nvnc_client* client)
@@ -57,7 +57,7 @@ static int on_vencrypt_version_message(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	stream_write(client->net_stream, &result, sizeof(result), NULL, NULL);
+	stream_write(client->net_stream, &result, sizeof(result));
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_VENCRYPT_SUBTYPE;
 

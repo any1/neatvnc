@@ -251,7 +251,7 @@ static int handle_unsupported_version(struct nvnc_client* client)
 	strcpy(reason->message, reason_string);
 
 	size_t len = 1 + sizeof(*reason) + strlen(reason_string);
-	stream_write(client->net_stream, buffer, len, NULL, NULL);
+	stream_write(client->net_stream, buffer, len);
 
 	client_close(client);
 	return -1;
@@ -386,8 +386,7 @@ static int on_version_message_rfb33(struct nvnc_client* client)
 			(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
 			!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
-		stream_write(client->net_stream, &sec_type,
-				sizeof(sec_type), NULL, NULL);
+		stream_write(client->net_stream, &sec_type, sizeof(sec_type));
 		des_auth_send_challenge(client);
 		client->state = VNC_CLIENT_STATE_WAITING_FOR_DES_AUTH_RESPONSE;
 		return 12;
@@ -401,8 +400,7 @@ static int on_version_message_rfb33(struct nvnc_client* client)
 	}
 
 	uint32_t sec_type = htonl(RFB_SECURITY_TYPE_NONE);
-	stream_write(client->net_stream, &sec_type,
-			sizeof(sec_type), NULL, NULL);
+	stream_write(client->net_stream, &sec_type, sizeof(sec_type));
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	return 12;
 }
@@ -443,8 +441,8 @@ static int on_version_message(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	stream_write(client->net_stream, security, sizeof(*security) +
-			security->n, NULL, NULL);
+	stream_write(client->net_stream, security,
+			sizeof(*security) + security->n);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_SECURITY;
 	return 12;
@@ -667,7 +665,7 @@ static int cook_pixel_map(struct nvnc_client* client)
 	struct rfb_set_colour_map_entries_msg* msg =
 		(struct rfb_set_colour_map_entries_msg*)buf;
 	make_rgb332_pal8_map(msg);
-	return stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
+	return stream_write(client->net_stream, buf, sizeof(buf));
 }
 
 static int on_client_set_pixel_format(struct nvnc_client* client)
@@ -723,7 +721,7 @@ static void nvnc_send_end_of_continuous_updates(struct nvnc_client* client)
 
 	msg.type = RFB_SERVER_TO_CLIENT_END_OF_CONTINUOUS_UPDATES;
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, &msg, sizeof(msg));
 }
 
 static void send_fence(struct nvnc_client* client, uint32_t flags,
@@ -738,8 +736,7 @@ static void send_fence(struct nvnc_client* client, uint32_t flags,
 	head->length = length;
 	memcpy(head->payload, payload, length);
 
-	stream_write(client->net_stream, buffer, sizeof(*head) + length, NULL,
-			NULL);
+	stream_write(client->net_stream, buffer, sizeof(*head) + length);
 }
 
 static void send_ping(struct nvnc_client* client, uint32_t prev_frame_size)
@@ -887,10 +884,10 @@ static void send_desktop_name_update(struct nvnc_client* client)
 	uint32_t name_len = strlen(server->name);
 	uint32_t name_nlen = htonl(name_len);
 
-	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
-	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
-	stream_write(client->net_stream, &name_nlen, sizeof(name_nlen), NULL, NULL);
-	stream_write(client->net_stream, server->name, name_len, NULL, NULL);
+	stream_write(client->net_stream, &head, sizeof(head));
+	stream_write(client->net_stream, &rect, sizeof(rect));
+	stream_write(client->net_stream, &name_nlen, sizeof(name_nlen));
+	stream_write(client->net_stream, server->name, name_len);
 
 	client->needs_desktop_name_update = false;
 }
@@ -911,7 +908,7 @@ static int send_pts_rect(struct nvnc_client* client, uint64_t pts)
 	uint64_t* msg_pts = (uint64_t*)&buf[sizeof(struct rfb_server_fb_rect)];
 	*msg_pts = nvnc__htonll(pts);
 
-	return stream_write(client->net_stream, buf, sizeof(buf), NULL, NULL);
+	return stream_write(client->net_stream, buf, sizeof(buf));
 }
 
 static const char* encoding_to_string(enum rfb_encodings encoding)
@@ -1340,9 +1337,9 @@ static void send_ext_clipboard_caps(struct nvnc_client* client)
 	 * client notify -> server request -> solicited client provide */
 	uint32_t max_unsolicited_text_size = 0;
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, &msg, sizeof(msg));
 	stream_write(client->net_stream, &max_unsolicited_text_size,
-			sizeof(max_unsolicited_text_size), NULL, NULL);
+			sizeof(max_unsolicited_text_size));
 }
 
 static void send_ext_clipboard_request(struct nvnc_client* client)
@@ -1354,7 +1351,7 @@ static void send_ext_clipboard_request(struct nvnc_client* client)
 	msg.flags = htonl(RFB_EXT_CLIPBOARD_ACTION_REQUEST |
 			RFB_EXT_CLIPBOARD_FORMAT_TEXT);
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, &msg, sizeof(msg));
 }
 
 static void send_ext_clipboard_notify(struct nvnc_client* client)
@@ -1368,7 +1365,7 @@ static void send_ext_clipboard_notify(struct nvnc_client* client)
 		flags |= RFB_EXT_CLIPBOARD_FORMAT_TEXT;
 	msg.flags = htonl(flags);
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, &msg, sizeof(msg));
 }
 
 static void send_ext_clipboard_provide(struct nvnc_client* client)
@@ -1382,11 +1379,10 @@ static void send_ext_clipboard_provide(struct nvnc_client* client)
 	msg.flags = htonl(RFB_EXT_CLIPBOARD_ACTION_PROVIDE |
 			RFB_EXT_CLIPBOARD_FORMAT_TEXT);
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
+	stream_write(client->net_stream, &msg, sizeof(msg));
 	stream_write(client->net_stream,
 			client->server->ext_clipboard_provide_msg.buffer,
-			client->server->ext_clipboard_provide_msg.length,
-			NULL, NULL);
+			client->server->ext_clipboard_provide_msg.length);
 }
 
 static char* crlf_to_lf(const char* src, size_t len)
@@ -1780,8 +1776,8 @@ static void send_cut_text_to_client(struct nvnc_client* client,
        msg.type = RFB_SERVER_TO_CLIENT_SERVER_CUT_TEXT;
        msg.length = htonl(len);
 
-       stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
-       stream_write(client->net_stream, text, len, NULL, NULL);
+       stream_write(client->net_stream, &msg, sizeof(msg));
+       stream_write(client->net_stream, text, len);
 }
 
 EXPORT
@@ -1888,9 +1884,9 @@ static void send_extended_desktop_size_rect(struct nvnc_client* client,
 		.height = htons(height),
 	};
 
-	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
-	stream_write(client->net_stream, &buf, sizeof(buf), NULL, NULL);
-	stream_write(client->net_stream, &screen, sizeof(screen), NULL, NULL);
+	stream_write(client->net_stream, &rect, sizeof(rect));
+	stream_write(client->net_stream, &buf, sizeof(buf));
+	stream_write(client->net_stream, &screen, sizeof(screen));
 }
 
 static int on_client_set_desktop_size_event(struct nvnc_client* client)
@@ -1921,7 +1917,7 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
 		.n_rects = htons(1),
 	};
-	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
+	stream_write(client->net_stream, &head, sizeof(head));
 
 	send_extended_desktop_size_rect(client, width, height,
 			RFB_RESIZE_INITIATOR_THIS_CLIENT,
@@ -2721,7 +2717,7 @@ static void finish_fb_update(struct nvnc_client* client,
 		.n_rects = htons(frame->n_rects),
 	};
 	if (stream_write(client->net_stream, &update_msg,
-			sizeof(update_msg), NULL, NULL) < 0)
+			sizeof(update_msg)) < 0)
 		goto complete;
 
 	if (is_resized && send_desktop_resize_rect(client, frame->width,
@@ -2785,7 +2781,7 @@ static int send_desktop_resize_rect(struct nvnc_client* client, uint16_t width,
 		.height = htons(height),
 	};
 
-	stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+	stream_write(client->net_stream, &rect, sizeof(rect));
 	return 0;
 }
 
@@ -2804,27 +2800,27 @@ static bool send_ext_support_frame(struct nvnc_client* client)
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
 		.n_rects = htons(n_rects),
 	};
-	stream_write(client->net_stream, &head, sizeof(head), NULL, NULL);
+	stream_write(client->net_stream, &head, sizeof(head));
 
 	if (has_qemu_ext) {
 		struct rfb_server_fb_rect rect = {
 			.encoding = htonl(RFB_ENCODING_QEMU_EXT_KEY_EVENT),
 		};
-		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+		stream_write(client->net_stream, &rect, sizeof(rect));
 	}
 
 	if (has_ntp) {
 		struct rfb_server_fb_rect rect = {
 			.encoding = htonl(RFB_ENCODING_NTP),
 		};
-		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+		stream_write(client->net_stream, &rect, sizeof(rect));
 	}
 
 	if (has_ext_mouse_buttons) {
 		struct rfb_server_fb_rect rect = {
 			.encoding = htonl(RFB_ENCODING_EXT_MOUSE_BUTTONS),
 		};
-		stream_write(client->net_stream, &rect, sizeof(rect), NULL, NULL);
+		stream_write(client->net_stream, &rect, sizeof(rect));
 		client->has_ext_mouse_buttons = true;
 	}
 

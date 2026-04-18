@@ -108,10 +108,9 @@ void stream_ref(struct stream* self);
 int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);
 ssize_t stream_read(struct stream* self, void* dst, size_t size);
-int stream_write(struct stream* self, const void* payload, size_t len,
-                 stream_req_fn on_done, void* userdata);
+int stream_write(struct stream* self, const void* payload, size_t len);
 int stream_send(struct stream* self, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata);
+		stream_req_fn fn, void* userdata);
 int stream_send_first(struct stream* self, struct rcbuf* payload);
 
 // Queue a pure function to be executed when time comes to send it.

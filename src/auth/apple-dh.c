@@ -44,9 +44,9 @@ int apple_dh_send_public_key(struct nvnc_client* client)
 		.key_size = htons(q_len),
 	};
 
-	stream_write(client->net_stream, &msg, sizeof(msg), NULL, NULL);
-	stream_write(client->net_stream, mod, mod_len, NULL, NULL);
-	stream_write(client->net_stream, q, q_len, NULL, NULL);
+	stream_write(client->net_stream, &msg, sizeof(msg));
+	stream_write(client->net_stream, mod, mod_len);
+	stream_write(client->net_stream, q, q_len);
 
 	crypto_key_del(pub);
 	return 0;

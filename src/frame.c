@@ -293,6 +293,24 @@ void nvnc_frame_unmap(struct nvnc_frame* fb)
 	nvnc_buffer_unmap(fb->buffer);
 }
 
+void nvnc_frame_get_effective_logical_size(const struct nvnc_frame *self,
+		uint16_t *width, uint16_t *height)
+{
+	uint32_t w, h;
+
+	if (self->logical_width && self->logical_height) {
+		w = self->logical_width;
+		h = self->logical_height;
+	} else {
+		w = self->width;
+		h = self->height;
+		nvnc_transform_dimensions(self->transform, &w, &h);
+	}
+
+	*width = w;
+	*height = h;
+}
+
 void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
 		struct nvnc_frame* fbs[])
 {
@@ -370,18 +388,9 @@ static void nvnc_composite_fb_dimensions(const struct nvnc_composite_fb* self,
 	uint16_t height = 0;
 	for (int i = 0; i < self->n_fbs; ++i) {
 		const struct nvnc_frame* fb = self->fbs[i];
-		uint32_t fb_width;
-		uint32_t fb_height;
-		if (fb->logical_width) {
-			assert(fb->logical_height);
-			fb_width = fb->logical_width;
-			fb_height = fb->logical_height;
-		} else {
-			fb_width = fb->width;
-			fb_height = fb->height;
-			nvnc_transform_dimensions(fb->transform, &fb_width,
-					&fb_height);
-		}
+		uint16_t fb_width;
+		uint16_t fb_height;
+		nvnc_frame_get_effective_logical_size(fb, &fb_width, &fb_height);
 		if (width < fb->x_off + fb_width)
 			width = fb->x_off + fb_width;
 		if (height < fb->y_off + fb_height)

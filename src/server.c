@@ -82,8 +82,8 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-static int send_desktop_resize_rect(struct nvnc_client* client, uint16_t width,
-		uint16_t height);
+static int send_desktop_resize_rect(struct nvnc_client* client,
+		const struct nvnc_desktop_layout* layout);
 static bool client_supports_resizing(const struct nvnc_client* client);
 static bool send_ext_support_frame(struct nvnc_client* client);
 static void send_ext_clipboard_caps(struct nvnc_client* client);
@@ -215,6 +215,7 @@ static void client_close(struct nvnc_client* client)
 	encoder_unref(client->zrle_encoder);
 	encoder_unref(client->tight_encoder);
 	pixman_region_fini(&client->damage);
+	free(client->known_layout);
 	free(client->cut_text.buffer);
 	free(client);
 }
@@ -558,6 +559,54 @@ static void calculate_desktop_extents(const struct nvnc* self,
 	*height_out = height;
 }
 
+static struct nvnc_display* nvnc__find_display_by_id(const struct nvnc* self,
+		uint32_t id)
+{
+	for (int i = 0; i < self->n_displays; ++i)
+		if (self->displays[i]->id == id)
+			return self->displays[i];
+	return NULL;
+}
+
+static void client_set_known_layout(struct nvnc_client* client,
+		const struct nvnc_desktop_layout* layout)
+{
+	size_t size = sizeof(*layout) +
+			layout->n_display_layouts * sizeof(layout->display_layouts[0]);
+	struct nvnc_desktop_layout* new_layout = malloc(size);
+	assert(new_layout);
+	memcpy(new_layout, layout, size);
+	free(client->known_layout);
+	client->known_layout = new_layout;
+}
+
+static struct nvnc_desktop_layout* build_desktop_layout(
+		const struct nvnc* server, uint16_t width, uint16_t height)
+{
+	struct nvnc_desktop_layout* layout = calloc(1, sizeof(*layout) +
+			sizeof(layout->display_layouts[0]) * server->n_displays);
+	if (!layout)
+		return NULL;
+
+	layout->n_display_layouts = server->n_displays;
+	layout->width = width;
+	layout->height = height;
+
+	for (int i = 0; i < server->n_displays; ++i) {
+		const struct nvnc_display* display = server->displays[i];
+		const struct nvnc_frame* frame = display->buffer;
+		struct nvnc_display_layout* dl = &layout->display_layouts[i];
+
+		dl->id = display->id;
+		nvnc_frame_get_effective_logical_size(frame, &dl->width,
+				&dl->height);
+		dl->x_pos = display->x_pos;
+		dl->y_pos = display->y_pos;
+	}
+
+	return layout;
+}
+
 static int send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -610,8 +659,14 @@ static int send_server_init_message(struct nvnc_client* client)
 	struct rcbuf* payload = rcbuf_new(msg, size);
 	stream_send(client->net_stream, payload, NULL, NULL);
 
-	client->known_width = width;
-	client->known_height = height;
+	struct nvnc_desktop_layout* known_layout =
+			build_desktop_layout(server, width, height);
+	if (!known_layout)
+		goto close;
+
+	free(client->known_layout);
+	client->known_layout = known_layout;
+
 	return 0;
 
 close:
@@ -1060,25 +1115,10 @@ static bool client_has_damage(struct nvnc_client* client)
 static void attach_desktop_layout_to_frame(const struct nvnc* server,
 		struct nvnc_composite_fb* cfb)
 {
-	struct nvnc_desktop_layout* layout = calloc(1, sizeof(*layout) +
-			sizeof(layout->display_layouts[0]) * server->n_displays);
+	struct nvnc_desktop_layout* layout = build_desktop_layout(server,
+			nvnc_composite_fb_width(cfb),
+			nvnc_composite_fb_height(cfb));
 	assert(layout);
-
-	layout->n_display_layouts = server->n_displays;
-	layout->width = nvnc_composite_fb_width(cfb);
-	layout->height = nvnc_composite_fb_height(cfb);
-
-	for (int i = 0; i < server->n_displays; ++i) {
-		const struct nvnc_display* display = server->displays[i];
-		const struct nvnc_frame* frame = display->buffer;
-		struct nvnc_display_layout* dl = &layout->display_layouts[i];
-
-		dl->id = display->id;
-		nvnc_frame_get_effective_logical_size(frame, &dl->width,
-				&dl->height);
-		dl->x_pos = display->x_pos;
-		dl->y_pos = display->y_pos;
-	}
 
 	if (!cfb->metadata)
 		cfb->metadata = nvnc_frame_metadata_new();
@@ -1226,8 +1266,8 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 
 	if (!incremental &&
 	    client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE)) {
-		client->known_width = 0;
-		client->known_height = 0;
+		free(client->known_layout);
+		client->known_layout = NULL;
 	}
 
 	process_fb_update_requests(client);
@@ -1851,77 +1891,110 @@ void nvnc_send_cut_text(struct nvnc* server, const char* text, uint32_t len)
 	}
 }
 
-static enum rfb_resize_status check_desktop_layout(struct nvnc_client* client,
-		uint16_t width, uint16_t height, uint8_t n_screens,
-		struct rfb_screen* screens)
+static struct nvnc_desktop_layout* unpack_desktop_layout(uint16_t width,
+		uint16_t height, uint8_t n_screens, struct rfb_screen* screens)
 {
-	struct nvnc* server = client->server;
-	struct nvnc_desktop_layout* layout;
-	enum rfb_resize_status status = RFB_RESIZE_STATUS_REQUEST_FORWARDED;
-
-	layout = malloc(sizeof(*layout) +
+	struct nvnc_desktop_layout* layout = malloc(sizeof(*layout) +
 			n_screens * sizeof(*layout->display_layouts));
 	if (!layout)
-		return RFB_RESIZE_STATUS_OUT_OF_RESOURCES;
+		return NULL;
 
 	layout->width = width;
 	layout->height = height;
 	layout->n_display_layouts = n_screens;
 
-	for (size_t i = 0; i < n_screens; ++i) {
-		struct nvnc_display_layout* display;
-		struct rfb_screen* screen;
+	for (size_t i = 0; i < n_screens; ++i)
+		nvnc_display_layout_init(&layout->display_layouts[i], &screens[i]);
 
-		display = &layout->display_layouts[i];
-		screen = &screens[i];
+	return layout;
+}
 
-		nvnc_display_layout_init(display, screen);
+static enum rfb_resize_status check_desktop_layout(struct nvnc_client* client,
+		struct nvnc_desktop_layout* layout)
+{
+	struct nvnc* server = client->server;
 
-		if (screen->id < (uint32_t)server->n_displays)
-			display->display = server->displays[screen->id];
+	for (size_t i = 0; i < layout->n_display_layouts; ++i) {
+		struct nvnc_display_layout* d = &layout->display_layouts[i];
 
-		if (display->x_pos + display->width > width ||
-		    display->y_pos + display->height > height) {
-			status = RFB_RESIZE_STATUS_INVALID_LAYOUT;
-			goto out;
+		d->display = nvnc__find_display_by_id(server, d->id);
+		if (!d->display) {
+			nvnc_log(NVNC_LOG_ERROR, "Unknown display id: %"PRIu32,
+					d->id);
+			return RFB_RESIZE_STATUS_INVALID_LAYOUT;
 		}
+
+		if (d->x_pos + d->width > layout->width ||
+				d->y_pos + d->height > layout->height) {
+			nvnc_log(NVNC_LOG_ERROR, "Inner layout out of bounds");
+			return RFB_RESIZE_STATUS_INVALID_LAYOUT;
+		}
+
+		for (size_t r = 0; r < i; ++i)
+			if (layout->display_layouts[r].id == d->id) {
+				nvnc_log(NVNC_LOG_ERROR, "Got repeted display id");
+				return RFB_RESIZE_STATUS_INVALID_LAYOUT;
+			}
 	}
 
 	if (!server->desktop_layout_fn ||
-	    !server->desktop_layout_fn(client, layout))
-		status = RFB_RESIZE_STATUS_PROHIBITED;
-out:
-	free(layout);
-	return status;
+			!server->desktop_layout_fn(client, layout)) {
+		nvnc_log(NVNC_LOG_DEBUG, "Display resizing request rejected");
+		return RFB_RESIZE_STATUS_PROHIBITED;
+	}
+
+	return RFB_RESIZE_STATUS_REQUEST_FORWARDED;
+}
+
+static const char* resize_status_string(enum rfb_resize_status status)
+{
+	switch (status) {
+	case RFB_RESIZE_STATUS_SUCCESS: return "success";
+	case RFB_RESIZE_STATUS_PROHIBITED: return "prohibited";
+	case RFB_RESIZE_STATUS_OUT_OF_RESOURCES: return "out of resources";
+	case RFB_RESIZE_STATUS_INVALID_LAYOUT: return "invalid layout";
+	case RFB_RESIZE_STATUS_REQUEST_FORWARDED: return "request forwarded";
+	}
+	return "unknown";
 }
 
 static void send_extended_desktop_size_rect(struct nvnc_client* client,
-		uint16_t width, uint16_t height,
+		const struct nvnc_desktop_layout* layout,
 		enum rfb_resize_initiator initiator,
 		enum rfb_resize_status status)
 {
-	nvnc_log(NVNC_LOG_DEBUG, "Sending extended desktop resize rect: %"PRIu16"x%"PRIu16,
-			width, height);
+	nvnc_log(NVNC_LOG_DEBUG, "Sending extended desktop resize rect: %"PRIu16"x%"PRIu16": %s",
+			layout->width, layout->height,
+			resize_status_string(status));
 
 	struct rfb_server_fb_rect rect = {
 		.encoding = htonl(RFB_ENCODING_EXTENDEDDESKTOPSIZE),
 		.x = htons(initiator),
 		.y = htons(status),
-		.width = htons(width),
-		.height = htons(height),
+		.width = htons(layout->width),
+		.height = htons(layout->height),
 	};
 
-	uint8_t number_of_screens = 1;
+	uint8_t number_of_screens = layout->n_display_layouts;
 	uint8_t buf[4] = { number_of_screens };
-
-	struct rfb_screen screen = {
-		.width = htons(width),
-		.height = htons(height),
-	};
 
 	stream_write(client->net_stream, &rect, sizeof(rect));
 	stream_write(client->net_stream, &buf, sizeof(buf));
-	stream_write(client->net_stream, &screen, sizeof(screen));
+
+	for (int i = 0; i < layout->n_display_layouts; ++i) {
+		const struct nvnc_display_layout* dl = &layout->display_layouts[i];
+		struct rfb_screen screen = {
+			.id = htonl(dl->id),
+			.x = htons(dl->x_pos),
+			.y = htons(dl->y_pos),
+			.width = htons(dl->width),
+			.height = htons(dl->height),
+		};
+		stream_write(client->net_stream, &screen, sizeof(screen));
+	}
+
+	if (status == RFB_RESIZE_STATUS_SUCCESS)
+		client_set_known_layout(client, layout);
 }
 
 static int on_client_set_desktop_size_event(struct nvnc_client* client)
@@ -1942,8 +2015,11 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 	uint16_t width = ntohs(msg->width);
 	uint16_t height = ntohs(msg->height);
 
-	enum rfb_resize_status status = check_desktop_layout(client, width,
-			height, n_screens, msg->screens);
+	struct nvnc_desktop_layout* layout =
+		unpack_desktop_layout(width, height, n_screens, msg->screens);
+	assert(layout);
+
+	enum rfb_resize_status status = check_desktop_layout(client, layout);
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client requested resize to %"PRIu16"x%"PRIu16", result: %d",
 			width, height, status);
@@ -1954,10 +2030,11 @@ static int on_client_set_desktop_size_event(struct nvnc_client* client)
 	};
 	stream_write(client->net_stream, &head, sizeof(head));
 
-	send_extended_desktop_size_rect(client, width, height,
+	send_extended_desktop_size_rect(client, layout,
 			RFB_RESIZE_INITIATOR_THIS_CLIENT,
 			status);
 
+	free(layout);
 	return sizeof(*msg) + n_screens * sizeof(struct rfb_screen);
 }
 
@@ -2734,9 +2811,10 @@ static void finish_fb_update(struct nvnc_client* client,
 	DTRACE_PROBE2(neatvnc, send_fb_start, client, pts);
 	frame->n_rects += will_send_pts(client, frame->pts) ? 1 : 0;
 
-	bool is_resized = client->known_width != frame->width ||
-		client->known_height != frame->height;
-
+	bool is_resized =
+		!client->known_layout ||
+		!nvnc_desktop_layout_eq(client->known_layout,
+				frame->metadata->desktop_layout);
 	if (is_resized) {
 		frame->n_rects += 1;
 
@@ -2755,8 +2833,8 @@ static void finish_fb_update(struct nvnc_client* client,
 			sizeof(update_msg)) < 0)
 		goto complete;
 
-	if (is_resized && send_desktop_resize_rect(client, frame->width,
-				frame->height) < 0)
+	if (is_resized && send_desktop_resize_rect(client,
+				frame->metadata->desktop_layout) < 0)
 		goto complete;
 
 	if (send_pts_rect(client, frame->pts) < 0)
@@ -2793,27 +2871,26 @@ static bool client_supports_resizing(const struct nvnc_client* client)
 		client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE);
 }
 
-static int send_desktop_resize_rect(struct nvnc_client* client, uint16_t width,
-		uint16_t height)
+static int send_desktop_resize_rect(struct nvnc_client* client,
+		const struct nvnc_desktop_layout* layout)
 {
-	client->known_width = width;
-	client->known_height = height;
-
 	pixman_region_clear(&client->damage);
 	pixman_region_union_rect(&client->damage, &client->damage, 0, 0,
-			width, height);
+			layout->width, layout->height);
 
 	if (client_has_encoding(client, RFB_ENCODING_EXTENDEDDESKTOPSIZE)) {
-		send_extended_desktop_size_rect(client, width, height,
+		send_extended_desktop_size_rect(client, layout,
 				RFB_RESIZE_INITIATOR_SERVER,
 				RFB_RESIZE_STATUS_SUCCESS);
 		return 0;
 	}
 
+	client_set_known_layout(client, layout);
+
 	struct rfb_server_fb_rect rect = {
 		.encoding = htonl(RFB_ENCODING_DESKTOPSIZE),
-		.width = htons(width),
-		.height = htons(height),
+		.width = htons(layout->width),
+		.height = htons(layout->height),
 	};
 
 	stream_write(client->net_stream, &rect, sizeof(rect));
@@ -2959,6 +3036,7 @@ static int nvnc__find_display(const struct nvnc* self, struct nvnc_display *disp
 	}
 	return -1;
 }
+
 
 void nvnc__reset_encoders(struct nvnc* self)
 {

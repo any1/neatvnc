@@ -239,8 +239,17 @@ static void on_pointer_event(struct nvnc_client* client, uint16_t x, uint16_t y,
 static bool on_desktop_layout_event(struct nvnc_client* client,
 		const struct nvnc_desktop_layout* layout)
 {
-	uint16_t width = nvnc_desktop_layout_get_width(layout);
-	uint16_t height = nvnc_desktop_layout_get_height(layout);
+	if (nvnc_desktop_layout_get_display_count(layout) != 1)
+		return false;
+
+	uint16_t x_pos = nvnc_desktop_layout_get_display_x_pos(layout, 0);
+	uint16_t y_pos = nvnc_desktop_layout_get_display_y_pos(layout, 0);
+	if (x_pos != 0 || y_pos != 0)
+		return false;
+
+	uint16_t width = nvnc_desktop_layout_get_display_width(layout, 0);
+	uint16_t height = nvnc_desktop_layout_get_display_height(layout, 0);
+
 	struct nvnc* server = nvnc_client_get_server(client);
 	assert(server);
 

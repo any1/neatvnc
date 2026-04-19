@@ -38,6 +38,7 @@ struct crypto_key;
 struct encoder;
 struct nvnc;
 struct stream;
+struct nvnc_desktop_layout;
 
 enum nvnc_client_state {
 	VNC_CLIENT_STATE_WAITING_FOR_VERSION = 0,
@@ -79,8 +80,7 @@ struct nvnc_client {
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];
-	uint32_t known_width;
-	uint32_t known_height;
+	struct nvnc_desktop_layout* known_layout;
 	struct cut_text cut_text;
 	uint32_t ext_clipboard_caps;
 	uint32_t ext_clipboard_max_unsolicited_text_size;

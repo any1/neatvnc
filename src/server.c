@@ -2910,6 +2910,7 @@ void nvnc_add_display(struct nvnc* self, struct nvnc_display* display)
 		"Too many displays added. Maximum is %d", NVNC_FB_COMPOSITE_MAX);
 
 	display->server = self;
+	display->id = self->next_display_id++;
 
 	self->displays[self->n_displays++] = display;
 	nvnc_display_ref(display);

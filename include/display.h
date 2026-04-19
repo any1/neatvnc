@@ -29,6 +29,7 @@ struct nvnc_frame;
 struct nvnc_display {
 	struct nvnc_common common;
 	int ref;
+	uint32_t id;
 	struct nvnc* server;
 	uint16_t x_pos, y_pos;
 	uint16_t logical_width, logical_height;

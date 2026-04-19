@@ -84,6 +84,7 @@ struct nvnc {
 	nvnc_desktop_layout_fn desktop_layout_fn;
 	int n_displays;
 	struct nvnc_display* displays[NVNC_FB_COMPOSITE_MAX];
+	uint32_t next_display_id;
 	struct {
 		struct nvnc_frame* buffer;
 		uint32_t hotspot_x, hotspot_y;

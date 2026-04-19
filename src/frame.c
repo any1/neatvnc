@@ -337,8 +337,10 @@ void nvnc_frame_metadata_ref(struct nvnc_frame_metadata* self)
 
 void nvnc_frame_metadata_unref(struct nvnc_frame_metadata* self)
 {
-	if (self && --self->ref == 0)
-		free(self);
+	if (!self || --self->ref != 0)
+		return;
+	free(self->desktop_layout);
+	free(self);
 }
 
 void nvnc_composite_fb_ref(struct nvnc_composite_fb* self)

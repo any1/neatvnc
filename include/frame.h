@@ -29,9 +29,11 @@
 #define NVNC_FB_COMPOSITE_MAX 64
 
 struct nvnc_frame_pool;
+struct nvnc_desktop_layout;
 
 struct nvnc_frame_metadata {
 	int ref;
+	struct nvnc_desktop_layout* desktop_layout;
 };
 
 struct nvnc_frame {

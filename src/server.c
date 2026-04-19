@@ -1057,6 +1057,38 @@ static bool client_has_damage(struct nvnc_client* client)
 	return result;
 }
 
+static void attach_desktop_layout_to_frame(const struct nvnc* server,
+		struct nvnc_composite_fb* cfb)
+{
+	struct nvnc_desktop_layout* layout = calloc(1, sizeof(*layout) +
+			sizeof(layout->display_layouts[0]) * server->n_displays);
+	assert(layout);
+
+	layout->n_display_layouts = server->n_displays;
+	layout->width = nvnc_composite_fb_width(cfb);
+	layout->height = nvnc_composite_fb_height(cfb);
+
+	for (int i = 0; i < server->n_displays; ++i) {
+		const struct nvnc_display* display = server->displays[i];
+		const struct nvnc_frame* frame = display->buffer;
+		struct nvnc_display_layout* dl = &layout->display_layouts[i];
+
+		dl->id = display->id;
+		nvnc_frame_get_effective_logical_size(frame, &dl->width,
+				&dl->height);
+		dl->x_pos = display->x_pos;
+		dl->y_pos = display->y_pos;
+	}
+
+	if (!cfb->metadata)
+		cfb->metadata = nvnc_frame_metadata_new();
+
+	assert(cfb->metadata);
+
+	free(cfb->metadata->desktop_layout);
+	cfb->metadata->desktop_layout = layout;
+}
+
 static void process_fb_update_requests(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -1131,6 +1163,8 @@ static void process_fb_update_requests(struct nvnc_client* client)
 
 	nvnc_composite_fb_validate(&cfb);
 
+	attach_desktop_layout_to_frame(server, &cfb);
+
 	DTRACE_PROBE1(neatvnc, update_fb_start, client);
 
 	/* The client's damage is exchanged for an empty one */
@@ -1153,6 +1187,7 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	compositor_feed(client->compositor, &cfb, &damage, on_compositing_done,
 			client);
 
+	nvnc_frame_metadata_unref(cfb.metadata);
 	pixman_region_fini(&damage);
 }
 

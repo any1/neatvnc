@@ -181,6 +181,8 @@ static void raw_encoder_on_done(struct aml_work* work)
 	aml_unref(self->work);
 	self->work = NULL;
 
+	ctx->result->metadata = ctx->composite_fb.metadata;
+
 	encoder_finish_frame(&self->encoder, ctx->result);
 }
 

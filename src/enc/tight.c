@@ -555,17 +555,23 @@ static void on_tight_finished(struct aml_work* work)
 {
 	struct tight_encoder* self = aml_get_userdata(work);
 
+	struct nvnc_frame_metadata* metadata = self->composite_fb.metadata;
+	nvnc_frame_metadata_ref(metadata);
+
 	nvnc_composite_fb_unref(&self->composite_fb);
 	memset(&self->composite_fb, 0, sizeof(self->composite_fb));
 
 	struct encoded_frame* result;
-	result = nvnc__encoded_frame_new(self->dst.data, self->dst.len, self->n_rects,
-			self->width, self->height, self->pts);
+	result = nvnc__encoded_frame_new(self->dst.data, self->dst.len,
+			self->n_rects, self->width, self->height, self->pts);
 	assert(result);
+
+	result->metadata = metadata;
 
 	encoder_finish_frame(&self->encoder, result);
 
 	self->pts = NVNC_NO_PTS;
+	nvnc_frame_metadata_unref(metadata);
 	encoded_frame_unref(result);
 	encoder_unref(&self->encoder);
 }

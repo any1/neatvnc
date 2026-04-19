@@ -70,6 +70,8 @@ struct open_h264 {
 	int quality;
 
 	bool needs_full_reset;
+
+	struct nvnc_frame_metadata* pending_metadata;
 };
 
 enum open_h264_flags {
@@ -206,7 +208,12 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	if (--self->frame_barrier != 0)
 		return;
 
+	struct nvnc_frame_metadata* metadata = self->pending_metadata;
+	self->pending_metadata = NULL;
+
 	open_h264_finish_frame(self);
+
+	nvnc_frame_metadata_unref(metadata);
 }
 
 struct encoder* open_h264_new(void)
@@ -361,6 +368,10 @@ static int open_h264_encode(struct encoder* enc,
 
 		self->frame_barrier++;
 	}
+
+	assert(!self->pending_metadata);
+	self->pending_metadata = composite->metadata;
+	nvnc_frame_metadata_ref(self->pending_metadata);
 
 	nvnc_trace("Scheduled encoding for %d rects", self->frame_barrier);
 

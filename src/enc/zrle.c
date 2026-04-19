@@ -398,6 +398,9 @@ static void zrle_encoder_on_done(struct aml_work* work)
 
 	assert(self->current_result);
 
+	struct nvnc_frame_metadata* metadata = self->current_fb.metadata;
+	nvnc_frame_metadata_ref(metadata);
+
 	nvnc_composite_fb_unref(&self->current_fb);
 	memset(&self->current_fb, 0, sizeof(self->current_fb));
 
@@ -409,8 +412,11 @@ static void zrle_encoder_on_done(struct aml_work* work)
 	aml_unref(self->work);
 	self->work = NULL;
 
+	result->metadata = metadata;
+
 	encoder_finish_frame(&self->encoder, result);
 
+	nvnc_frame_metadata_unref(metadata);
 	encoded_frame_unref(result);
 	encoder_unref(&self->encoder);
 }

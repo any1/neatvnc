@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 - 2025 Andri Yngvason
+ * Copyright (c) 2021 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -241,12 +241,12 @@ static void on_work_done(struct aml_work* work)
 	struct nvnc_composite_fb cfb;
 	struct nvnc_frame *fbs[] = { ctx->dst, NULL };
 	nvnc_composite_fb_init(&cfb, fbs);
+	cfb.metadata = ctx->src.metadata;
 
 	nvnc_trace("Compositor job done, seq=%u", ctx->seq);
 
 	if (!compositor->is_being_destroyed)
 		ctx->on_done(&cfb, &ctx->frame_damage, ctx->userdata);
-
 }
 
 static void get_fb_dimensions(struct nvnc_frame* fb, uint32_t* width,

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 struct nvnc_display;
 struct rfb_screen;
@@ -36,3 +37,6 @@ struct nvnc_desktop_layout {
 
 void nvnc_display_layout_init(
 		struct nvnc_display_layout* display, struct rfb_screen* screen);
+
+bool nvnc_desktop_layout_eq(const struct nvnc_desktop_layout* a,
+		const struct nvnc_desktop_layout* b);

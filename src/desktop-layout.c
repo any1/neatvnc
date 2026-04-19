@@ -18,6 +18,8 @@
 #include "neatvnc.h"
 #include "rfb-proto.h"
 
+#include <stdbool.h>
+
 #define EXPORT __attribute__((visibility("default")))
 
 void nvnc_display_layout_init(
@@ -93,4 +95,34 @@ struct nvnc_display* nvnc_desktop_layout_get_display(
 	if (display_index >= layout->n_display_layouts)
 		return NULL;
 	return layout->display_layouts[display_index].display;
+}
+
+static const struct nvnc_display_layout* nvnc_desktop_layout_find_id(
+		const struct nvnc_desktop_layout* layout, uint32_t id)
+{
+	for (int i = 0; i < layout->n_display_layouts; ++i)
+		if (layout->display_layouts[i].id == id)
+			return &layout->display_layouts[i];
+	return NULL;
+}
+
+bool nvnc_desktop_layout_eq(const struct nvnc_desktop_layout* a,
+		const struct nvnc_desktop_layout* b)
+{
+	if (a->width != b->width || a->height != b->height)
+		return false;
+	if (a->n_display_layouts != b->n_display_layouts)
+		return false;
+	for (int i = 0; i < a->n_display_layouts; ++i) {
+		const struct nvnc_display_layout* da = &a->display_layouts[i];
+		const struct nvnc_display_layout* db =
+			nvnc_desktop_layout_find_id(b, da->id);
+		if (!db)
+			return false;
+		if (da->x_pos != db->x_pos || da->y_pos != db->y_pos)
+			return false;
+		if (da->width != db->width || da->height != db->height)
+			return false;
+	}
+	return true;
 }

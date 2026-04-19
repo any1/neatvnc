@@ -30,6 +30,10 @@
 
 struct nvnc_frame_pool;
 
+struct nvnc_frame_metadata {
+	int ref;
+};
+
 struct nvnc_frame {
 	struct nvnc_common common;
 	int ref;
@@ -51,7 +55,12 @@ struct nvnc_frame {
 struct nvnc_composite_fb {
 	struct nvnc_frame* fbs[NVNC_FB_COMPOSITE_MAX];
 	int n_fbs;
+	struct nvnc_frame_metadata* metadata;
 };
+
+struct nvnc_frame_metadata* nvnc_frame_metadata_new(void);
+void nvnc_frame_metadata_ref(struct nvnc_frame_metadata*);
+void nvnc_frame_metadata_unref(struct nvnc_frame_metadata*);
 
 int nvnc_frame_map(struct nvnc_frame* fb);
 void nvnc_frame_unmap(struct nvnc_frame* fb);

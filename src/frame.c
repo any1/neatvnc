@@ -303,6 +303,26 @@ void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
 	self->n_fbs = i;
 }
 
+struct nvnc_frame_metadata* nvnc_frame_metadata_new(void)
+{
+	struct nvnc_frame_metadata* self = calloc(1, sizeof(*self));
+	if (!self)
+		return NULL;
+	self->ref = 1;
+	return self;
+}
+
+void nvnc_frame_metadata_ref(struct nvnc_frame_metadata* self)
+{
+	self->ref++;
+}
+
+void nvnc_frame_metadata_unref(struct nvnc_frame_metadata* self)
+{
+	if (self && --self->ref == 0)
+		free(self);
+}
+
 void nvnc_composite_fb_ref(struct nvnc_composite_fb* self)
 {
 	for (int i = 0; i < self->n_fbs; ++i) {
@@ -310,6 +330,8 @@ void nvnc_composite_fb_ref(struct nvnc_composite_fb* self)
 		assert(fb);
 		nvnc_frame_ref(fb);
 	}
+	if (self->metadata)
+		nvnc_frame_metadata_ref(self->metadata);
 }
 
 void nvnc_composite_fb_unref(struct nvnc_composite_fb* self)
@@ -319,6 +341,7 @@ void nvnc_composite_fb_unref(struct nvnc_composite_fb* self)
 		assert(fb);
 		nvnc_frame_unref(fb);
 	}
+	nvnc_frame_metadata_unref(self->metadata);
 }
 
 int nvnc_composite_fb_map(struct nvnc_composite_fb* self)

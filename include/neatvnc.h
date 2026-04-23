@@ -736,15 +736,30 @@ void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
 /**
  * Rate how well a pixel format is supported for frame encoding.
  *
- * The score is in the closed range between 0.0 and 1.0.
+ * The score is in the closed range between 0.0 and 1.0, from worst to best,
+ * respectively.
+ *
+ * A score of 0.0 means that the pixel format is not supported at all and
+ * buffers with that format & modifier pair must not be submitted.
+ *
+ * The score indicates how well the library is expected to perform with the
+ * given pixel format relative to other formats and how well the information
+ * inside the buffer will be utilised, also in relation to other formats.
+ *
+ * For example, if a client is connected that has selected a 16 bpp pixel
+ * format and no other client is connected that requires a higher bpp value,
+ * RGB565 will receive a higher rating than RGBX8888.
  */
 double nvnc_rate_pixel_format(const struct nvnc* self,
-		enum nvnc_buffer_type fb_type, uint32_t format, uint64_t modifier);
+		enum nvnc_buffer_type, uint32_t format, uint64_t modifier);
 
 /**
  * Rate how well a pixel format is supported for cursor images.
  *
- * The score is in the closed range between 0.0 and 1.0.
+ * See nvnc_rate_pixel_format.
+ *
+ * An alpha channel is required for all cursor buffers, so any pixel format
+ * without an alpha channel will receive a score of 0.0.
  */
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
-		enum nvnc_buffer_type fb_type, uint32_t format, uint64_t modifier);
+		enum nvnc_buffer_type, uint32_t format, uint64_t modifier);

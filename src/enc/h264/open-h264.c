@@ -185,6 +185,9 @@ static void open_h264_finish_frame(struct open_h264* self)
 	nvnc_trace("Finished encoding frame with %d rects, data length: %d",
 			n_rects, buffer.len);
 
+	result->metadata = self->pending_metadata;
+	self->pending_metadata = NULL;
+
 	encoder_finish_frame(&self->parent, result);
 
 	encoded_frame_unref(result);
@@ -208,12 +211,7 @@ static void open_h264_handle_packet(const void* data, size_t size, uint64_t pts,
 	if (--self->frame_barrier != 0)
 		return;
 
-	struct nvnc_frame_metadata* metadata = self->pending_metadata;
-	self->pending_metadata = NULL;
-
 	open_h264_finish_frame(self);
-
-	nvnc_frame_metadata_unref(metadata);
 }
 
 struct encoder* open_h264_new(void)

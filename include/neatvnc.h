@@ -29,6 +29,7 @@
 #define nvnc_log(lvl, fmt, ...) do { \
 	assert(lvl != NVNC_LOG_TRACE); \
 	struct nvnc_log_data ld = { \
+		.size = sizeof(ld), \
 		.level = lvl, \
 		.file = __FILE__, \
 		.line = __LINE__, \
@@ -39,6 +40,7 @@
 #ifndef NDEBUG
 #define nvnc_trace(fmt, ...) do { \
 	struct nvnc_log_data ld = { \
+		.size = sizeof(ld), \
 		.level = NVNC_LOG_TRACE, \
 		.file = __FILE__, \
 		.line = __LINE__, \
@@ -124,9 +126,10 @@ enum nvnc_auth_flags {
 };
 
 struct nvnc_log_data {
-	enum nvnc_log_level level;
-	const char* file;
-	int line;
+	size_t size;               /// Used by nvnc_default_logger
+	enum nvnc_log_level level; /// Log level
+	const char* file;          /// Source file from which the message came.
+	int line;                  /// Line from which the message came.
 };
 
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,

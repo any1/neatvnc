@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Andri Yngvason
+ * Copyright (c) 2019 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -30,6 +30,7 @@
 #else
 #include <threads.h>
 #endif
+#include <sys/param.h>
 
 #ifdef HAVE_LIBAVUTIL
 #include <libavutil/avutil.h>
@@ -118,17 +119,21 @@ static void nvnc__vlog(const struct nvnc_log_data* meta, const char* fmt,
 }
 
 EXPORT
-void nvnc_default_logger(const struct nvnc_log_data* meta,
-		const char* message)
+void nvnc_default_logger(const struct nvnc_log_data* ld, const char* message)
 {
-	const char* level = log_level_to_string(meta->level);
-	FILE* stream = stream_for_log_level(meta->level);
+	// This is for ABI compatibility purposes; makes no difference in the
+	// initial release  but allows for appending to the struct later.
+	struct nvnc_log_data ldc = { 0 };
+	memcpy(&ldc, ld, MIN(sizeof(ldc), ld->size));
 
-	if (meta->level == NVNC_LOG_INFO)
+	const char* level = log_level_to_string(ldc.level);
+	FILE* stream = stream_for_log_level(ldc.level);
+
+	if (ldc.level == NVNC_LOG_INFO)
 		fprintf(stream, "Info: %s\n", message);
 	else
-		fprintf(stream, "%s: %s: %d: %s\n", level, meta->file,
-				meta->line, message);
+		fprintf(stream, "%s: %s: %d: %s\n", level, ldc.file, ldc.line,
+				message);
 
 	fflush(stream);
 }

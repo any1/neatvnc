@@ -133,9 +133,9 @@ struct nvnc_log_data {
 };
 
 typedef void (*nvnc_key_fn)(struct nvnc_client*, uint32_t key,
-                            bool is_pressed);
+		bool is_pressed);
 typedef void (*nvnc_pointer_fn)(struct nvnc_client*, uint16_t x, uint16_t y,
-                                enum nvnc_button_mask);
+		enum nvnc_button_mask);
 typedef void (*nvnc_normalised_pointer_fn)(struct nvnc_client*, double x,
 		double y, enum nvnc_button_mask);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
@@ -151,6 +151,11 @@ typedef bool (*nvnc_desktop_layout_fn)(
 		struct nvnc_client*, const struct nvnc_desktop_layout*);
 
 extern const char nvnc_version[];
+
+/**
+ * Internal logging function. Use the nvnc_log() macro instead.
+ */
+void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
 
 /**
  * Create a new VNC server instance.
@@ -277,12 +282,15 @@ void nvnc_set_normalised_pointer_fn(struct nvnc* self,
 		nvnc_normalised_pointer_fn);
 
 /**
- * Set a handler that is invoked when a new client connects.
+ * Set a callback that is invoked when a new client connects.
  */
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 
 /**
- * Set a per-client cleanup handler invoked when the client disconnects.
+ * Set a callback that is invoked when the client disconnects.
+ *
+ * This callback is invoked after the userdata cleanup function set via
+ * nvnc_set_userdata.
  */
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 
@@ -293,6 +301,13 @@ void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
 
 /**
  * Set a handler for desktop layout change requests from clients.
+ *
+ * Upon receiving a layout change request via this callback, the application
+ * must assess whether the requested layout is achievable and/or allowed and
+ * return either true or false depending on whether the layout is accepted or
+ * not, respectively.
+ *
+ * The actual layout change need not take place immediately.
  */
 void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn);
 
@@ -360,11 +375,15 @@ const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
 
 /**
  * Accept an authentication request.
+ *
+ * This resolves the future.
  */
 void nvnc_auth_accept(struct nvnc_auth_future*);
 
 /**
  * Reject an authentication request.
+ *
+ * This resolves the future.
  */
 void nvnc_auth_reject(struct nvnc_auth_future*, const char* reason);
 
@@ -634,13 +653,15 @@ void nvnc_display_ref(struct nvnc_display*);
 void nvnc_display_unref(struct nvnc_display*);
 
 /**
- * Set the position of the display in the composite layout.
+ * Set the position of the display within the composite layout in logical
+ * coordinates
  */
 void nvnc_display_set_position(struct nvnc_display* self, uint16_t x,
 		uint16_t y);
 
 /**
- * Set the size of the display within the composite layout.
+ * Set the size of the display within the composite layout in logical
+ * coordinates.
  *
  * If the size does not match the size of the buffer fed to the display, the
  * buffer will be scaled to match the logical size.
@@ -654,18 +675,24 @@ void nvnc_display_set_logical_size(struct nvnc_display* self, uint16_t width,
 struct nvnc* nvnc_display_get_server(const struct nvnc_display*);
 
 /**
- * Submit a frame with a damage region for encoding and transmission
- * to clients.
+ * Submit a new frame.
+ *
+ * The submitted frame will become the new current frame for the display and it
+ * will remain so until this function is called again or the display is
+ * destroyed.
+ *
+ * If a client is connected, the new frame will be sent to the client as soon as
+ * possible unless it is replaced before it can be sent.
  */
 void nvnc_display_feed_frame(struct nvnc_display*, struct nvnc_frame*);
 
 /**
- * Get the total desktop width from the layout.
+ * Get the total desktop width from the layout in logical coordinates.
  */
 uint16_t nvnc_desktop_layout_get_width(const struct nvnc_desktop_layout*);
 
 /**
- * Get the total desktop height from the layout.
+ * Get the total desktop height from the layout in logical coordinates.
  */
 uint16_t nvnc_desktop_layout_get_height(const struct nvnc_desktop_layout*);
 
@@ -675,25 +702,25 @@ uint16_t nvnc_desktop_layout_get_height(const struct nvnc_desktop_layout*);
 uint8_t nvnc_desktop_layout_get_display_count(const struct nvnc_desktop_layout*);
 
 /**
- * Get the x position of a display within the layout.
+ * Get the x position of a display within the layout in logical coordinates.
  */
 uint16_t nvnc_desktop_layout_get_display_x_pos(
 		const struct nvnc_desktop_layout*, uint8_t display_index);
 
 /**
- * Get the y position of a display within the layout.
+ * Get the y position of a display within the layout in logical coordinates.
  */
 uint16_t nvnc_desktop_layout_get_display_y_pos(
 		const struct nvnc_desktop_layout*, uint8_t display_index);
 
 /**
- * Get the width of a display within the layout.
+ * Get the width of a display within the layout in logical coordinates.
  */
 uint16_t nvnc_desktop_layout_get_display_width(
 		const struct nvnc_desktop_layout*, uint8_t display_index);
 
 /**
- * Get the height of a display within the layout.
+ * Get the height of a display within the layout in logical coordinates.
  */
 uint16_t nvnc_desktop_layout_get_display_height(
 		const struct nvnc_desktop_layout*, uint8_t display_index);
@@ -711,6 +738,10 @@ void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 
 /**
  * Set the cursor image and hotspot; set is_damaged to trigger an update.
+ *
+ * If is_damaged is not set, the submitted cursor frame will replace the old
+ * cursor frame, but it will not be sent to already connected clients. The
+ * purpose of this is to allow for proper rotation of buffer pools.
  */
 void nvnc_set_cursor(struct nvnc*, struct nvnc_frame*, uint16_t hotspot_x,
 		uint16_t hotspot_y, bool is_damaged);
@@ -726,7 +757,8 @@ void nvnc_default_logger(const struct nvnc_log_data* meta, const char* message);
 void nvnc_set_log_fn(nvnc_log_fn);
 
 /**
- * Set a thread-local log handler, overriding the global one.
+ * Set a thread-local log handler, overriding the global one for the current
+ * thread only.
  */
 void nvnc_set_log_fn_thread_local(nvnc_log_fn fn);
 
@@ -741,11 +773,6 @@ void nvnc_set_log_level(enum nvnc_log_level);
  * If the argument is a substring of the source file name, the filter matches.
  */
 void nvnc_set_log_filter(const char* value);
-
-/**
- * Internal logging function. Use the nvnc_log() macro instead.
- */
-void nvnc__log(const struct nvnc_log_data*, const char* fmt, ...);
 
 /**
  * Rate how well a pixel format is supported for frame encoding.

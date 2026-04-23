@@ -158,6 +158,7 @@ static void nvnc__av_log_callback(void* ptr, int level, const char* fmt,
 		va_list va)
 {
 	struct nvnc_log_data meta = {
+		.size = sizeof(meta),
 		.level = nvnc__log_level_from_av(level),
 		.file = "libav",
 		.line = 0,

@@ -60,52 +60,59 @@ struct draw {
 static struct nvnc_frame* create_cursor()
 {
 	static char ascii_art[] =
-		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
-		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  "
-		"XXXXXXXXXXXXXXXXXXXXXXXXXXXXX   "
-		"XXXXXXXXXXXXXXXXXXXXXXXXXXXX    "
-		"XXXXXXXXXXXXXXXXXXXXXXXXXXX     "
-		"XXXXXXXXXXXXXXXXXXXXXXXXXX      "
-		"XXXXXXXXXXXXXXXXXXXXXXXXX       "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXXX                        "
-		"XXXXXXX                         "
+		"                           X    "
+		"                          X-X   "
+		"                         X---X  "
+		"                        X-----X "
+		"                       XX------X"
+		"                      XXXX----X "
+		"                     X-XXXX--X  "
+		"                    X---XXXXX   "
+		"                   X-----XXX    "
+		"                  X-------X     "
+		"                 X-------X      "
+		"                X-------X       "
+		"               X-------X        "
+		"              X-------X         "
+		"             X-------X          "
+		"            X-------X           "
+		"           X-------X            "
+		"          X-------X             "
+		"         X-------X              "
+		"        X-------X               "
+		"       X-------X                "
+		"      X-------X                 "
+		"     X-------X                  "
+		"    X-------X                   "
+		"   X-------X                    "
+		"  X-------X                     "
+		" X-------X                      "
+		"XX------X                       "
+		"XXX----X                        "
+		"XXXX--X                         "
 		"XXXXXX                          "
-		"XXXXX                           "
-		"XXXX                            "
-		"XXX                             "
-		"XX                              "
-		"X                               ";
+		"XXXXX                           ";
 
 	struct nvnc_frame* fb = nvnc_frame_new(32, 32, DRM_FORMAT_RGBA8888, 32);
 	assert(fb);
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-	uint32_t colour = 0x00ff00ffULL;
+	uint32_t black = 0x000000ffULL;
+	uint32_t grey  = 0x808080ffULL;
 #else
-	uint32_t colour = 0xff00ff00ULL;
+	uint32_t black = 0xff000000ULL;
+	uint32_t grey  = 0xff808080ULL;
 #endif
 
 	uint32_t* pixels = nvnc_frame_get_addr(fb);
 
 	for (int i = 0; i < 32 * 32; ++i) {
-		pixels[i] = ascii_art[i] != ' ' ? colour : 0;
+		if (ascii_art[i] == 'X')
+			pixels[i] = black;
+		else if (ascii_art[i] == '-')
+			pixels[i] = grey;
+		else
+			pixels[i] = 0;
 	}
 
 	return fb;
@@ -340,7 +347,7 @@ int main(int argc, char* argv[])
 	struct nvnc_frame* cursor = create_cursor();
 	assert(cursor);
 
-	nvnc_set_cursor(server, cursor, 0, 0, true);
+	nvnc_set_cursor(server, cursor, 0, 31, true);
 	nvnc_frame_unref(cursor);
 
 	struct aml_signal* sig = aml_signal_new(SIGINT, on_sigint, NULL, NULL);

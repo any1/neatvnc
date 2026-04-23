@@ -502,13 +502,8 @@ static bool setup_video(struct video_player* player, const char* filename)
 		return false;
 	}
 	player->codec_ctx->hw_device_ctx = hwctx_ref;
-	player->codec_ctx->flags |= AV_CODEC_FLAG_LOW_DELAY;
 
-	AVDictionary* opts = NULL;
-	av_dict_set_int(&opts, "async_depth", 1, 0);
-
-	rc = avcodec_open2(player->codec_ctx, codec, &opts);
-	av_dict_free(&opts);
+	rc = avcodec_open2(player->codec_ctx, codec, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "Failed to open codec\n");
 		return false;

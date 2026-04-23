@@ -3407,18 +3407,10 @@ const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds* creds)
 	return NULL;
 }
 
-EXPORT
-void nvnc_auth_future_ref(struct nvnc_auth_future* self)
+static void nvnc_auth_future_destroy(struct nvnc_auth_future* self)
 {
-	self->ref++;
-}
-
-EXPORT
-void nvnc_auth_future_unref(struct nvnc_auth_future* self)
-{
-	if (!self || --self->ref != 0)
+	if (!self)
 		return;
-
 	weakref_observer_deinit(&self->client);
 	free(self);
 }
@@ -3430,7 +3422,7 @@ void nvnc_auth_accept(struct nvnc_auth_future* self)
 			struct nvnc_client, weakref);
 	if (!client) {
 		nvnc_log(NVNC_LOG_DEBUG, "Client closed before it could be authenticated");
-		return;
+		goto out;
 	}
 
 	nvnc_assert(client->state == VNC_CLIENT_STATE_WAITING_FOR_AUTH,
@@ -3439,6 +3431,9 @@ void nvnc_auth_accept(struct nvnc_auth_future* self)
 	security_handshake_ok(client);
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_INIT;
 	process_client_messages(client);
+
+out:
+	nvnc_auth_future_destroy(self);
 }
 
 EXPORT
@@ -3448,11 +3443,14 @@ void nvnc_auth_reject(struct nvnc_auth_future* self, const char* reason)
 			struct nvnc_client, weakref);
 	if (!client) {
 		nvnc_log(NVNC_LOG_DEBUG, "Client closed before it could be authenticated");
-		return;
+		goto out;
 	}
 
 	nvnc_assert(client->state == VNC_CLIENT_STATE_WAITING_FOR_AUTH,
 			"Unexpected client state during authentication");
 
 	security_handshake_failed(client, reason);
+
+out:
+	nvnc_auth_future_destroy(self);
 }

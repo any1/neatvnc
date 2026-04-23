@@ -39,7 +39,6 @@ struct nvnc_auth_creds {
 };
 
 struct nvnc_auth_future {
-	int ref;
 	struct weakref_observer client;
 };
 

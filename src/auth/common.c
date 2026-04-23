@@ -78,7 +78,6 @@ static struct nvnc_auth_future* nvnc_auth_future_create(
 	if (!self)
 		return NULL;
 
-	self->ref = 1;
 	weakref_observer_init(&self->client, &client->weakref);
 
 	return self;
@@ -104,6 +103,4 @@ void security_handshake_authenticate(struct nvnc_client* client,
 	}
 
 	server->auth_fn(future, creds, server->auth_ud);
-
-	nvnc_auth_future_unref(future);
 }

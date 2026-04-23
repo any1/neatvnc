@@ -90,20 +90,6 @@ static const char* log_level_to_string(enum nvnc_log_level level)
 	return "UNKNOWN";
 }
 
-static FILE* stream_for_log_level(enum nvnc_log_level level)
-{
-	switch (level) {
-	case NVNC_LOG_PANIC: return stderr;
-	case NVNC_LOG_ERROR: return stderr;
-	case NVNC_LOG_WARNING: return stderr;
-	case NVNC_LOG_INFO: return stdout;
-	case NVNC_LOG_DEBUG: return stdout;
-	case NVNC_LOG_TRACE: return stdout;
-	}
-
-	return stderr;
-}
-
 static void nvnc__vlog(const struct nvnc_log_data* meta, const char* fmt,
 		va_list args)
 {
@@ -127,15 +113,14 @@ void nvnc_default_logger(const struct nvnc_log_data* ld, const char* message)
 	memcpy(&ldc, ld, MIN(sizeof(ldc), ld->size));
 
 	const char* level = log_level_to_string(ldc.level);
-	FILE* stream = stream_for_log_level(ldc.level);
 
 	if (ldc.level == NVNC_LOG_INFO)
-		fprintf(stream, "Info: %s\n", message);
+		fprintf(stderr, "Info: %s\n", message);
 	else
-		fprintf(stream, "%s: %s: %d: %s\n", level, ldc.file, ldc.line,
+		fprintf(stderr, "%s: %s: %d: %s\n", level, ldc.file, ldc.line,
 				message);
 
-	fflush(stream);
+	fflush(stderr);
 }
 
 #ifdef HAVE_LIBAVUTIL

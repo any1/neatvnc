@@ -334,7 +334,6 @@ const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds*);
  */
 const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
 
-
 /**
  * Increment the reference count of the auth future.
  */

@@ -128,8 +128,8 @@ static void fb_side_data_destroy(void* userdata)
 
 static int coord_distance_between(struct coord a, struct coord b)
 {
-	float x = abs(a.x - b.x);
-	float y = abs(a.y - b.y);
+	float x = a.x - b.x;
+	float y = a.y - b.y;
 	return round(sqrt(x * x + y * y));
 }
 

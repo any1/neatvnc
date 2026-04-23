@@ -303,6 +303,30 @@ bool nvnc_has_auth(void);
 
 /**
  * Enable authentication on the server with the given flags and callback.
+ *
+ * The flags place constraints on the security methods that are accepted by
+ * the server and those constraints are as follows:
+ *
+ * NVNC_AUTH_REQUIRE_AUTH
+ *   The user must authenticate
+ *
+ * NVNC_AUTH_REQUIRE_ENCRYPTION
+ *   Non-encrypted authentication methods are not allowed
+ *
+ * NVNC_AUTH_ALLOW_BROKEN_CRYPTO
+ *   Broken cryptography is allowed. To be used on trusted private networks
+ *   only.
+ *
+ * NVNC_AUTH_REQUIRE_USERNAME
+ *   Some security methods only require a password. Those methods will be
+ *   excluded if this bit is set.
+ *
+ * The authentication function is a user-defined callback that must result in
+ * either nvnc_auth_accept or nvnc_auth_reject being called, either directly or
+ * asynchronously.
+ *
+ * The auth future must not be accessed after it has been resolved and it must
+ * always be resolved eventually as resources will leak otherwise.
  */
 int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 		nvnc_auth_fn, void* userdata);

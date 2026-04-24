@@ -74,6 +74,13 @@ static int on_vencrypt_subtype_message(struct nvnc_client* client)
 	if (client->buffer_len - client->buffer_index < sizeof(*msg))
 		return 0;
 
+	if (client->buffer_len - client->buffer_index != sizeof(*msg)) {
+		nvnc_log(NVNC_LOG_WARNING, "Client tried to send additional data prior to TLS upgrade");
+		send_byte(client, 0);
+		nvnc_client_close(client);
+		return -1;
+	}
+
 	enum rfb_vencrypt_subtype subtype = ntohl(*msg);
 
 	if (subtype != RFB_VENCRYPT_X509_PLAIN) {

@@ -110,12 +110,12 @@ enum nvnc_keyboard_led_state {
 };
 
 enum nvnc_log_level {
-	NVNC_LOG_PANIC = 0,
-	NVNC_LOG_ERROR = 1,
-	NVNC_LOG_WARNING = 2,
-	NVNC_LOG_INFO = 3,
-	NVNC_LOG_DEBUG = 4,
-	NVNC_LOG_TRACE = 5,
+	NVNC_LOG_PANIC = 0,   /// Fatal. This will result in SIGABRT
+	NVNC_LOG_ERROR = 1,   /// Serious non-fatal problems
+	NVNC_LOG_WARNING = 2, /// Sub-optimal conditions
+	NVNC_LOG_INFO = 3,    /// Info for regular users
+	NVNC_LOG_DEBUG = 4,   /// Info for developers
+	NVNC_LOG_TRACE = 5,   /// Spammy logging for developers
 };
 
 enum nvnc_auth_flags {
@@ -763,7 +763,7 @@ void nvnc_set_log_fn(nvnc_log_fn);
 void nvnc_set_log_fn_thread_local(nvnc_log_fn fn);
 
 /**
- * Set the minimum log level for messages to be emitted.
+ * Set the maximum log level for messages to be emitted.
  */
 void nvnc_set_log_level(enum nvnc_log_level);
 

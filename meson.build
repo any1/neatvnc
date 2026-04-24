@@ -81,37 +81,39 @@ endif
 
 inc = include_directories('include')
 
-sources = [
-	'src/auth/common.c',
-	'src/server.c',
-	'src/vec.c',
-	'src/enc/zrle.c',
-	'src/enc/raw.c',
-	'src/pixels.c',
-	'src/buffer.c',
-	'src/buffer-pool.c',
-	'src/frame.c',
-	'src/frame-pool.c',
-	'src/rcbuf.c',
-	'src/stream/interface.c',
-	'src/stream/common.c',
-	'src/stream/tcp.c',
-	'src/desktop-layout.c',
-	'src/display.c',
-	'src/enc/tight.c',
-	'src/enc/util.c',
-	'src/qnum-to-evdev.c',
-	'src/transform-util.c',
-	'src/damage-refinery.c',
-	'src/enc/interface.c',
-	'src/cursor.c',
-	'src/logging.c',
-	'src/base64.c',
-	'src/bandwidth.c',
-	'src/parallel-deflate.c',
-	'src/compositor.c',
-	'src/region.c',
-]
+sources_dep = declare_dependency(
+	sources: [
+		'src/auth/common.c',
+		'src/server.c',
+		'src/vec.c',
+		'src/enc/zrle.c',
+		'src/enc/raw.c',
+		'src/pixels.c',
+		'src/buffer.c',
+		'src/buffer-pool.c',
+		'src/frame.c',
+		'src/frame-pool.c',
+		'src/rcbuf.c',
+		'src/stream/interface.c',
+		'src/stream/common.c',
+		'src/stream/tcp.c',
+		'src/desktop-layout.c',
+		'src/display.c',
+		'src/enc/tight.c',
+		'src/enc/util.c',
+		'src/qnum-to-evdev.c',
+		'src/transform-util.c',
+		'src/damage-refinery.c',
+		'src/enc/interface.c',
+		'src/cursor.c',
+		'src/logging.c',
+		'src/base64.c',
+		'src/bandwidth.c',
+		'src/parallel-deflate.c',
+		'src/compositor.c',
+		'src/region.c',
+	]
+)
 
 dependencies = [
 	libm,
@@ -119,6 +121,7 @@ dependencies = [
 	aml,
 	zlib,
 	libdrm_inc,
+	sources_dep,
 ]
 
 enable_websocket = false
@@ -131,11 +134,14 @@ if libturbojpeg.found()
 endif
 
 if gnutls.found()
-	sources += [
-		'src/stream/gnutls.c',
-		'src/auth/vencrypt.c',
-	]
-	dependencies += gnutls
+	gnutls_security_type = declare_dependency(
+		sources: [
+			'src/stream/gnutls.c',
+			'src/auth/vencrypt.c',
+		],
+		dependencies: gnutls
+	)
+	dependencies += gnutls_security_type
 	config.set('ENABLE_TLS', true)
 endif
 
@@ -160,21 +166,24 @@ endif
 
 
 if nettle.found() and hogweed.found() and gmp.found()
-	dependencies += [ nettle, hogweed, gmp ]
 	enable_websocket = true
 	config.set('HAVE_CRYPTO', true)
-	sources += [
-		'src/crypto/random.c',
-		'src/crypto/nettle/cipher.c',
-		'src/crypto/nettle/des-rfb.c',
-		'src/crypto/nettle/hash.c',
-		'src/crypto/nettle/key.c',
-		'src/crypto/nettle/rsa.c',
-		'src/stream/rsa-aes.c',
-		'src/auth/des-auth.c',
-		'src/auth/apple-dh.c',
-		'src/auth/rsa-aes.c',
-	]
+	cryptography = declare_dependency(
+		sources: [
+			'src/crypto/random.c',
+			'src/crypto/nettle/cipher.c',
+			'src/crypto/nettle/des-rfb.c',
+			'src/crypto/nettle/hash.c',
+			'src/crypto/nettle/key.c',
+			'src/crypto/nettle/rsa.c',
+			'src/stream/rsa-aes.c',
+			'src/auth/des-auth.c',
+			'src/auth/apple-dh.c',
+			'src/auth/rsa-aes.c',
+		],
+		dependencies: [nettle, hogweed, gmp ]
+	)
+	dependencies += cryptography
 	if not(have_random)
 		error('No random generator available')
 	endif
@@ -193,29 +202,49 @@ have_ffmpeg = gbm.found() and libdrm.found() and libavcodec.found() and libavfil
 have_v4l2 = gbm.found() and libdrm.found() and cc.check_header('linux/videodev2.h')
 
 if have_ffmpeg
-	sources += [ 'src/enc/h264/ffmpeg-impl.c' ]
-	dependencies += [libdrm, libavcodec, libavfilter, libavutil]
+	h264_ffmpeg_impl = declare_dependency(
+		sources: [ 'src/enc/h264/ffmpeg-impl.c' ],
+		dependencies: [
+			libdrm,
+			libavcodec,
+			libavfilter,
+			libavutil
+		]
+	)
+	dependencies += h264_ffmpeg_impl
 	config.set('HAVE_FFMPEG', true)
 	config.set('HAVE_LIBAVUTIL', true)
 endif
 
 if have_v4l2
-	sources += [ 'src/enc/h264/v4l2m2m-impl.c' ]
+	h264_v4l2_impl = declare_dependency(
+		sources: [ 'src/enc/h264/v4l2m2m-impl.c' ]
+	)
+	dependencies += h264_v4l2_impl
 	config.set('HAVE_V4L2', true)
 endif
 
 if have_ffmpeg or have_v4l2
-	sources += [ 'src/enc/h264/encoder.c', 'src/enc/h264/open-h264.c' ]
+	open_h264 = declare_dependency(
+		sources: [
+			'src/enc/h264/encoder.c',
+			'src/enc/h264/open-h264.c',
+		]
+	)
+	dependencies += open_h264
 	config.set('ENABLE_OPEN_H264', true)
 endif
 
 if enable_websocket
-	sources += [
-		'src/stream/ws/handshake.c',
-		'src/stream/ws/framing.c',
-		'src/stream/ws/http.c',
-		'src/stream/ws/ws.c',
-	]
+	websocket = declare_dependency(
+		sources: [
+			'src/stream/ws/handshake.c',
+			'src/stream/ws/framing.c',
+			'src/stream/ws/http.c',
+			'src/stream/ws/ws.c',
+		]
+	)
+	dependencies += websocket
 	config.set('ENABLE_WEBSOCKET', true)
 endif
 
@@ -233,7 +262,7 @@ configure_file(
 
 neatvnc = library(
 	'neatvnc',
-	sources,
+	[],
 	version: '0.0.0',
 	dependencies: dependencies,
 	include_directories: inc,

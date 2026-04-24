@@ -19,6 +19,8 @@
 #include "auth/auth.h"
 #include "auth/rsa-aes.h"
 
+#define MAX_PUB_KEY_SIZE 1000000
+
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
 int rsa_aes_send_public_key(struct nvnc_client* client)
@@ -61,16 +63,17 @@ static int rsa_aes_send_challenge(struct nvnc_client* client,
 {
 	crypto_random(client->rsa.challenge, client->rsa.challenge_len);
 
-	uint8_t buffer[1024];
-	struct rfb_rsa_aes_challenge_msg *msg =
-		(struct rfb_rsa_aes_challenge_msg*)buffer;
+	struct rfb_rsa_aes_challenge_msg* msg;
+	size_t key_len = crypto_rsa_pub_key_length(client->rsa.pub);
+	size_t msg_size = sizeof(*msg) + key_len;
+	msg = calloc(1, msg_size);
+	assert(msg);
 
-	ssize_t len = crypto_rsa_encrypt(pub, msg->challenge,
-			crypto_rsa_pub_key_length(client->rsa.pub),
+	crypto_rsa_encrypt(pub, msg->challenge, key_len,
 			client->rsa.challenge, client->rsa.challenge_len);
-	msg->length = htons(len);
+	msg->length = htons(key_len);
 
-	stream_write(client->net_stream, buffer, sizeof(*msg) + len, NULL, NULL);
+	stream_send(client->net_stream, rcbuf_new(msg, msg_size), NULL, NULL);
 	return 0;
 }
 
@@ -88,6 +91,12 @@ static int on_rsa_aes_public_key(struct nvnc_client* client)
 	if (client->buffer_len - client->buffer_index <
 			sizeof(*msg) + byte_length * 2)
 		return 0;
+
+	if (byte_length > MAX_PUB_KEY_SIZE) {
+		nvnc_log(NVNC_LOG_ERROR, "Client sent a ridiculously large public key. This can't be right.");
+		nvnc_client_close(client);
+		return -1;
+	}
 
 	const uint8_t* modulus = msg->modulus_and_exponent;
 	const uint8_t* exponent = msg->modulus_and_exponent + byte_length;

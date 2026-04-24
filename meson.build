@@ -15,7 +15,6 @@ host_system = host_machine.system()
 c_args = [
 	'-D_GNU_SOURCE',
 	'-fvisibility=hidden',
-	'-DAML_UNSTABLE_API=1',
 
 	'-Wmissing-prototypes',
 	'-Wno-unused-parameter',

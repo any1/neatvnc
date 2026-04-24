@@ -32,21 +32,19 @@ int apple_dh_send_public_key(struct nvnc_client* client)
 	assert(pub);
 
 	uint8_t mod[APPLE_DH_SERVER_KEY_LENGTH] = {};
-	int mod_len = crypto_key_p(pub, mod, sizeof(mod));
-	assert(mod_len == sizeof(mod));
+	crypto_key_p(pub, mod, sizeof(mod));
 
 	uint8_t q[APPLE_DH_SERVER_KEY_LENGTH] = {};
-	int q_len = crypto_key_q(pub, q, sizeof(q));
-	assert(q_len == sizeof(q));
+	crypto_key_q(pub, q, sizeof(q));
 
 	struct rfb_apple_dh_server_msg msg = {
 		.generator = htons(crypto_key_g(client->apple_dh_secret)),
-		.key_size = htons(q_len),
+		.key_size = htons(sizeof(q)),
 	};
 
 	stream_write(client->net_stream, &msg, sizeof(msg));
-	stream_write(client->net_stream, mod, mod_len);
-	stream_write(client->net_stream, q, q_len);
+	stream_write(client->net_stream, mod, sizeof(mod));
+	stream_write(client->net_stream, q, sizeof(q));
 
 	crypto_key_del(pub);
 	return 0;

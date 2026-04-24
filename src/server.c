@@ -2774,7 +2774,9 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		default:
 			break;
 		}
+#ifdef ENABLE_OPEN_H264
 skip:;
+#endif
 	}
 
 	return RFB_ENCODING_RAW;
@@ -3388,6 +3390,8 @@ bool nvnc_auth_creds_verify(const struct nvnc_auth_creds* creds,
 			nvnc_log(NVNC_LOG_WARNING, "Password is longer than 8 characters; only the first 8 will be used for DES authentication");
 		return des_auth_verify(creds->des.challenge,
 				creds->des.response, password);
+#else
+	case NVNC_AUTH_CREDS_DES:;
 #endif
 	}
 	return false;

@@ -476,16 +476,17 @@ struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
  * This function increases the reference count of the buffer object, so
  * remember to call nvnc_buffer_unref() afterwards.
  */
-struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer, uint16_t width,
-		uint16_t height, uint32_t format, int32_t stride);
+struct nvnc_frame* nvnc_frame_from_buffer(struct nvnc_buffer* buffer,
+		uint16_t width, uint16_t height, uint32_t format,
+		int32_t stride);
 
 /**
  * Create a frame from a raw memory address.
  *
  * This function calls nvnc_buffer_from_addr() internally.
  */
-struct nvnc_frame* nvnc_frame_from_raw(void* buffer, uint16_t width, uint16_t height,
-		uint32_t fourcc_format, int32_t stride);
+struct nvnc_frame* nvnc_frame_from_raw(void* buffer, uint16_t width,
+		uint16_t height, uint32_t fourcc_format, int32_t stride);
 
 /**
  * Create a frame from a GBM buffer object.
@@ -616,8 +617,8 @@ struct nvnc_frame_pool* nvnc_frame_pool_new(uint16_t width, uint16_t height,
 /**
  * Resize the pool's frame parameters. Returns true if changed.
  */
-bool nvnc_frame_pool_resize(struct nvnc_frame_pool*, uint16_t width, uint16_t height,
-		uint32_t fourcc_format, uint16_t stride);
+bool nvnc_frame_pool_resize(struct nvnc_frame_pool*, uint16_t width,
+		uint16_t height, uint32_t fourcc_format, uint16_t stride);
 
 /**
  * Increment the reference count of the frame pool.

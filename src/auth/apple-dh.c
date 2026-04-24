@@ -73,6 +73,7 @@ int apple_dh_handle_response(struct nvnc_client* client)
 	struct crypto_key* shared_secret =
 		crypto_derive_shared_secret(client->apple_dh_secret, remote_key);
 	assert(shared_secret);
+	crypto_key_del(remote_key);
 
 	uint8_t shared_buf[APPLE_DH_SERVER_KEY_LENGTH];
 	crypto_key_q(shared_secret, shared_buf, sizeof(shared_buf));

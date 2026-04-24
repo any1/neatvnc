@@ -384,8 +384,7 @@ static int on_version_message_rfb33(struct nvnc_client* client)
 
 #ifdef HAVE_CRYPTO
 	if ((server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) &&
-			(server->auth_flags & NVNC_AUTH_ALLOW_BROKEN_CRYPTO) &&
-			!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
+	    is_allowed_security_type(server, RFB_SECURITY_TYPE_VNC_AUTH)) {
 		uint32_t sec_type = htonl(RFB_SECURITY_TYPE_VNC_AUTH);
 		stream_write(client->net_stream, &sec_type, sizeof(sec_type));
 		des_auth_send_challenge(client);
@@ -425,6 +424,8 @@ static int on_version_message(struct nvnc_client* client)
 
 	client->rfb_minor_version = minor;
 
+	init_security_types(server);
+
 	if (minor == 3)
 		return on_version_message_rfb33(client);
 
@@ -432,8 +433,6 @@ static int on_version_message(struct nvnc_client* client)
 		MAX_SECURITY_TYPES] = {};
 	struct rfb_security_types_msg* security =
 		(struct rfb_security_types_msg*)buf;
-
-	init_security_types(server);
 
 	security->n = server->n_security_types;
 	for (int i = 0; i < server->n_security_types; ++i) {

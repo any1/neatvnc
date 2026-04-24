@@ -60,15 +60,17 @@ struct crypto_rsa_pub_key* crypto_rsa_pub_key_import(const uint8_t* modulus,
 	crypto_import(self->key.n, modulus, size);
 	crypto_import(self->key.e, exponent, size);
 
-	if (mpz_cmp(self->key.n, self->key.e) <= 0) {
-		return NULL;
-	}
+	if (mpz_cmp(self->key.n, self->key.e) <= 0)
+		goto failure;
 
-	if (!rsa_public_key_prepare(&self->key)) {
-		return NULL;
-	}
+	if (!rsa_public_key_prepare(&self->key))
+		goto failure;
 
 	return self;
+
+failure:
+	crypto_rsa_pub_key_del(self);
+	return NULL;
 }
 
 bool crypto_rsa_priv_key_import_pkcs1_der(struct crypto_rsa_priv_key* priv,

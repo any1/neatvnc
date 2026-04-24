@@ -79,6 +79,7 @@
 #endif
 
 #define DEFAULT_NAME "Neat VNC"
+#define HANDSHAKE_TIMEOUT 30000000 // µs
 
 #define EXPORT __attribute__((visibility("default")))
 
@@ -175,6 +176,12 @@ static void client_close(struct nvnc_client* client)
 		client->close_task = NULL;
 		aml_stop(aml_get_default(), task);
 		aml_unref(task);
+	}
+
+	if (client->handshake_timer) {
+		aml_stop(aml_get_default(), client->handshake_timer);
+		aml_timer_unref(client->handshake_timer);
+		client->handshake_timer = NULL;
 	}
 
 	weakref_subject_deinit(&client->weakref);
@@ -693,6 +700,12 @@ static int on_init_message(struct nvnc_client* client)
 
 	nvnc_log(NVNC_LOG_INFO, "Client %p initialised. MIN-RTT during handshake was %"PRId32" ms",
 			client, client->min_rtt / 1000);
+
+	if (client->handshake_timer) {
+		aml_stop(aml_get_default(), client->handshake_timer);
+		aml_timer_unref(client->handshake_timer);
+		client->handshake_timer = NULL;
+	}
 
 	client->state = VNC_CLIENT_STATE_READY;
 	return sizeof(shared_flag);
@@ -2358,6 +2371,14 @@ static void on_client_event(struct stream* stream, enum stream_event event)
 	process_client_messages(client);
 }
 
+static void on_handshake_timeout(struct aml_timer* timer)
+{
+	struct nvnc_client* client = aml_timer_get_userdata(timer);
+	assert(timer == client->handshake_timer);
+	nvnc_log(NVNC_LOG_ERROR, "Client handshake timed out");
+	client_close(client);
+}
+
 static void on_connection(struct aml_handler* poll_handle)
 {
 	struct nvnc__socket* socket = aml_get_userdata(poll_handle);
@@ -2437,6 +2458,11 @@ static void on_connection(struct aml_handler* poll_handle)
 			(struct sockaddr*)&addr);
 	nvnc_log(NVNC_LOG_INFO, "New client connection from %s: %p",
 			ip_address, client);
+
+	client->handshake_timer = aml_timer_new(HANDSHAKE_TIMEOUT,
+			on_handshake_timeout, client, NULL);
+	assert(client->handshake_timer);
+	aml_start(aml_get_default(), client->handshake_timer);
 
 	return;
 

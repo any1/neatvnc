@@ -32,6 +32,7 @@
 #define MSG_BUFFER_SIZE 4096
 
 struct aml_idle;
+struct aml_timer;
 struct bwe;
 struct compositor;
 struct crypto_key;
@@ -64,6 +65,7 @@ enum nvnc_client_state {
 struct nvnc_client {
 	struct nvnc_common common;
 	struct weakref_subject weakref;
+	struct aml_timer* handshake_timer;
 	struct stream* net_stream;
 	char username[256];
 	struct nvnc* server;

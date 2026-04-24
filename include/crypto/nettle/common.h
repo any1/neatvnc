@@ -26,6 +26,8 @@ static inline size_t crypto_export(uint8_t* dst, size_t dst_size, const mpz_t n)
 	size_t bytesize = (bitsize + 7) / 8;
 
 	assert(bytesize <= dst_size);
+	if (bytesize > dst_size)
+		return 0;
 
 	memset(dst, 0, dst_size);
 	mpz_export(dst + dst_size - bytesize, &bytesize, order, unit_size,

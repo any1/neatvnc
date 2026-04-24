@@ -213,7 +213,7 @@ ssize_t crypto_rsa_encrypt(struct crypto_rsa_pub_key* pub, uint8_t* dst,
 	}
 	size_t len = crypto_export(dst, dst_size, ciphertext);
 	mpz_clear(ciphertext);
-	return len;
+	return len != 0 ? (ssize_t)len : -1;
 }
 
 ssize_t crypto_rsa_decrypt(struct crypto_rsa_priv_key* priv, uint8_t* dst,

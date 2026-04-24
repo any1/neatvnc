@@ -104,7 +104,11 @@ static int on_rsa_aes_public_key(struct nvnc_client* client)
 
 	client->rsa.pub =
 		crypto_rsa_pub_key_import(modulus, exponent, byte_length);
-	assert(client->rsa.pub);
+	if (!client->rsa.pub) {
+		nvnc_log(NVNC_LOG_ERROR, "Failed to import public key from client");
+		nvnc_client_close(client);
+		return -1;
+	}
 
 	update_min_rtt(client);
 

@@ -62,7 +62,10 @@ struct crypto_rsa_pub_key* crypto_rsa_pub_key_import(const uint8_t* modulus,
 	crypto_import(self->key.n, modulus, size);
 	mpz_init(self->key.e);
 	crypto_import(self->key.e, exponent, size);
-	rsa_public_key_prepare(&self->key);
+
+	if (!rsa_public_key_prepare(&self->key)) {
+		return NULL;
+	}
 
 	return self;
 }

@@ -40,6 +40,8 @@ if git.found()
 endif
 add_project_arguments('-DPROJECT_VERSION=@0@'.format(version), language: 'c')
 
+python3 = find_program('python3', required: false)
+
 libdrm_inc_path = get_option('drm_include_path')
 if libdrm_inc_path != ''
 	libdrm_inc = declare_dependency(
@@ -70,6 +72,8 @@ libsixel = dependency('libsixel', required: false)
 libavcodec = dependency('libavcodec', required: get_option('h264'))
 libavfilter = dependency('libavfilter', required: get_option('h264'))
 libavutil = dependency('libavutil', required: get_option('h264'))
+
+libpng = dependency('libpng', required: false)
 
 aml_version = ['>=1.0.0', '<2.0.0']
 aml_project = subproject('aml', required: false, version: aml_version)
@@ -273,6 +277,13 @@ neatvnc_dep = declare_dependency(
 	include_directories: inc,
 	link_with: neatvnc,
 )
+
+if libpng.found()
+	pngfb = declare_dependency(
+		sources: [ 'src/pngfb.c' ],
+		dependencies: libpng
+	)
+endif
 
 if get_option('examples')
 	subdir('examples')

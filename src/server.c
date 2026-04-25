@@ -3483,3 +3483,10 @@ void nvnc_auth_reject(struct nvnc_auth_future* self, const char* reason)
 out:
 	nvnc_auth_future_destroy(self);
 }
+
+EXPORT
+const struct nvnc_auth_creds* nvnc_auth_future_get_creds(
+		const struct nvnc_auth_future* self)
+{
+	return &self->creds;
+}

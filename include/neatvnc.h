@@ -388,6 +388,12 @@ void nvnc_auth_accept(struct nvnc_auth_future*);
 void nvnc_auth_reject(struct nvnc_auth_future*, const char* reason);
 
 /**
+ * Get the credentials associated with the auth future.
+ */
+const struct nvnc_auth_creds* nvnc_auth_future_get_creds(
+		const struct nvnc_auth_future* self);
+
+/**
  * Allocate a new buffer with the given size.
  *
  * The buffer is allocated from main memory using aligned_alloc with an

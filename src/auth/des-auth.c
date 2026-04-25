@@ -24,26 +24,24 @@
 
 #include <string.h>
 
-#define DES_CHALLENGE_SIZE 16
-
 bool des_auth_verify(const uint8_t* challenge, const uint8_t* response,
 		const char* password)
 {
-	uint8_t expected[DES_CHALLENGE_SIZE];
+	uint8_t expected[NVNC_AUTH_DES_CHALLENGE_SIZE];
 	crypto_des_rfb_encrypt(expected, challenge, password);
-	return memcmp(expected, response, DES_CHALLENGE_SIZE) == 0;
+	return memcmp(expected, response, NVNC_AUTH_DES_CHALLENGE_SIZE) == 0;
 }
 
 int des_auth_send_challenge(struct nvnc_client* client)
 {
-	crypto_random(client->des_challenge, DES_CHALLENGE_SIZE);
+	crypto_random(client->des_challenge, NVNC_AUTH_DES_CHALLENGE_SIZE);
 	return stream_write(client->net_stream, client->des_challenge,
-			DES_CHALLENGE_SIZE);
+			NVNC_AUTH_DES_CHALLENGE_SIZE);
 }
 
 int des_auth_handle_response(struct nvnc_client* client)
 {
-	if (client->buffer_len - client->buffer_index < DES_CHALLENGE_SIZE)
+	if (client->buffer_len - client->buffer_index < NVNC_AUTH_DES_CHALLENGE_SIZE)
 		return 0;
 
 	uint8_t* response = client->msg_buffer + client->buffer_index;
@@ -52,13 +50,11 @@ int des_auth_handle_response(struct nvnc_client* client)
 
 	struct nvnc_auth_creds creds = {
 		.type = NVNC_AUTH_CREDS_DES,
-		.username = NULL,
-		.des = {
-			.challenge = client->des_challenge,
-			.response = response,
-		},
 	};
+	memcpy(creds.des.challenge, client->des_challenge,
+			NVNC_AUTH_DES_CHALLENGE_SIZE);
+	memcpy(creds.des.response, response, NVNC_AUTH_DES_CHALLENGE_SIZE);
 
 	security_handshake_authenticate(client, &creds);
-	return DES_CHALLENGE_SIZE;
+	return NVNC_AUTH_DES_CHALLENGE_SIZE;
 }

@@ -22,9 +22,6 @@
 
 #include <sys/param.h>
 
-#define MAX_USERNAME_LENGTH 256
-#define MAX_PASSWORD_LENGTH 256
-
 static int send_byte(struct nvnc_client* client, uint8_t value)
 {
 	return stream_write(client->net_stream, &value, 1);
@@ -114,7 +111,7 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	uint32_t ulen = ntohl(msg->username_len);
 	uint32_t plen = ntohl(msg->password_len);
 
-	if (ulen > MAX_USERNAME_LENGTH || plen > MAX_PASSWORD_LENGTH) {
+	if (ulen > NVNC_AUTH_USERNAME_MAX || plen > NVNC_AUTH_PASSWORD_MAX) {
 		nvnc_log(NVNC_LOG_ERROR, "Client sent too long username/password");
 		nvnc_client_close(client);
 		return -1;
@@ -123,22 +120,19 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	if (client->buffer_len - client->buffer_index < sizeof(*msg) + ulen + plen)
 		return 0;
 
-	char username[MAX_USERNAME_LENGTH];
-	char password[MAX_PASSWORD_LENGTH];
-
-	memcpy(username, msg->text, MIN(ulen, sizeof(username) - 1));
-	memcpy(password, msg->text + ulen, MIN(plen, sizeof(password) - 1));
-
-	username[MIN(ulen, sizeof(username) - 1)] = '\0';
-	password[MIN(plen, sizeof(password) - 1)] = '\0';
-
-	update_min_rtt(client);
-
 	struct nvnc_auth_creds creds = {
 		.type = NVNC_AUTH_CREDS_PLAIN,
-		.username = username,
-		.password = password,
 	};
+
+	memcpy(creds.username, msg->text,
+			MIN(ulen, sizeof(creds.username) - 1));
+	memcpy(creds.password, msg->text + ulen,
+			MIN(plen, sizeof(creds.password) - 1));
+
+	creds.username[MIN(ulen, sizeof(creds.username) - 1)] = '\0';
+	creds.password[MIN(plen, sizeof(creds.password) - 1)] = '\0';
+
+	update_min_rtt(client);
 
 	security_handshake_authenticate(client, &creds);
 

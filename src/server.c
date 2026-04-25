@@ -3406,8 +3406,6 @@ bool nvnc_auth_creds_verify(const struct nvnc_auth_creds* creds,
 
 	switch (creds->type) {
 	case NVNC_AUTH_CREDS_PLAIN:
-		if (!creds->password)
-			return false;
 		return strcmp(creds->password, password) == 0;
 #ifdef HAVE_CRYPTO
 	case NVNC_AUTH_CREDS_DES:
@@ -3425,7 +3423,9 @@ bool nvnc_auth_creds_verify(const struct nvnc_auth_creds* creds,
 EXPORT
 const char* nvnc_auth_creds_get_username(const struct nvnc_auth_creds* creds)
 {
-	return creds->username;
+	if (creds->type == NVNC_AUTH_CREDS_PLAIN)
+		return creds->username;
+	return NULL;
 }
 
 EXPORT

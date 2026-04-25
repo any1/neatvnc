@@ -89,10 +89,7 @@ void security_handshake_authenticate(struct nvnc_client* client,
 	struct nvnc* server = client->server;
 
 	memset(client->username, 0, sizeof(client->username));
-
-	if (creds->username)
-		strncpy(client->username, creds->username,
-				sizeof(client->username) - 1);
+	strncpy(client->username, creds->username, sizeof(client->username) - 1);
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_AUTH;
 
@@ -102,5 +99,7 @@ void security_handshake_authenticate(struct nvnc_client* client,
 		return;
 	}
 
-	server->auth_fn(future, creds, server->auth_ud);
+	future->creds = *creds;
+
+	server->auth_fn(future, &future->creds, server->auth_ud);
 }

@@ -21,6 +21,7 @@
 #include "cut-text.h"
 #include "rfb-proto.h"
 #include "weakref.h"
+#include "auth/auth.h"
 
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
@@ -120,7 +121,7 @@ struct nvnc_client {
 	bool needs_desktop_name_update;
 
 #ifdef HAVE_CRYPTO
-	uint8_t des_challenge[16];
+	uint8_t des_challenge[NVNC_AUTH_DES_CHALLENGE_SIZE];
 	struct crypto_key* apple_dh_secret;
 
 	struct {

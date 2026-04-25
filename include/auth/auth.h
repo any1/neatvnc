@@ -19,6 +19,10 @@
 #include "weakref.h"
 #include <stdint.h>
 
+#define NVNC_AUTH_DES_CHALLENGE_SIZE 16
+#define NVNC_AUTH_USERNAME_MAX 256
+#define NVNC_AUTH_PASSWORD_MAX 256
+
 struct nvnc_client;
 
 enum nvnc_auth_creds_type {
@@ -28,18 +32,19 @@ enum nvnc_auth_creds_type {
 
 struct nvnc_auth_creds {
 	enum nvnc_auth_creds_type type;
-	const char* username;
+	char username[NVNC_AUTH_USERNAME_MAX];
 	union {
-		const char* password;
+		char password[NVNC_AUTH_PASSWORD_MAX];
 		struct {
-			const uint8_t* challenge;
-			const uint8_t* response;
+			uint8_t challenge[NVNC_AUTH_DES_CHALLENGE_SIZE];
+			uint8_t response[NVNC_AUTH_DES_CHALLENGE_SIZE];
 		} des;
 	};
 };
 
 struct nvnc_auth_future {
 	struct weakref_observer client;
+	struct nvnc_auth_creds creds;
 };
 
 int security_handshake_ok(struct nvnc_client* client);

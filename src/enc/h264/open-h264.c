@@ -190,6 +190,7 @@ static void open_h264_finish_frame(struct open_h264* self)
 
 	encoder_finish_frame(&self->parent, result);
 
+	nvnc_frame_metadata_unref(result->metadata);
 	encoded_frame_unref(result);
 }
 

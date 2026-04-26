@@ -339,14 +339,6 @@ void nvnc_set_normalised_pointer_fn(struct nvnc* self,
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 
 /**
- * Set a callback that is invoked when the client disconnects.
- *
- * This callback is invoked after the userdata cleanup function set via
- * nvnc_client_set_userdata.
- */
-void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
-
-/**
  * Set a handler for clipboard text received from clients.
  */
 void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);

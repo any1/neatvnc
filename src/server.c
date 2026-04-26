@@ -197,10 +197,6 @@ static void client_close(struct nvnc_client* client)
 	if (cleanup)
 		cleanup(client->userdata);
 
-	nvnc_client_fn fn = client->client_cleanup_fn;
-	if (fn)
-		fn(client);
-
 	compositor_destroy(client->compositor);
 	bwe_destroy(client->bwe);
 
@@ -3091,12 +3087,6 @@ EXPORT
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn fn)
 {
 	self->new_client_fn = fn;
-}
-
-EXPORT
-void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
-{
-	self->client_cleanup_fn = fn;
 }
 
 EXPORT

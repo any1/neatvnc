@@ -410,10 +410,9 @@ static void pause_playback(struct video_player* player)
 	aml_stop(aml_get_default(), player->ticker);
 }
 
-static void on_client_cleanup(struct nvnc_client* client)
+static void on_client_cleanup(void* userdata)
 {
-	struct video_player* player =
-		nvnc_get_userdata(nvnc_client_get_server(client));
+	struct video_player* player = userdata;
 	if (--player->client_count == 0)
 		pause_playback(player);
 }
@@ -422,7 +421,7 @@ static void on_new_client(struct nvnc_client* client)
 {
 	struct video_player* player =
 		nvnc_get_userdata(nvnc_client_get_server(client));
-	nvnc_set_client_cleanup_fn(client, on_client_cleanup);
+	nvnc_client_set_userdata(client, player, on_client_cleanup);
 
 	if (player->client_count++ == 0)
 		start_playback(player);

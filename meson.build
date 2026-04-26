@@ -1,7 +1,7 @@
 project(
 	'neatvnc',
 	'c',
-	version: '0.10-dev',
+	version: '1.0.0',
 	license: 'ISC',
 	default_options: [
 		'c_std=gnu11',
@@ -267,7 +267,7 @@ configure_file(
 neatvnc = library(
 	'neatvnc',
 	[],
-	version: '0.0.0',
+	version: meson.project_version(),
 	dependencies: dependencies,
 	include_directories: inc,
 	install: true,

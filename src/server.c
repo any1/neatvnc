@@ -3436,7 +3436,7 @@ const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds* creds)
 	return NULL;
 }
 
-static void nvnc_auth_future_destroy(struct nvnc_auth_future* self)
+static void nvnc_auth_creds_destroy(struct nvnc_auth_creds* self)
 {
 	if (!self)
 		return;
@@ -3445,7 +3445,7 @@ static void nvnc_auth_future_destroy(struct nvnc_auth_future* self)
 }
 
 EXPORT
-void nvnc_auth_accept(struct nvnc_auth_future* self)
+void nvnc_auth_creds_accept(struct nvnc_auth_creds* self)
 {
 	struct nvnc_client* client = WEAKREF_CAST(self->client,
 			struct nvnc_client, weakref);
@@ -3462,11 +3462,11 @@ void nvnc_auth_accept(struct nvnc_auth_future* self)
 	process_client_messages(client);
 
 out:
-	nvnc_auth_future_destroy(self);
+	nvnc_auth_creds_destroy(self);
 }
 
 EXPORT
-void nvnc_auth_reject(struct nvnc_auth_future* self, const char* reason)
+void nvnc_auth_creds_reject(struct nvnc_auth_creds* self, const char* reason)
 {
 	struct nvnc_client* client = WEAKREF_CAST(self->client,
 			struct nvnc_client, weakref);
@@ -3481,12 +3481,5 @@ void nvnc_auth_reject(struct nvnc_auth_future* self, const char* reason)
 	security_handshake_failed(client, reason);
 
 out:
-	nvnc_auth_future_destroy(self);
-}
-
-EXPORT
-const struct nvnc_auth_creds* nvnc_auth_future_get_creds(
-		const struct nvnc_auth_future* self)
-{
-	return &self->creds;
+	nvnc_auth_creds_destroy(self);
 }

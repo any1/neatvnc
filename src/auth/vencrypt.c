@@ -120,21 +120,21 @@ static int on_vencrypt_plain_auth_message(struct nvnc_client* client)
 	if (client->buffer_len - client->buffer_index < sizeof(*msg) + ulen + plen)
 		return 0;
 
-	struct nvnc_auth_creds creds = {
-		.type = NVNC_AUTH_CREDS_PLAIN,
-	};
+	struct nvnc_auth_creds* creds =
+		nvnc_auth_creds_new(NVNC_AUTH_CREDS_PLAIN);
+	nvnc_assert(creds, "Out of memory");
 
-	memcpy(creds.username, msg->text,
-			MIN(ulen, sizeof(creds.username) - 1));
-	memcpy(creds.password, msg->text + ulen,
-			MIN(plen, sizeof(creds.password) - 1));
+	memcpy(creds->username, msg->text,
+			MIN(ulen, sizeof(creds->username) - 1));
+	memcpy(creds->password, msg->text + ulen,
+			MIN(plen, sizeof(creds->password) - 1));
 
-	creds.username[MIN(ulen, sizeof(creds.username) - 1)] = '\0';
-	creds.password[MIN(plen, sizeof(creds.password) - 1)] = '\0';
+	creds->username[MIN(ulen, sizeof(creds->username) - 1)] = '\0';
+	creds->password[MIN(plen, sizeof(creds->password) - 1)] = '\0';
 
 	update_min_rtt(client);
 
-	security_handshake_authenticate(client, &creds);
+	security_handshake_authenticate(client, creds);
 
 	return sizeof(*msg) + ulen + plen;
 }

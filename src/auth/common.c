@@ -21,6 +21,7 @@
 #include "rfb-proto.h"
 #include "neatvnc.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 int security_handshake_failed(struct nvnc_client* client,
@@ -71,20 +72,19 @@ int security_handshake_ok(struct nvnc_client* client)
 	return stream_write(client->net_stream, &result, sizeof(result));
 }
 
-static struct nvnc_auth_future* nvnc_auth_future_create(
-		struct nvnc_client* client)
+struct nvnc_auth_creds* nvnc_auth_creds_new(enum nvnc_auth_creds_type type)
 {
-	struct nvnc_auth_future* self = calloc(1, sizeof(*self));
+	struct nvnc_auth_creds* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
 
-	weakref_observer_init(&self->client, &client->weakref);
+	self->type = type;
 
 	return self;
 }
 
 void security_handshake_authenticate(struct nvnc_client* client,
-		const struct nvnc_auth_creds* creds)
+		struct nvnc_auth_creds* creds)
 {
 	struct nvnc* server = client->server;
 
@@ -93,13 +93,7 @@ void security_handshake_authenticate(struct nvnc_client* client,
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_AUTH;
 
-	struct nvnc_auth_future* future = nvnc_auth_future_create(client);
-	if (!future) {
-		security_handshake_failed(client, "Out of memory");
-		return;
-	}
+	weakref_observer_init(&creds->client, &client->weakref);
 
-	future->creds = *creds;
-
-	server->auth_fn(future, &future->creds, server->auth_ud);
+	server->auth_fn(creds, server->auth_ud);
 }

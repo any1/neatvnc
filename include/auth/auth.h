@@ -31,6 +31,7 @@ enum nvnc_auth_creds_type {
 };
 
 struct nvnc_auth_creds {
+	struct weakref_observer client;
 	enum nvnc_auth_creds_type type;
 	char username[NVNC_AUTH_USERNAME_MAX];
 	union {
@@ -42,13 +43,10 @@ struct nvnc_auth_creds {
 	};
 };
 
-struct nvnc_auth_future {
-	struct weakref_observer client;
-	struct nvnc_auth_creds creds;
-};
+struct nvnc_auth_creds* nvnc_auth_creds_new(enum nvnc_auth_creds_type type);
 
 int security_handshake_ok(struct nvnc_client* client);
 int security_handshake_failed(struct nvnc_client* client, const char* reason);
 
 void security_handshake_authenticate(struct nvnc_client* client,
-		const struct nvnc_auth_creds* creds);
+		struct nvnc_auth_creds* creds);

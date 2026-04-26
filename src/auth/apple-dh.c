@@ -96,18 +96,19 @@ int apple_dh_handle_response(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	struct nvnc_auth_creds creds = {
-		.type = NVNC_AUTH_CREDS_PLAIN,
-	};
-	strncpy(creds.username, username, sizeof(creds.username) - 1);
-	strncpy(creds.password, password, sizeof(creds.password) - 1);
+	struct nvnc_auth_creds* creds =
+		nvnc_auth_creds_new(NVNC_AUTH_CREDS_PLAIN);
+	nvnc_assert(creds, "Out of memory");
 
-	static_assert(sizeof(creds.username) >= sizeof(username) / 2,
+	strncpy(creds->username, username, sizeof(creds->username) - 1);
+	strncpy(creds->password, password, sizeof(creds->password) - 1);
+
+	static_assert(sizeof(creds->username) >= sizeof(username) / 2,
 			"creds.username is too small");
-	static_assert(sizeof(creds.password) >= sizeof(username) / 2,
+	static_assert(sizeof(creds->password) >= sizeof(username) / 2,
 			"creds.password is too small");
 
-	security_handshake_authenticate(client, &creds);
+	security_handshake_authenticate(client, creds);
 
 	return sizeof(*msg) + key_len;
 }

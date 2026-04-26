@@ -58,7 +58,6 @@
 struct nvnc;
 struct nvnc_client;
 struct nvnc_auth_creds;
-struct nvnc_auth_future;
 struct nvnc_desktop_layout;
 struct nvnc_display;
 struct nvnc_frame;
@@ -140,8 +139,7 @@ typedef void (*nvnc_normalised_pointer_fn)(struct nvnc_client*, double x,
 		double y, enum nvnc_button_mask);
 typedef void (*nvnc_client_fn)(struct nvnc_client*);
 typedef void (*nvnc_damage_fn)(struct pixman_region16* damage, void* userdata);
-typedef void (*nvnc_auth_fn)(struct nvnc_auth_future*,
-		const struct nvnc_auth_creds*, void* userdata);
+typedef void (*nvnc_auth_fn)(struct nvnc_auth_creds*, void* userdata);
 typedef void (*nvnc_cut_text_fn)(struct nvnc_client*, const char* text,
 		uint32_t len);
 typedef struct nvnc_buffer* (*nvnc_buffer_alloc_fn)(struct nvnc_buffer_pool*);
@@ -337,11 +335,11 @@ bool nvnc_has_auth(void);
  *   excluded if this bit is set.
  *
  * The authentication function is a user-defined callback that must result in
- * either nvnc_auth_accept or nvnc_auth_reject being called, either directly or
- * asynchronously.
+ * either nvnc_auth_creds_accept or nvnc_auth_creds_reject being called, either
+ * directly or asynchronously.
  *
- * The auth future must not be accessed after it has been resolved and it must
- * always be resolved eventually as resources will leak otherwise.
+ * The credentials object must not be accessed after it has been resolved and
+ * it must always be resolved eventually as resources will leak otherwise.
  */
 int nvnc_enable_auth(struct nvnc* self, enum nvnc_auth_flags flags,
 		nvnc_auth_fn, void* userdata);
@@ -376,22 +374,16 @@ const char* nvnc_auth_creds_get_password(const struct nvnc_auth_creds*);
 /**
  * Accept an authentication request.
  *
- * This resolves the future.
+ * This resolves the credentials. The object must not be used after this call.
  */
-void nvnc_auth_accept(struct nvnc_auth_future*);
+void nvnc_auth_creds_accept(struct nvnc_auth_creds*);
 
 /**
  * Reject an authentication request.
  *
- * This resolves the future.
+ * This resolves the credentials. The object must not be used after this call.
  */
-void nvnc_auth_reject(struct nvnc_auth_future*, const char* reason);
-
-/**
- * Get the credentials associated with the auth future.
- */
-const struct nvnc_auth_creds* nvnc_auth_future_get_creds(
-		const struct nvnc_auth_future* self);
+void nvnc_auth_creds_reject(struct nvnc_auth_creds*, const char* reason);
 
 /**
  * Allocate a new buffer with the given size.

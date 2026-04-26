@@ -48,13 +48,13 @@ int des_auth_handle_response(struct nvnc_client* client)
 
 	update_min_rtt(client);
 
-	struct nvnc_auth_creds creds = {
-		.type = NVNC_AUTH_CREDS_DES,
-	};
-	memcpy(creds.des.challenge, client->des_challenge,
-			NVNC_AUTH_DES_CHALLENGE_SIZE);
-	memcpy(creds.des.response, response, NVNC_AUTH_DES_CHALLENGE_SIZE);
+	struct nvnc_auth_creds* creds = nvnc_auth_creds_new(NVNC_AUTH_CREDS_DES);
+	nvnc_assert(creds, "Out of memory");
 
-	security_handshake_authenticate(client, &creds);
+	memcpy(creds->des.challenge, client->des_challenge,
+			NVNC_AUTH_DES_CHALLENGE_SIZE);
+	memcpy(creds->des.response, response, NVNC_AUTH_DES_CHALLENGE_SIZE);
+
+	security_handshake_authenticate(client, creds);
 	return NVNC_AUTH_DES_CHALLENGE_SIZE;
 }

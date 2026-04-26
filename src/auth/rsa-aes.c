@@ -295,18 +295,19 @@ static int on_rsa_aes_credentials(struct nvnc_client* client)
 			password_len)
 		return 0;
 
-	struct nvnc_auth_creds creds = {
-		.type = NVNC_AUTH_CREDS_PLAIN,
-	};
+	struct nvnc_auth_creds* creds =
+		nvnc_auth_creds_new(NVNC_AUTH_CREDS_PLAIN);
+	nvnc_assert(creds, "Out of memory");
 
-	memcpy(creds.username, (const char*)(msg + 1), username_len);
-	creds.username[username_len] = '\0';
-	memcpy(creds.password, (const char*)(msg + 2 + username_len), password_len);
-	creds.password[password_len] = '\0';
+	memcpy(creds->username, (const char*)(msg + 1), username_len);
+	creds->username[username_len] = '\0';
+	memcpy(creds->password, (const char*)(msg + 2 + username_len),
+			password_len);
+	creds->password[password_len] = '\0';
 
 	update_min_rtt(client);
 
-	security_handshake_authenticate(client, &creds);
+	security_handshake_authenticate(client, creds);
 
 	return 2 + username_len + password_len;
 }

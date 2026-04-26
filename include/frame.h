@@ -23,7 +23,6 @@
 #include <pixman.h>
 
 #include "neatvnc.h"
-#include "common.h"
 #include "buffer.h"
 
 #define NVNC_FB_COMPOSITE_MAX 64
@@ -37,7 +36,8 @@ struct nvnc_frame_metadata {
 };
 
 struct nvnc_frame {
-	struct nvnc_common common;
+	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 	int ref;
 	uint16_t x_off;
 	uint16_t y_off;

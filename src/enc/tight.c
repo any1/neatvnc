@@ -16,7 +16,6 @@
 
 #include "neatvnc.h"
 #include "rfb-proto.h"
-#include "common.h"
 #include "pixels.h"
 #include "vec.h"
 #include "config.h"

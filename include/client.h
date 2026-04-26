@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "common.h"
+#include "neatvnc.h"
 #include "config.h"
 #include "cut-text.h"
 #include "rfb-proto.h"
@@ -64,8 +64,10 @@ enum nvnc_client_state {
 };
 
 struct nvnc_client {
-	struct nvnc_common common;
+	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 	struct weakref_subject weakref;
+
 	struct aml_timer* handshake_timer;
 	struct stream* net_stream;
 	char username[256];
@@ -79,7 +81,7 @@ struct nvnc_client {
 	struct pixman_region16 damage;
 	int n_pending_requests;
 	bool is_updating;
-	nvnc_client_fn cleanup_fn;
+	nvnc_client_fn client_cleanup_fn;
 	size_t buffer_index;
 	size_t buffer_len;
 	uint8_t msg_buffer[MSG_BUFFER_SIZE];

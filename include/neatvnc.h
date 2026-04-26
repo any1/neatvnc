@@ -193,15 +193,69 @@ void nvnc_add_display(struct nvnc*, struct nvnc_display*);
 void nvnc_remove_display(struct nvnc*, struct nvnc_display*);
 
 /**
- * Attach custom userdata to any neatvnc object with an optional cleanup
- * callback.
+ * Attach custom userdata to the server with an optional cleanup callback.
  */
-void nvnc_set_userdata(void* self, void* userdata, nvnc_cleanup_fn);
+void nvnc_set_userdata(struct nvnc* self, void* userdata, nvnc_cleanup_fn);
 
 /**
- * Retrieve the custom userdata attached to a neatvnc object.
+ * Retrieve the custom userdata attached to the server.
  */
-void* nvnc_get_userdata(const void* self);
+void* nvnc_get_userdata(const struct nvnc* self);
+
+/**
+ * Attach custom userdata to the client with an optional cleanup callback.
+ */
+void nvnc_client_set_userdata(struct nvnc_client* self, void* userdata,
+		nvnc_cleanup_fn);
+
+/**
+ * Retrieve the custom userdata attached to the client.
+ */
+void* nvnc_client_get_userdata(const struct nvnc_client* self);
+
+/**
+ * Attach custom userdata to the frame with an optional cleanup callback.
+ */
+void nvnc_frame_set_userdata(struct nvnc_frame* self, void* userdata,
+		nvnc_cleanup_fn);
+
+/**
+ * Retrieve the custom userdata attached to the frame.
+ */
+void* nvnc_frame_get_userdata(const struct nvnc_frame* self);
+
+/**
+ * Attach custom userdata to the buffer with an optional cleanup callback.
+ */
+void nvnc_buffer_set_userdata(struct nvnc_buffer* self, void* userdata,
+		nvnc_cleanup_fn);
+
+/**
+ * Retrieve the custom userdata attached to then buffer.
+ */
+void* nvnc_buffer_get_userdata(const struct nvnc_buffer* self);
+
+/**
+ * Attach custom userdata to the display with an optional cleanup callback.
+ */
+void nvnc_display_set_userdata(struct nvnc_display* self, void* userdata,
+		nvnc_cleanup_fn);
+
+/**
+ * Retrieve the custom userdata attached to the display.
+ */
+void* nvnc_display_get_userdata(const struct nvnc_display* self);
+
+/**
+ * Attach custom userdata to the buffer pool with an optional cleanup callback.
+ */
+void nvnc_buffer_pool_set_userdata(struct nvnc_buffer_pool* self,
+		void* userdata, nvnc_cleanup_fn);
+
+/**
+ * Retrieve the custom userdata attached to the buffer pool.
+ */
+void* nvnc_buffer_pool_get_userdata(const struct nvnc_buffer_pool* self);
 
 /**
  * Get the server instance to which the client belongs.
@@ -288,7 +342,7 @@ void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
  * Set a callback that is invoked when the client disconnects.
  *
  * This callback is invoked after the userdata cleanup function set via
- * nvnc_set_userdata.
+ * nvnc_client_set_userdata.
  */
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn);
 

@@ -15,7 +15,6 @@
  */
 
 #include "neatvnc.h"
-#include "common.h"
 #include "logging.h"
 #include "config.h"
 

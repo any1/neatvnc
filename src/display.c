@@ -16,7 +16,6 @@
 
 #include "display.h"
 #include "neatvnc.h"
-#include "common.h"
 #include "server.h"
 #include "frame.h"
 #include "region.h"
@@ -54,8 +53,8 @@ refinery_failure:
 
 static void nvnc__display_free(struct nvnc_display* self)
 {
-	if (self->common.cleanup_fn)
-		self->common.cleanup_fn(self->common.userdata);
+	if (self->cleanup_fn)
+		self->cleanup_fn(self->userdata);
 	if (self->buffer) {
 		nvnc_frame_unref(self->buffer);
 	}

@@ -22,12 +22,12 @@
 #include "neatvnc.h"
 #include "weakref.h"
 #include "sys/queue.h"
-#include "common.h"
 
 struct gbm_bo;
 
 struct nvnc_buffer {
-	struct nvnc_common common;
+	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 
 	int ref;
 	enum nvnc_buffer_type type;

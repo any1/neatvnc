@@ -18,7 +18,6 @@
 
 #include "neatvnc.h"
 #include "damage-refinery.h"
-#include "common.h"
 
 #include <stdint.h>
 #include <pixels.h>
@@ -27,7 +26,8 @@ struct nvnc;
 struct nvnc_frame;
 
 struct nvnc_display {
-	struct nvnc_common common;
+	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 	int ref;
 	uint32_t id;
 	struct nvnc* server;

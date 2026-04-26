@@ -205,7 +205,7 @@ static void do_work(struct aml_work* work)
 
 	struct nvnc_composite_fb* csrc = &ctx->src;
 	struct nvnc_frame* dst = ctx->dst;
-	struct fb_side_data* dst_side_data = nvnc_get_userdata(dst);
+	struct fb_side_data* dst_side_data = nvnc_frame_get_userdata(dst);
 
 	/* Side data contains the union of the buffer damage and the
 	 * frame damage.
@@ -234,7 +234,7 @@ static void on_work_done(struct aml_work* work)
 	pthread_cond_broadcast(&compositor->cond);
 	pthread_mutex_unlock(&compositor->mutex);
 
-	struct fb_side_data* fb_side_data = nvnc_get_userdata(ctx->dst);
+	struct fb_side_data* fb_side_data = nvnc_frame_get_userdata(ctx->dst);
 	assert(fb_side_data);
 	LIST_INSERT_HEAD(&compositor->fb_side_data_list, fb_side_data, link);
 
@@ -343,7 +343,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	if (!ctx->dst)
 		goto acquire_failure;
 
-	struct fb_side_data* fb_side_data = nvnc_get_userdata(ctx->dst);
+	struct fb_side_data* fb_side_data = nvnc_frame_get_userdata(ctx->dst);
 	if (!fb_side_data) {
 		fb_side_data = calloc(1, sizeof(*fb_side_data));
 		if (!fb_side_data)
@@ -353,7 +353,7 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 		pixman_region_init_rect(&fb_side_data->buffer_damage, 0, 0,
 				width, height);
 
-		nvnc_set_userdata(ctx->dst, fb_side_data, fb_side_data_destroy);
+		nvnc_frame_set_userdata(ctx->dst, fb_side_data, fb_side_data_destroy);
 		LIST_INSERT_HEAD(&self->fb_side_data_list, fb_side_data, link);
 	}
 

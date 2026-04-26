@@ -37,7 +37,7 @@ struct nvnc_frame_pool {
 static struct nvnc_buffer* fb_pool_buffer_alloc(
 		struct nvnc_buffer_pool* pool)
 {
-	struct nvnc_frame_pool* self = nvnc_get_userdata(pool);
+	struct nvnc_frame_pool* self = nvnc_buffer_pool_get_userdata(pool);
 	uint32_t bpp = nvnc__pixel_size_from_fourcc(self->fourcc_format);
 	size_t size = (size_t)self->height * self->stride * bpp;
 	return nvnc_buffer_new(size);
@@ -62,7 +62,7 @@ struct nvnc_frame_pool* nvnc_frame_pool_new(uint16_t width, uint16_t height,
 		free(self);
 		return NULL;
 	}
-	nvnc_set_userdata(self->buffer_pool, self, NULL);
+	nvnc_buffer_pool_set_userdata(self->buffer_pool, self, NULL);
 
 	return self;
 }
@@ -90,7 +90,7 @@ bool nvnc_frame_pool_resize(struct nvnc_frame_pool* self, uint16_t width,
 	self->fourcc_format = fourcc_format;
 
 	self->buffer_pool = nvnc_buffer_pool_new(fb_pool_buffer_alloc);
-	nvnc_set_userdata(self->buffer_pool, self, NULL);
+	nvnc_buffer_pool_set_userdata(self->buffer_pool, self, NULL);
 
 	return true;
 }

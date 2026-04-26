@@ -225,9 +225,9 @@ void nvnc_frame_get_damage(const struct nvnc_frame* self,
 
 static void nvnc__fb_free(struct nvnc_frame* fb)
 {
-	nvnc_cleanup_fn cleanup = fb->common.cleanup_fn;
+	nvnc_cleanup_fn cleanup = fb->cleanup_fn;
 	if (cleanup)
-		cleanup(fb->common.userdata);
+		cleanup(fb->userdata);
 
 	nvnc_buffer_unref(fb->buffer);
 	pixman_region_fini(&fb->damage);

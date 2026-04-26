@@ -322,7 +322,7 @@ static void on_decode_done(struct aml_work* work)
 	ctx->bo = bo;
 
 	struct nvnc_buffer* buffer = nvnc_frame_get_buffer(fb);
-	nvnc_set_userdata(buffer, ctx, on_frame_context_cleanup);
+	nvnc_buffer_set_userdata(buffer, ctx, on_frame_context_cleanup);
 
 	nvnc_display_feed_frame(self->display, fb);
 	nvnc_frame_unref(fb);

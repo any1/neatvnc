@@ -147,7 +147,7 @@ static void update_vnc_buffer(struct draw* draw,
 	struct nvnc_frame *fb = nvnc_frame_pool_acquire(draw->fb_pool);
 	assert(fb);
 
-	struct fb_side_data* fb_side_data = nvnc_get_userdata(fb);
+	struct fb_side_data* fb_side_data = nvnc_frame_get_userdata(fb);
 	if (!fb_side_data) {
 		fb_side_data = calloc(1, sizeof(*fb_side_data));
 		assert(fb_side_data);
@@ -156,7 +156,7 @@ static void update_vnc_buffer(struct draw* draw,
 		pixman_region_init_rect(&fb_side_data->damage, 0, 0,
 				draw->width, draw->height);
 
-		nvnc_set_userdata(fb, fb_side_data, fb_side_data_destroy);
+		nvnc_frame_set_userdata(fb, fb_side_data, fb_side_data_destroy);
 		LIST_INSERT_HEAD(&draw->fb_side_data_list, fb_side_data, link);
 	}
 

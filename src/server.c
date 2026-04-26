@@ -17,10 +17,10 @@
 #include "rfb-proto.h"
 #include "vec.h"
 #include "frame.h"
+#include "buffer-pool.h"
 #include "desktop-layout.h"
 #include "display.h"
 #include "neatvnc.h"
-#include "common.h"
 #include "pixels.h"
 #include "stream/stream.h"
 #include "config.h"
@@ -193,11 +193,11 @@ static void client_close(struct nvnc_client* client)
 	if (client->server->is_closing)
 		client_drain_encoder(client);
 
-	nvnc_cleanup_fn cleanup = client->common.cleanup_fn;
+	nvnc_cleanup_fn cleanup = client->cleanup_fn;
 	if (cleanup)
-		cleanup(client->common.userdata);
+		cleanup(client->userdata);
 
-	nvnc_client_fn fn = client->cleanup_fn;
+	nvnc_client_fn fn = client->client_cleanup_fn;
 	if (fn)
 		fn(client);
 
@@ -2689,9 +2689,9 @@ void nvnc_del(struct nvnc* self)
 {
 	self->is_closing = true;
 
-	nvnc_cleanup_fn cleanup = self->common.cleanup_fn;
+	nvnc_cleanup_fn cleanup = self->cleanup_fn;
 	if (cleanup)
-		cleanup(self->common.userdata);
+		cleanup(self->userdata);
 
 	for (int i = 0; i < self->n_displays; ++i) {
 		struct nvnc_display *display = self->displays[i];
@@ -2980,18 +2980,87 @@ void nvnc__damage_region(struct nvnc* self, const struct pixman_region16* damage
 }
 
 EXPORT
-void nvnc_set_userdata(void* self, void* userdata, nvnc_cleanup_fn cleanup_fn)
+void nvnc_set_userdata(struct nvnc* self, void* userdata,
+		nvnc_cleanup_fn cleanup_fn)
 {
-	struct nvnc_common* common = self;
-	common->userdata = userdata;
-	common->cleanup_fn = cleanup_fn;
+	self->userdata = userdata;
+	self->cleanup_fn = cleanup_fn;
 }
 
 EXPORT
-void* nvnc_get_userdata(const void* self)
+void* nvnc_get_userdata(const struct nvnc* self)
 {
-	const struct nvnc_common* common = self;
-	return common->userdata;
+	return self->userdata;
+}
+
+EXPORT
+void nvnc_client_set_userdata(struct nvnc_client* self, void* userdata,
+		nvnc_cleanup_fn cleanup_fn)
+{
+	self->userdata = userdata;
+	self->cleanup_fn = cleanup_fn;
+}
+
+EXPORT
+void* nvnc_client_get_userdata(const struct nvnc_client* self)
+{
+	return self->userdata;
+}
+
+EXPORT
+void nvnc_frame_set_userdata(struct nvnc_frame* self, void* userdata,
+		nvnc_cleanup_fn cleanup_fn)
+{
+	self->userdata = userdata;
+	self->cleanup_fn = cleanup_fn;
+}
+
+EXPORT
+void* nvnc_frame_get_userdata(const struct nvnc_frame* self)
+{
+	return self->userdata;
+}
+
+EXPORT
+void nvnc_buffer_set_userdata(struct nvnc_buffer* self, void* userdata,
+		nvnc_cleanup_fn cleanup_fn)
+{
+	self->userdata = userdata;
+	self->cleanup_fn = cleanup_fn;
+}
+
+EXPORT
+void* nvnc_buffer_get_userdata(const struct nvnc_buffer* self)
+{
+	return self->userdata;
+}
+
+EXPORT
+void nvnc_display_set_userdata(struct nvnc_display* self, void* userdata,
+		nvnc_cleanup_fn cleanup_fn)
+{
+	self->userdata = userdata;
+	self->cleanup_fn = cleanup_fn;
+}
+
+EXPORT
+void* nvnc_display_get_userdata(const struct nvnc_display* self)
+{
+	return self->userdata;
+}
+
+EXPORT
+void nvnc_buffer_pool_set_userdata(struct nvnc_buffer_pool* self,
+		void* userdata, nvnc_cleanup_fn cleanup_fn)
+{
+	self->userdata = userdata;
+	self->cleanup_fn = cleanup_fn;
+}
+
+EXPORT
+void* nvnc_buffer_pool_get_userdata(const struct nvnc_buffer_pool* self)
+{
+	return self->userdata;
 }
 
 EXPORT
@@ -3027,7 +3096,7 @@ void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn fn)
 EXPORT
 void nvnc_set_client_cleanup_fn(struct nvnc_client* self, nvnc_client_fn fn)
 {
-	self->cleanup_fn = fn;
+	self->client_cleanup_fn = fn;
 }
 
 EXPORT

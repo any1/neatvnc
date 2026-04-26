@@ -17,7 +17,6 @@
 #pragma once
 
 #include "client.h"
-#include "common.h"
 #include "config.h"
 #include "cut-text.h"
 #include "frame.h"
@@ -68,12 +67,12 @@ struct nvnc__socket {
 LIST_HEAD(nvnc__socket_list, nvnc__socket);
 
 struct nvnc {
-	struct nvnc_common common;
+	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 	bool is_closing;
 	struct nvnc__socket_list sockets;
 	struct nvnc_client_list clients;
 	char name[256];
-	void* userdata;
 	nvnc_key_fn key_fn;
 	nvnc_key_fn key_code_fn;
 	nvnc_pointer_fn pointer_fn;

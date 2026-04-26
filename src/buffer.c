@@ -133,8 +133,8 @@ void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 	if (!buffer->is_external)
 		nvnc__buffer_free_internal(buffer);
 
-	if (buffer->common.cleanup_fn)
-		buffer->common.cleanup_fn(buffer->common.userdata);
+	if (buffer->cleanup_fn)
+		buffer->cleanup_fn(buffer->userdata);
 
 	// The cleanup function can save the buffer from deletion and put it
 	// into its own buffer pool.

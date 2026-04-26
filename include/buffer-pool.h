@@ -17,7 +17,6 @@
 #pragma once
 
 #include "neatvnc.h"
-#include "common.h"
 #include "buffer.h"
 #include "weakref.h"
 #include "sys/queue.h"
@@ -25,7 +24,8 @@
 TAILQ_HEAD(nvnc_buffer_queue, nvnc_buffer);
 
 struct nvnc_buffer_pool {
-	struct nvnc_common common;
+	void* userdata;
+	nvnc_cleanup_fn cleanup_fn;
 	int ref;
 	struct weakref_subject weakref;
 	struct nvnc_buffer_queue buffers;

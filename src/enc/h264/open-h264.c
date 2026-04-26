@@ -231,6 +231,7 @@ static void open_h264_destroy(struct encoder* enc)
 {
 	struct open_h264* self = open_h264(enc);
 	open_h264_destroy_all_contexts(self);
+	nvnc_frame_metadata_unref(self->pending_metadata);
 	free(self);
 }
 

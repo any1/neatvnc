@@ -119,7 +119,7 @@ static bool crypto_cipher_aes_eax_encrypt(struct crypto_cipher* self,
 			(uint8_t*)dst->data + dst->len, src);
 	dst->len += src_len;
 
-	nettle_eax_aes128_digest(&self->enc_ctx.aes_eax.ctx, 16, mac);
+	nettle_eax_aes128_digest(&self->enc_ctx.aes_eax.ctx, mac);
 
 	return true;
 }
@@ -131,7 +131,7 @@ static ssize_t crypto_cipher_aes_eax_decrypt(struct crypto_cipher* self,
 	crypto_aes_eax_update_nonce(&self->dec_ctx.aes_eax);
 	nettle_eax_aes128_update(&self->dec_ctx.aes_eax.ctx, ad_len, ad);
 	nettle_eax_aes128_decrypt(&self->dec_ctx.aes_eax.ctx, len, dst, src);
-	nettle_eax_aes128_digest(&self->dec_ctx.aes_eax.ctx, 16, mac);
+	nettle_eax_aes128_digest(&self->dec_ctx.aes_eax.ctx, mac);
 	return len;
 }
 
@@ -179,7 +179,7 @@ static bool crypto_cipher_aes256_eax_encrypt(struct crypto_cipher* self,
 			(uint8_t*)dst->data + dst->len, src);
 	dst->len += src_len;
 
-	EAX_DIGEST(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, 16, mac);
+	EAX_DIGEST(&self->enc_ctx.aes256_eax.ctx, aes256_encrypt, mac);
 
 	return true;
 }
@@ -191,7 +191,7 @@ static ssize_t crypto_cipher_aes256_eax_decrypt(struct crypto_cipher* self,
 	crypto_aes256_eax_update_nonce(&self->dec_ctx.aes256_eax);
 	EAX_UPDATE(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, ad_len, ad);
 	EAX_DECRYPT(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, len, dst, src);
-	EAX_DIGEST(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, 16, mac);
+	EAX_DIGEST(&self->dec_ctx.aes256_eax.ctx, aes256_encrypt, mac);
 	return len;
 }
 

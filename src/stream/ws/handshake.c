@@ -79,8 +79,7 @@ ssize_t ws_handshake(char* output, size_t output_maxlen, const char* input)
 		goto failure;
 
 	uint8_t hash[20];
-	crypto_hash_many(hash, sizeof(hash), CRYPTO_HASH_SHA1,
-			(struct crypto_data_entry[]){
+	crypto_hash_many(hash, sizeof(hash), (struct crypto_data_entry[]){
 		{ (uint8_t*)challenge, strlen(challenge) },
 		{ (uint8_t*)magic_uuid, strlen(magic_uuid) },
 		{}

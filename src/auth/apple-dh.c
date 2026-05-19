@@ -78,8 +78,7 @@ int apple_dh_handle_response(struct nvnc_client* client)
 	crypto_key_del(shared_secret);
 
 	uint8_t hash[16] = {};
-	crypto_hash_one(hash, sizeof(hash), CRYPTO_HASH_MD5, shared_buf,
-			sizeof(shared_buf));
+	crypto_hash_one(hash, CRYPTO_HASH_MD5, shared_buf, sizeof(shared_buf));
 
 	struct crypto_cipher* cipher;
 	cipher = crypto_cipher_new(NULL, hash, CRYPTO_CIPHER_AES128_ECB);

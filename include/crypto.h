@@ -88,12 +88,11 @@ void crypto_hash_del(struct crypto_hash* self);
 
 void crypto_hash_append(struct crypto_hash* self, const uint8_t* src,
 		size_t len);
-void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst,
-		size_t len);
+void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst);
 
-void crypto_hash_one(uint8_t* dst, size_t dst_len, enum crypto_hash_type type,
+void crypto_hash_one(uint8_t* dst, enum crypto_hash_type type,
 		const uint8_t* src, size_t src_len);
-void crypto_hash_many(uint8_t* dst, size_t dst_len, enum crypto_hash_type type,
+void crypto_hash_many(uint8_t* dst, enum crypto_hash_type type,
 		const struct crypto_data_entry *src);
 
 // RSA

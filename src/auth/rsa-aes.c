@@ -154,8 +154,8 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 
 	// ClientSessionKey = the first 16 bytes of SHA1(ServerRandom || ClientRandom)
 	uint8_t client_session_key[32];
-	crypto_hash_many(client_session_key, client_rsa_aes_hash_len(client),
-			client->rsa.hash_type, (const struct crypto_data_entry[]) {
+	crypto_hash_many(client_session_key, client->rsa.hash_type,
+			(const struct crypto_data_entry[]) {
 		{ client->rsa.challenge, client->rsa.challenge_len },
 		{ client_random, client->rsa.challenge_len },
 		{}
@@ -163,8 +163,8 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 
 	// ServerSessionKey = the first 16 bytes of SHA1(ClientRandom || ServerRandom)
 	uint8_t server_session_key[32];
-	crypto_hash_many(server_session_key, client_rsa_aes_hash_len(client),
-			client->rsa.hash_type, (const struct crypto_data_entry[]) {
+	crypto_hash_many(server_session_key, client->rsa.hash_type,
+			(const struct crypto_data_entry[]) {
 		{ client_random, client->rsa.challenge_len },
 		{ client->rsa.challenge, client->rsa.challenge_len },
 		{}
@@ -195,8 +195,8 @@ static int on_rsa_aes_challenge(struct nvnc_client* client)
 	uint32_t client_key_len_be = htonl(client_key_len * 8);
 
 	uint8_t server_hash[32] = {};
-	crypto_hash_many(server_hash, client_rsa_aes_hash_len(client),
-			client->rsa.hash_type, (const struct crypto_data_entry[]) {
+	crypto_hash_many(server_hash, client->rsa.hash_type,
+			(const struct crypto_data_entry[]) {
 		{ (uint8_t*)&server_key_len_be, 4 },
 		{ server_modulus, server_key_len },
 		{ server_exponent, server_key_len },
@@ -249,8 +249,8 @@ static int on_rsa_aes_client_hash(struct nvnc_client* client)
 	uint32_t client_key_len_be = htonl(client_key_len * 8);
 
 	uint8_t client_hash[32] = {};
-	crypto_hash_many(client_hash, client_rsa_aes_hash_len(client),
-			client->rsa.hash_type, (const struct crypto_data_entry[]) {
+	crypto_hash_many(client_hash, client->rsa.hash_type,
+			(const struct crypto_data_entry[]) {
 		{ (uint8_t*)&client_key_len_be, 4 },
 		{ client_modulus, client_key_len },
 		{ client_exponent, client_key_len },

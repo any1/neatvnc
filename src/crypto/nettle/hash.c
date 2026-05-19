@@ -31,7 +31,7 @@ struct crypto_hash {
 	} ctx;
 
 	void (*update)(void* ctx, size_t len, const uint8_t* src);
-	void (*digest)(void* ctx, size_t len, uint8_t* dst);
+	void (*digest)(void* ctx, uint8_t* dst);
 };
 
 struct crypto_hash* crypto_hash_new(enum crypto_hash_type type)
@@ -75,27 +75,27 @@ void crypto_hash_append(struct crypto_hash* self, const uint8_t* src,
 	self->update(&self->ctx, len, src);
 }
 
-void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst, size_t len)
+void crypto_hash_digest(struct crypto_hash* self, uint8_t* dst)
 {
-	self->digest(&self->ctx, len, dst);
+	self->digest(&self->ctx, dst);
 }
 
-void crypto_hash_one(uint8_t* dst, size_t dst_len, enum crypto_hash_type type,
+void crypto_hash_one(uint8_t* dst, enum crypto_hash_type type,
 		const uint8_t* src, size_t src_len)
 {
 	struct crypto_hash *hash = crypto_hash_new(type);
 	crypto_hash_append(hash, src, src_len);
-	crypto_hash_digest(hash, dst, dst_len);
+	crypto_hash_digest(hash, dst);
 	crypto_hash_del(hash);
 }
 
-void crypto_hash_many(uint8_t* dst, size_t dst_len, enum crypto_hash_type type,
+void crypto_hash_many(uint8_t* dst, enum crypto_hash_type type,
 		const struct crypto_data_entry *src)
 {
 	struct crypto_hash *hash = crypto_hash_new(type);
 	for (int i = 0; src[i].data && src[i].len; ++i)
 		crypto_hash_append(hash, src[i].data, src[i].len);
-	crypto_hash_digest(hash, dst, dst_len);
+	crypto_hash_digest(hash, dst);
 	crypto_hash_del(hash);
 }
 

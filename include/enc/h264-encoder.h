@@ -27,7 +27,7 @@ typedef void (*h264_encoder_packet_handler_fn)(const void* payload, size_t size,
 
 struct h264_encoder_impl {
 	struct h264_encoder* (*create)(uint32_t width, uint32_t height,
-			uint32_t format, int quality);
+			uint32_t format, int quality, bool hw);
 	void (*destroy)(struct h264_encoder*);
 	void (*feed)(struct h264_encoder*, struct nvnc_frame*);
 };
@@ -40,7 +40,7 @@ struct h264_encoder {
 };
 
 struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
-		uint32_t format, int quality);
+		uint32_t format, int quality, bool hw);
 
 void h264_encoder_destroy(struct h264_encoder*);
 

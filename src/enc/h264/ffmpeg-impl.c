@@ -17,9 +17,11 @@
 #include "enc/h264-encoder.h"
 #include "neatvnc.h"
 #include "frame.h"
+#include "pixels.h"
 #include "sys/queue.h"
 #include "vec.h"
 #include "usdt.h"
+#include "rfb-proto.h"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -62,6 +64,9 @@ struct h264_encoder_ffmpeg {
 
 	AVRational timebase;
 	enum AVPixelFormat av_pixel_format;
+
+	/** Flag whether to use hardware encoding. */
+	bool hw;
 
 	/* type: AVHWDeviceContext */
 	AVBufferRef* hw_device_ctx;
@@ -107,6 +112,13 @@ static enum AVPixelFormat drm_to_av_pixel_format(uint32_t format)
 	return AV_PIX_FMT_NONE;
 }
 
+static inline void log_libav_error(char* msg, int rc)
+{
+	char err[256];
+	av_strerror(rc, err, sizeof(err));
+	nvnc_log(NVNC_LOG_ERROR, "%s: %s", msg, err);
+}
+
 static void hw_frame_desc_free(void* opaque, uint8_t* data)
 {
 	struct AVDRMFrameDescriptor* desc = (void*)data;
@@ -119,55 +131,92 @@ static void hw_frame_desc_free(void* opaque, uint8_t* data)
 }
 
 // TODO: Maybe do this once per frame inside nvnc_frame?
-static AVFrame* fb_to_avframe(struct nvnc_frame* fb)
+static AVFrame* fb_to_avframe(struct h264_encoder_ffmpeg* self, struct nvnc_frame* fb)
 {
-	struct gbm_bo* bo = fb->buffer->bo;
+	AVDRMFrameDescriptor* desc = NULL;
+	if (self->hw) {
+		struct gbm_bo* bo = fb->buffer->bo;
 
-	int n_planes = gbm_bo_get_plane_count(bo);
+		int n_planes = gbm_bo_get_plane_count(bo);
 
-	AVDRMFrameDescriptor* desc = calloc(1, sizeof(*desc));
-	desc->nb_objects = n_planes;
+		desc = calloc(1, sizeof(*desc));
+		desc->nb_objects = n_planes;
 
-	desc->nb_layers = 1;
-	desc->layers[0].format = gbm_bo_get_format(bo);
-	desc->layers[0].nb_planes = n_planes;
-
-	for (int i = 0; i < n_planes; ++i) {
-		uint32_t stride = gbm_bo_get_stride_for_plane(bo, i);
-
-		desc->objects[i].fd = gbm_bo_get_fd_for_plane(bo, i);
-		desc->objects[i].size = stride * fb->height;
-		desc->objects[i].format_modifier = gbm_bo_get_modifier(bo);
-
+		desc->nb_layers = 1;
 		desc->layers[0].format = gbm_bo_get_format(bo);
-		desc->layers[0].planes[i].object_index = i;
-		desc->layers[0].planes[i].offset = gbm_bo_get_offset(bo, i);
-		desc->layers[0].planes[i].pitch = stride;
+		desc->layers[0].nb_planes = n_planes;
+
+		for (int i = 0; i < n_planes; ++i) {
+			uint32_t stride = gbm_bo_get_stride_for_plane(bo, i);
+
+			desc->objects[i].fd = gbm_bo_get_fd_for_plane(bo, i);
+			desc->objects[i].size = stride * fb->height;
+			desc->objects[i].format_modifier = gbm_bo_get_modifier(bo);
+
+			desc->layers[0].format = gbm_bo_get_format(bo);
+			desc->layers[0].planes[i].object_index = i;
+			desc->layers[0].planes[i].offset = gbm_bo_get_offset(bo, i);
+			desc->layers[0].planes[i].pitch = stride;
+		}
 	}
 
 	AVFrame* frame = av_frame_alloc();
 	if (!frame) {
-		hw_frame_desc_free(NULL, (void*)desc);
+		if (self->hw)
+			hw_frame_desc_free(NULL, (void*)desc);
 		return NULL;
 	}
 
-	frame->opaque = fb;
+	if (self->hw)
+		frame->opaque = fb;
 	frame->width = fb->width;
 	frame->height = fb->height;
-	frame->format = AV_PIX_FMT_DRM_PRIME;
+	frame->format = self->hw ? AV_PIX_FMT_DRM_PRIME : self->av_pixel_format;
 	frame->sample_aspect_ratio = (AVRational){1, 1};
 	frame->pts = fb->pts;
 
-	AVBufferRef* desc_ref = av_buffer_create((void*)desc, sizeof(*desc),
-			hw_frame_desc_free, NULL, 0);
-	if (!desc_ref) {
-		hw_frame_desc_free(NULL, (void*)desc);
-		av_frame_free(&frame);
-		return NULL;
-	}
+	if (self->hw) {
+		AVBufferRef* desc_ref = av_buffer_create((void*)desc, sizeof(*desc),
+				hw_frame_desc_free, NULL, 0);
+		if (!desc_ref) {
+			hw_frame_desc_free(NULL, (void*)desc);
+			av_frame_free(&frame);
+			return NULL;
+		}
 
-	frame->buf[0] = desc_ref;
-	frame->data[0] = (void*)desc_ref->data;
+		frame->buf[0] = desc_ref;
+		frame->data[0] = (void*)desc_ref->data;
+	}	else {
+		int rc = av_frame_get_buffer(frame, 0);
+		if (rc < 0) {
+			log_libav_error("av_frame_get_buffer failed", rc);
+			av_frame_free(&frame);
+			return NULL;
+		}
+
+		struct rfb_pixel_format src_fmt;
+		rc = rfb_pixfmt_from_fourcc(&src_fmt,
+				nvnc_frame_get_fourcc_format(fb));
+		if (rc < 0) {
+			nvnc_log(NVNC_LOG_WARNING, "rfb_pixfmt_from_fourcc failed. Assuming 32bpp.");
+			src_fmt.bits_per_pixel = 32;
+		}
+
+		int32_t stride = fb->stride * src_fmt.bits_per_pixel / 8;
+		if (nvnc_buffer_map(fb->buffer, fb->width, fb->height, &stride) < 0) {
+			nvnc_log(NVNC_LOG_ERROR, "nvnc_buffer_map failed");
+			av_frame_free(&frame);
+			return NULL;
+		}
+
+		for (int y = 0; y < fb->height; y++) {
+			memcpy(frame->data[0] + y * frame->linesize[0],
+						 (uint8_t*)fb->buffer->addr + y * stride,
+						 fb->width * 4);
+		}
+
+		nvnc_buffer_unmap(fb->buffer);
+	}
 
 	// sRGB:
 	frame->colorspace = AVCOL_SPC_RGB;
@@ -217,12 +266,13 @@ static int h264_encoder__init_buffersrc(struct h264_encoder_ffmpeg* self)
 	if (!params)
 		return -1;
 
-	params->format = AV_PIX_FMT_DRM_PRIME;
+	params->format = self->hw ? AV_PIX_FMT_DRM_PRIME : self->av_pixel_format;
 	params->width = self->width;
 	params->height = self->height;
 	params->sample_aspect_ratio = (AVRational){1, 1};
 	params->time_base = self->timebase;
-	params->hw_frames_ctx = self->hw_frames_ctx;
+	if (self->hw)
+		params->hw_frames_ctx = self->hw_frames_ctx;
 #if LIBAVFILTER_VERSION_INT >= AV_VERSION_INT(9, 16, 100)
 	params->color_space = AVCOL_SPC_RGB;
 	params->color_range = AVCOL_RANGE_JPEG;
@@ -279,20 +329,31 @@ static int h264_encoder__init_filters(struct h264_encoder_ffmpeg* self)
 	outputs->pad_idx = 0;
 	outputs->next = NULL;
 
-	rc = avfilter_graph_parse(self->filter_graph,
-			"hwmap=mode=direct:derive_device=vaapi"
-			",scale_vaapi=format=nv12:mode=fast"
-			":out_color_matrix=bt709:out_range=limited"
-			":out_color_primaries=bt709:out_color_transfer=bt709",
-			outputs, inputs, NULL);
+	if (self->hw) {
+		rc = avfilter_graph_parse(self->filter_graph,
+				"hwmap=mode=direct:derive_device=vaapi"
+				",scale_vaapi=format=nv12:mode=fast"
+				":out_color_matrix=bt709:out_range=limited"
+				":out_color_primaries=bt709:out_color_transfer=bt709",
+				outputs, inputs, NULL);
+	}	else {
+		rc = avfilter_graph_parse(self->filter_graph,
+				"format=pix_fmts=yuv420p"
+				":out_color_matrix=bt709:out_range=limited"
+				":out_color_primaries=bt709:out_color_transfer=bt709",
+				outputs, inputs, NULL);
+	}
+
 	if (rc != 0)
 		goto failure;
 
-	assert(self->hw_device_ctx);
+	if (self->hw) {
+		assert(self->hw_device_ctx);
 
-	for (unsigned int i = 0; i < self->filter_graph->nb_filters; ++i) {
-		self->filter_graph->filters[i]->hw_device_ctx =
-			av_buffer_ref(self->hw_device_ctx);
+		for (unsigned int i = 0; i < self->filter_graph->nb_filters; ++i) {
+			self->filter_graph->filters[i]->hw_device_ctx =
+				av_buffer_ref(self->hw_device_ctx);
+		}
 	}
 
 	rc = avfilter_graph_config(self->filter_graph, NULL);
@@ -318,7 +379,7 @@ static int h264_encoder__init_codec_context(struct h264_encoder_ffmpeg* self,
 	c->height = self->height;
 	c->time_base = self->timebase;
 	c->sample_aspect_ratio = (AVRational){1, 1};
-	c->pix_fmt = AV_PIX_FMT_VAAPI;
+	c->pix_fmt = self->hw ? AV_PIX_FMT_VAAPI : AV_PIX_FMT_YUV420P;
 	c->gop_size = INT32_MAX; /* We'll select key frames manually */
 	c->max_b_frames = 0; /* B-frames are bad for latency */
 	c->global_quality = quality;
@@ -374,24 +435,29 @@ static void h264_encoder__teardown_pipeline(struct h264_encoder_ffmpeg* self)
 	avfilter_graph_free(&self->filter_graph);
 	self->filter_in = NULL;
 	self->filter_out = NULL;
-	av_buffer_unref(&self->hw_frames_ctx);
-	av_buffer_unref(&self->hw_device_ctx);
+	if (self->hw) {
+		av_buffer_unref(&self->hw_frames_ctx);
+		av_buffer_unref(&self->hw_device_ctx);
+	}
 }
 
 static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
 		const char* render_node)
 {
-	const AVCodec* codec = avcodec_find_encoder_by_name("h264_vaapi");
+	const AVCodec* codec = avcodec_find_encoder_by_name(self-> hw ? "h264_vaapi" : "libx264");
 	if (!codec)
 		return -1;
 
-	int rc = av_hwdevice_ctx_create(&self->hw_device_ctx,
-			AV_HWDEVICE_TYPE_DRM, render_node, NULL, 0);
-	if (rc != 0)
-		return -1;
+	int rc = 0;
+	if (self->hw) {
+		rc = av_hwdevice_ctx_create(&self->hw_device_ctx,
+				AV_HWDEVICE_TYPE_DRM, render_node, NULL, 0);
+		if (rc != 0)
+			return -1;
 
-	if (h264_encoder__init_hw_frames_context(self) < 0)
-		goto hw_frames_failure;
+		if (h264_encoder__init_hw_frames_context(self) < 0)
+			goto hw_frames_failure;
+	}
 
 	if (h264_encoder__init_filters(self) < 0)
 		goto filter_failure;
@@ -399,11 +465,18 @@ static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
 	if (h264_encoder__init_codec_context(self, codec, self->quality) < 0)
 		goto codec_ctx_failure;
 
-	self->codec_ctx->hw_frames_ctx =
-		av_buffer_ref(av_buffersink_get_hw_frames_ctx(self->filter_out));
+	if (self->hw) {
+		self->codec_ctx->hw_frames_ctx =
+			av_buffer_ref(av_buffersink_get_hw_frames_ctx(self->filter_out));
+	}
 
 	AVDictionary *opts = NULL;
-	av_dict_set_int(&opts, "async_depth", 1, 0);
+	if (self->hw) {
+		av_dict_set_int(&opts, "async_depth", 1, 0);
+	}	else {
+		av_dict_set(&opts, "preset", "ultrafast", 0); /* Reduce encoding latency. */
+		av_dict_set(&opts, "tune", "zerolatency", 0); /* Generate packets immediately. */
+	}
 
 	rc = avcodec_open2(self->codec_ctx, codec, &opts);
 	av_dict_free(&opts);
@@ -411,8 +484,10 @@ static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
 	if (rc != 0)
 		goto avcodec_open_failure;
 
-	strncpy(self->render_node, render_node, sizeof(self->render_node) - 1);
-	self->render_node[sizeof(self->render_node) - 1] = '\0';
+	if (self->hw) {
+		strncpy(self->render_node, render_node, sizeof(self->render_node) - 1);
+		self->render_node[sizeof(self->render_node) - 1] = '\0';
+	}
 
 	return 0;
 
@@ -423,9 +498,11 @@ codec_ctx_failure:
 	self->filter_in = NULL;
 	self->filter_out = NULL;
 filter_failure:
-	av_buffer_unref(&self->hw_frames_ctx);
+	if (self->hw)
+		av_buffer_unref(&self->hw_frames_ctx);
 hw_frames_failure:
-	av_buffer_unref(&self->hw_device_ctx);
+	if (self->hw)
+		av_buffer_unref(&self->hw_device_ctx);
 	return -1;
 }
 
@@ -498,31 +575,34 @@ static void h264_encoder__do_work(struct aml_work* work)
 {
 	struct h264_encoder_ffmpeg* self = aml_get_userdata(work);
 
-	char render_node[64];
-	if (get_render_node_from_bo(self->current_fb->buffer->bo, render_node,
-				sizeof(render_node)) < 0) {
-		nvnc_log(NVNC_LOG_ERROR, "Failed to get render node from gbm_bo");
-		return;
-	}
-
-	if (strcmp(render_node, self->render_node) != 0) {
-		nvnc_log(NVNC_LOG_INFO,
-				"Render node changed to %s, reinitialising encoder",
-				render_node);
-		h264_encoder__teardown_pipeline(self);
-		if (h264_encoder__init_pipeline(self, render_node) < 0) {
-			nvnc_log(NVNC_LOG_ERROR,
-					"Failed to reinitialise encoder on %s",
-					render_node);
+	if (self->hw) {
+		char render_node[64];
+		if (get_render_node_from_bo(self->current_fb->buffer->bo, render_node,
+					sizeof(render_node)) < 0) {
+			nvnc_log(NVNC_LOG_ERROR, "Failed to get render node from gbm_bo");
 			return;
 		}
-		self->current_frame_is_keyframe = true;
+
+		if (strcmp(render_node, self->render_node) != 0) {
+			nvnc_log(NVNC_LOG_INFO,
+					"Render node changed to %s, reinitialising encoder",
+					render_node);
+			h264_encoder__teardown_pipeline(self);
+			if (h264_encoder__init_pipeline(self, render_node) < 0) {
+				nvnc_log(NVNC_LOG_ERROR,
+						"Failed to reinitialise encoder on %s",
+						render_node);
+				return;
+			}
+			self->current_frame_is_keyframe = true;
+		}
 	}
 
-	AVFrame* frame = fb_to_avframe(self->current_fb);
+	AVFrame* frame = fb_to_avframe(self, self->current_fb);
 	assert(frame); // TODO
 
-	frame->hw_frames_ctx = av_buffer_ref(self->hw_frames_ctx);
+	if (self->hw)
+		frame->hw_frames_ctx = av_buffer_ref(self->hw_frames_ctx);
 
 	if (self->current_frame_is_keyframe) {
 #if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(58, 7, 100)
@@ -542,9 +622,7 @@ static void h264_encoder__do_work(struct aml_work* work)
 
 	int rc = h264_encoder__encode(self, frame);
 	if (rc != 0) {
-		char err[256];
-		av_strerror(rc, err, sizeof(err));
-		nvnc_log(NVNC_LOG_ERROR, "Failed to encode packet: %s", err);
+		log_libav_error("Failed to encode packet", rc);
 		goto failure;
 	}
 
@@ -610,12 +688,13 @@ static int find_render_node(char *node, size_t maxlen) {
 }
 
 static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
-		uint32_t height, uint32_t format, int quality)
+		uint32_t height, uint32_t format, int quality, bool hw)
 {
 	struct h264_encoder_ffmpeg* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;
 
+	self->hw = hw;
 	self->base.impl = &h264_encoder_ffmpeg_impl;
 
 	if (vec_init(&self->current_packet, 65536) < 0)
@@ -639,8 +718,10 @@ static struct h264_encoder* h264_encoder_ffmpeg_create(uint32_t width,
 		goto pix_fmt_failure;
 
 	char render_node[64];
-	if (find_render_node(render_node, sizeof(render_node)) < 0)
-		goto pix_fmt_failure;
+	if	(self->hw) {
+		if (find_render_node(render_node, sizeof(render_node)) < 0)
+			goto pix_fmt_failure;
+	}
 
 	if (h264_encoder__init_pipeline(self, render_node) < 0)
 		goto pix_fmt_failure;
@@ -675,7 +756,8 @@ static void h264_encoder_ffmpeg_feed(struct h264_encoder* base,
 		struct nvnc_frame* fb)
 {
 	struct h264_encoder_ffmpeg* self = (struct h264_encoder_ffmpeg*)base;
-	assert(fb->buffer->type == NVNC_BUFFER_GBM_BO);
+	if (self->hw)
+		assert(fb->buffer->type == NVNC_BUFFER_GBM_BO);
 
 	// TODO: Add transform filter
 	assert(fb->transform == NVNC_TRANSFORM_NORMAL);

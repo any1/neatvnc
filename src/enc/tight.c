@@ -555,7 +555,8 @@ static void on_tight_finished(struct aml_work* work)
 	struct tight_encoder* self = aml_get_userdata(work);
 
 	struct nvnc_frame_metadata* metadata = self->composite_fb.metadata;
-	nvnc_frame_metadata_ref(metadata);
+	if (metadata)
+		nvnc_frame_metadata_ref(metadata);
 
 	nvnc_composite_fb_unref(&self->composite_fb);
 	memset(&self->composite_fb, 0, sizeof(self->composite_fb));

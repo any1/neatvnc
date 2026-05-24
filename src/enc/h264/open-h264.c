@@ -371,7 +371,8 @@ static int open_h264_encode(struct encoder* enc,
 
 	assert(!self->pending_metadata);
 	self->pending_metadata = composite->metadata;
-	nvnc_frame_metadata_ref(self->pending_metadata);
+	if (self->pending_metadata)
+		nvnc_frame_metadata_ref(self->pending_metadata);
 
 	nvnc_trace("Scheduled encoding for %d rects", self->frame_barrier);
 

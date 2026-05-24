@@ -50,6 +50,20 @@ static void pixel32_to_cpixel(uint8_t* restrict dst,
 	assert(dst_fmt->depth <= 32);
 	assert(bytes_per_cpixel <= 4 && bytes_per_cpixel >= 1);
 
+	if (src_fmt->bits_per_pixel == dst_fmt->bits_per_pixel &&
+	    src_fmt->depth == dst_fmt->depth &&
+	    src_fmt->big_endian_flag == dst_fmt->big_endian_flag &&
+	    src_fmt->red_shift == dst_fmt->red_shift &&
+	    src_fmt->red_max == dst_fmt->red_max &&
+	    src_fmt->green_shift == dst_fmt->green_shift &&
+	    src_fmt->green_max == dst_fmt->green_max &&
+	    src_fmt->blue_shift == dst_fmt->blue_shift &&
+	    src_fmt->blue_max == dst_fmt->blue_max)
+	{
+		memcpy(dst, src, len * bytes_per_cpixel);
+		return;
+	}
+
 	uint32_t src_red_shift = src_fmt->red_shift;
 	uint32_t src_green_shift = src_fmt->green_shift;
 	uint32_t src_blue_shift = src_fmt->blue_shift;

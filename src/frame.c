@@ -314,6 +314,7 @@ void nvnc_frame_get_effective_logical_size(const struct nvnc_frame *self,
 void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
 		struct nvnc_frame* fbs[])
 {
+	memset(self, 0, sizeof(*self));
 	int i;
 	for (i = 0; fbs[i]; ++i) {
 		self->fbs[i] = fbs[i];

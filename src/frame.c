@@ -293,6 +293,29 @@ void nvnc_frame_unmap(struct nvnc_frame* fb)
 	nvnc_buffer_unmap(fb->buffer);
 }
 
+void nvnc_frame_copy_region(const struct nvnc_frame* frame,
+		const struct nvnc_frame_copy_options* options)
+{
+	struct nvnc_pixel_format src_fmt;
+	nvnc_pixel_format_from_fourcc(&src_fmt, frame->fourcc_format);
+
+	int32_t src_byte_stride = frame->stride * src_fmt.bytes_per_pixel;
+	const uint8_t* src = (const uint8_t*)frame->buffer->addr +
+			options->crop.y * src_byte_stride +
+			options->crop.x * src_fmt.bytes_per_pixel;
+
+	int32_t dst_byte_stride = options->stride *
+			options->format->bytes_per_pixel;
+	uint8_t* dst = options->buffer;
+
+	for (int y = 0; y < options->crop.height; ++y) {
+		nvnc_convert_pixels(dst, options->format, src, &src_fmt,
+				options->crop.width);
+		src += src_byte_stride;
+		dst += dst_byte_stride;
+	}
+}
+
 void nvnc_frame_get_effective_logical_size(const struct nvnc_frame *self,
 		uint16_t *width, uint16_t *height)
 {

@@ -29,6 +29,7 @@
 
 struct nvnc_frame_pool;
 struct nvnc_desktop_layout;
+struct nvnc_pixel_format;
 
 struct nvnc_frame_metadata {
 	int ref;
@@ -60,6 +61,15 @@ struct nvnc_composite_fb {
 	struct nvnc_frame_metadata* metadata;
 };
 
+struct nvnc_frame_copy_options {
+	struct { uint16_t x, y, width, height; } crop;
+	struct {
+		uint8_t* buffer;
+		int32_t stride;
+		const struct nvnc_pixel_format* format;
+	};
+};
+
 struct nvnc_frame_metadata* nvnc_frame_metadata_new(void);
 void nvnc_frame_metadata_ref(struct nvnc_frame_metadata*);
 void nvnc_frame_metadata_unref(struct nvnc_frame_metadata*);
@@ -69,6 +79,9 @@ void nvnc_frame_get_effective_logical_size(const struct nvnc_frame* self,
 
 int nvnc_frame_map(struct nvnc_frame* fb);
 void nvnc_frame_unmap(struct nvnc_frame* fb);
+
+void nvnc_frame_copy_region(const struct nvnc_frame* frame,
+		const struct nvnc_frame_copy_options* options);
 
 void nvnc_composite_fb_init(struct nvnc_composite_fb* self,
 		struct nvnc_frame* fbs[]);

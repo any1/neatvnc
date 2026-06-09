@@ -95,16 +95,13 @@ static int zrle_get_tile_palette(uint8_t* palette, const uint8_t* src,
 }
 
 static void zrle_encode_unichrome_tile(struct vec* dst,
-		const struct nvnc_pixel_format* dst_fmt,
-		uint8_t* colour,
-		const struct nvnc_pixel_format* src_fmt)
+		const struct nvnc_pixel_format* dst_fmt, uint8_t* colour)
 {
 	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
 
 	vec_fast_append_8(dst, 1);
 
-	nvnc_convert_pixels(((uint8_t*)dst->data) + 1, dst_fmt, colour,
-			src_fmt, 1);
+	memcpy(((uint8_t*)dst->data) + 1, colour, bytes_per_cpixel);
 
 	dst->len += bytes_per_cpixel;
 }
@@ -128,72 +125,61 @@ static void encode_run_length(struct vec* dst, uint8_t index, int run_length)
 
 static void zrle_encode_packed_tile(struct vec* dst,
 		const struct nvnc_pixel_format* dst_fmt,
-		const uint8_t* src,
-		const struct nvnc_pixel_format* src_fmt,
-		size_t length, uint8_t* palette,
+		const uint8_t* src, size_t length, uint8_t* palette,
 		int palette_size)
 {
 	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
-	int src_bpp = src_fmt->bytes_per_pixel;
-
-	uint8_t cpalette[16 * 4];
-	nvnc_convert_pixels(cpalette, dst_fmt, palette, src_fmt, palette_size);
 
 	vec_fast_append_8(dst, 128 | palette_size);
 
-	vec_append(dst, cpalette, palette_size * bytes_per_cpixel);
+	vec_append(dst, palette, palette_size * bytes_per_cpixel);
 
 	int index;
 	int run_length = 1;
 
 	for (size_t i = 1; i < length; ++i) {
-		if (memcmp(src + i * src_bpp, src + (i - 1) * src_bpp, src_bpp) == 0) {
+		if (memcmp(src + i * bytes_per_cpixel,
+				src + (i - 1) * bytes_per_cpixel,
+				bytes_per_cpixel) == 0) {
 			run_length++;
 			continue;
 		}
 
-		index = find_colour_in_palette(palette, palette_size, src + (i - 1) * src_bpp, src_bpp);
+		index = find_colour_in_palette(palette, palette_size,
+				src + (i - 1) * bytes_per_cpixel,
+				bytes_per_cpixel);
 		encode_run_length(dst, index, run_length);
 		run_length = 1;
 	}
 
 	if (run_length > 0) {
 		index = find_colour_in_palette(palette, palette_size,
-				src + (length - 1) * src_bpp, src_bpp);
+				src + (length - 1) * bytes_per_cpixel,
+				bytes_per_cpixel);
 		encode_run_length(dst, index, run_length);
 	}
 }
 
-static void zrle_copy_tile(uint8_t* tile, const uint8_t* src, int src_bpp,
-		int stride, int width, int height)
-{
-	int byte_stride = stride * src_bpp;
-	for (int y = 0; y < height; ++y)
-		memcpy(tile + y * width * src_bpp, src + y * byte_stride, width * src_bpp);
-}
-
 static void zrle_encode_tile(struct vec* dst,
 		const struct nvnc_pixel_format* dst_fmt,
-		const uint8_t* src,
-		const struct nvnc_pixel_format* src_fmt,
-		size_t length)
+		const uint8_t* src, size_t length)
 {
 	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
-	int src_bpp = src_fmt->bytes_per_pixel;
 	vec_clear(dst);
 
 	uint8_t palette[16 * 4];
-	int palette_size = zrle_get_tile_palette(palette, src, src_bpp, length);
+	int palette_size = zrle_get_tile_palette(palette, src, bytes_per_cpixel,
+			length);
 
 	if (palette_size == 1) {
-		zrle_encode_unichrome_tile(dst, dst_fmt, &palette[0], src_fmt);
+		zrle_encode_unichrome_tile(dst, dst_fmt, &palette[0]);
 		return;
 	}
 
 	if (palette_size > 1) {
 		int len_before = dst->len;
-		zrle_encode_packed_tile(dst, dst_fmt, src, src_fmt,
-				length, palette, palette_size);
+		zrle_encode_packed_tile(dst, dst_fmt, src, length, palette,
+				palette_size);
 
 		if (dst->len - len_before <= 1 + bytes_per_cpixel * length)
 			return;
@@ -204,21 +190,18 @@ static void zrle_encode_tile(struct vec* dst,
 
 	vec_fast_append_8(dst, 0);
 
-	nvnc_convert_pixels(((uint8_t*)dst->data) + 1, dst_fmt, (uint8_t*)src,
-			src_fmt, length);
+	memcpy(((uint8_t*)dst->data) + 1, src, bytes_per_cpixel * length);
 
 	dst->len += bytes_per_cpixel * length;
 }
 
 static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		const struct nvnc_pixel_format* dst_fmt,
-		const struct nvnc_frame* fb,
-		const struct nvnc_pixel_format* src_fmt, int x, int y,
-		int stride, int width, int height)
+		const struct nvnc_frame* fb, int x, int y, int width,
+		int height)
 {
 	int r = -1;
 	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
-	int src_bpp = src_fmt->bytes_per_pixel;
 	struct vec in;
 
 	uint16_t x_pos = fb->x_off;
@@ -253,15 +236,16 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		                          ? TILE_LENGTH
 		                          : height - tile_y;
 
-		int y_off = (y + tile_y) * stride * src_bpp;
-		int x_off = (x + tile_x) * src_bpp;
+		struct nvnc_frame_copy_options options = {
+			.crop = { x + tile_x, y + tile_y, tile_width,
+				tile_height },
+			.buffer = tile,
+			.stride = tile_width,
+			.format = dst_fmt,
+		};
+		nvnc_frame_copy_region(fb, &options);
 
-		zrle_copy_tile(tile,
-				((uint8_t*)fb->buffer->addr) + x_off + y_off, src_bpp,
-				stride, tile_width, tile_height);
-
-		zrle_encode_tile(&in, dst_fmt, tile, src_fmt,
-				tile_width * tile_height);
+		zrle_encode_tile(&in, dst_fmt, tile, tile_width * tile_height);
 
 		parallel_deflate_feed(self->zs, out, in.data, in.len);
 	}
@@ -280,8 +264,7 @@ failure:
 
 static int zrle_encode_frame(struct zrle_encoder* self,
 		struct vec* dst, const struct nvnc_pixel_format* dst_fmt,
-		struct nvnc_frame* src, const struct nvnc_pixel_format* src_fmt,
-		struct pixman_region16* region)
+		struct nvnc_frame* src, struct pixman_region16* region)
 {
 	int rc __attribute__((unused)) = -1;
 
@@ -298,9 +281,9 @@ static int zrle_encode_frame(struct zrle_encoder* self,
 		int box_width = box[i].x2 - x;
 		int box_height = box[i].y2 - y;
 
-		rc = zrle_encode_box(self, dst, dst_fmt, src, src_fmt,
+		rc = zrle_encode_box(self, dst, dst_fmt, src,
 				x - src->x_off, y - src->y_off,
-				src->stride, box_width, box_height);
+				box_width, box_height);
 		if (rc < 0)
 			return -1;
 	}
@@ -373,13 +356,8 @@ static void zrle_encoder_do_work(struct aml_work* work)
 		struct nvnc_frame* fb = cfb->fbs[i];
 		assert(fb);
 
-		struct nvnc_pixel_format src_fmt;
-		rc = nvnc_pixel_format_from_fourcc(&src_fmt,
-				nvnc_frame_get_fourcc_format(fb));
-		nvnc_assert(rc == 0, "Unsupported pixel format");
-
 		rc = zrle_encode_frame(self, &dst, &cpixel_format, fb,
-				&src_fmt, &subregions[i]);
+				&subregions[i]);
 		nvnc_assert(rc == 0, "Failed to encode frame");
 	}
 

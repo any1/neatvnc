@@ -77,7 +77,7 @@ struct tight_encoder {
 
 	struct nvnc_pixel_format dfmt;
 
-	struct nvnc_pixel_format sfmt[NVNC_FB_COMPOSITE_MAX];
+	uint8_t tile_buf[4][TSL * TSL * 4];
 	struct nvnc_composite_fb composite_fb;
 
 	uint64_t pts;
@@ -320,7 +320,7 @@ static int tight_deflate(struct tight_tile* tile, void* src,
 
 static void tight_encode_tile_basic(struct tight_encoder* self,
 		struct tight_tile* tile, int fb_index, uint32_t x,
-		uint32_t y_start, uint32_t width, uint32_t height, int zs_index)
+		uint32_t y, uint32_t width, uint32_t height, int zs_index)
 {
 	z_stream* zs = &self->zs[zs_index];
 	tile->type = TIGHT_BASIC | TIGHT_STREAM(zs_index);
@@ -335,25 +335,23 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 
 	int bytes_per_cpixel = cfmt.bytes_per_pixel;
 	assert(bytes_per_cpixel <= 4);
-	uint8_t row[TSL * 4];
 
 	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
-	uint8_t* addr = nvnc_frame_get_addr(fb);
-	int32_t bpp = self->sfmt[fb_index].bytes_per_pixel;
-	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
-	int32_t xoff = x * bpp;
-	// TODO: Limit width and hight to the sides
-	for (uint32_t y = y_start; y < y_start + height; ++y) {
-		uint8_t* img = addr + xoff + y * byte_stride;
-		nvnc_convert_pixels(row, &cfmt, img, &self->sfmt[fb_index],
-				width);
+	uint8_t* buf = self->tile_buf[zs_index];
 
-		// TODO What to do if the buffer fills up?
-		if (tight_deflate(tile, row, bytes_per_cpixel * width,
-				zs, y == y_start + height - 1) < 0)
-			abort();
-	}
+	// TODO: Limit width and height to the sides
+	struct nvnc_frame_copy_options options = {
+		.crop = { x, y, width, height },
+		.buffer = buf,
+		.stride = width,
+		.format = &cfmt,
+	};
+	nvnc_frame_copy_region(fb, &options);
 
+	// TODO: What to do if the buffer fills up?
+	if (tight_deflate(tile, buf, bytes_per_cpixel * width * height,
+			zs, true) < 0)
+		abort();
 }
 
 #ifdef HAVE_JPEG
@@ -403,7 +401,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 		return -1;
 
 	uint8_t* addr = nvnc_frame_get_addr(fb);
-	int32_t bpp = self->sfmt[fb_index].bytes_per_pixel;
+	int32_t bpp = nvnc__pixel_size_from_fourcc(fourcc);
 	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
 	int32_t xoff = x * bpp;
 	uint8_t* img = addr + xoff + y * byte_stride;
@@ -635,15 +633,6 @@ static int tight_encoder_encode(struct encoder* encoder,
 {
 	struct tight_encoder* self = tight_encoder(encoder);
 	int rc;
-
-	for (int i = 0; i < composite_fb->n_fbs; ++i) {
-		struct nvnc_frame* fb = composite_fb->fbs[i];
-		assert(fb);
-
-		rc = nvnc_pixel_format_from_fourcc(&self->sfmt[i],
-				nvnc_frame_get_fourcc_format(fb));
-		nvnc_assert(rc == 0, "Unhandled pixel format for input buffer");
-	}
 
 	nvnc_composite_fb_copy(&self->composite_fb, composite_fb);
 	self->pts = nvnc_composite_fb_pts(composite_fb);

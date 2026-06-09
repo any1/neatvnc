@@ -53,9 +53,8 @@ static inline struct raw_encoder* raw_encoder(struct encoder* encoder)
 
 static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 		const struct nvnc_pixel_format* dst_fmt,
-		const struct nvnc_frame* fb,
-		const struct nvnc_pixel_format* src_fmt, int x_start,
-		int y_start, int stride, int width, int height)
+		const struct nvnc_frame* fb, int x_start, int y_start,
+		int width, int height)
 {
 	uint16_t x_pos = fb->x_off;
 	uint16_t y_pos = fb->y_off;
@@ -67,11 +66,6 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 	if (rc < 0)
 		return -1;
 
-	uint8_t* b = fb->buffer->addr;
-	int32_t src_bpp = src_fmt->bytes_per_pixel;
-	int32_t xoff = x_start * src_bpp;
-	int32_t src_stride = fb->stride * src_bpp;
-
 	int bpp = dst_fmt->bytes_per_pixel;
 
 	rc = vec_reserve(dst, width * height * bpp + dst->len);
@@ -80,11 +74,14 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 
 	uint8_t* d = dst->data;
 
-	for (int y = y_start; y < y_start + height; ++y) {
-		nvnc_convert_pixels(d + dst->len, dst_fmt,
-				b + xoff + y * src_stride, src_fmt, width);
-		dst->len += width * bpp;
-	}
+	struct nvnc_frame_copy_options options = {
+		.crop = { x_start, y_start, width, height },
+		.buffer = d + dst->len,
+		.stride = width,
+		.format = dst_fmt,
+	};
+	nvnc_frame_copy_region(fb, &options);
+	dst->len += width * height * bpp;
 
 	return 0;
 }
@@ -132,11 +129,6 @@ static void raw_encoder_do_work(struct aml_work* work)
 		struct nvnc_frame* fb = ctx->composite_fb.fbs[i];
 		assert(fb);
 
-		struct nvnc_pixel_format src_fmt;
-		rc = nvnc_pixel_format_from_fourcc(&src_fmt,
-				nvnc_frame_get_fourcc_format(fb));
-		assert(rc == 0);
-
 		rc = nvnc_frame_map(fb);
 		nvnc_assert(rc == 0, "Failed to map framebuffer for encoding");
 
@@ -151,8 +143,8 @@ static void raw_encoder_do_work(struct aml_work* work)
 			int box_height = box[i].y2 - y;
 
 			rc = raw_encode_box(ctx, &dst, &ctx->output_format, fb,
-					&src_fmt, x - fb->x_off, y - fb->y_off,
-					fb->stride, box_width, box_height);
+					x - fb->x_off, y - fb->y_off,
+					box_width, box_height);
 			nvnc_assert(rc == 0, "Failed to encode box");
 		}
 	}

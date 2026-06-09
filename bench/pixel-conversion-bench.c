@@ -94,9 +94,9 @@ static int run_permutation(uint32_t src_fmt, uint32_t dst_fmt)
 	stopwatch_start(&stopwatch);
 
 	for (int y = 0; y < HEIGHT; ++y)
-		pixel_to_cpixel((uint8_t*)dst + (size_t)y * dst_stride,
+		nvnc_convert_pixels((uint8_t*)dst + (size_t)y * dst_stride,
 				&dst_pixfmt, src_addr + (size_t)y * WIDTH * src_bpp,
-				&src_pixfmt, dst_bpp, WIDTH);
+				&src_pixfmt, WIDTH);
 
 	uint64_t dt_cpu = stopwatch_cpu_us(&stopwatch);
 

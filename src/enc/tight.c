@@ -325,15 +325,17 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	z_stream* zs = &self->zs[zs_index];
 	tile->type = TIGHT_BASIC | TIGHT_STREAM(zs_index);
 
-	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(&self->dfmt);
+	struct nvnc_pixel_format cfmt;
+	if (self->dfmt.bytes_per_pixel == 4 && self->dfmt.red_size == 8 &&
+			self->dfmt.green_size == 8 &&
+			self->dfmt.blue_size == 8)
+		nvnc_pixel_format_from_fourcc(&cfmt, DRM_FORMAT_BGR888);
+	else
+		cfmt = self->dfmt;
+
+	int bytes_per_cpixel = cfmt.bytes_per_pixel;
 	assert(bytes_per_cpixel <= 4);
 	uint8_t row[TSL * 4];
-
-	struct nvnc_pixel_format cfmt = { 0 };
-	if (bytes_per_cpixel == 3)
-		nvnc_pixel_format_from_fourcc(&cfmt, DRM_FORMAT_XBGR8888);
-	else
-		memcpy(&cfmt, &self->dfmt, sizeof(cfmt));
 
 	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
 	uint8_t* addr = nvnc_frame_get_addr(fb);
@@ -343,8 +345,8 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	// TODO: Limit width and hight to the sides
 	for (uint32_t y = y_start; y < y_start + height; ++y) {
 		uint8_t* img = addr + xoff + y * byte_stride;
-		pixel_to_cpixel(row, &cfmt, img, &self->sfmt[fb_index],
-				bytes_per_cpixel, width);
+		nvnc_convert_pixels(row, &cfmt, img, &self->sfmt[fb_index],
+				width);
 
 		// TODO What to do if the buffer fills up?
 		if (tight_deflate(tile, row, bytes_per_cpixel * width,

@@ -403,34 +403,41 @@ static NEVER_INLINE void convert_pixels_dst1(uint8_t* restrict dst,
 	}
 }
 
-void pixel_to_cpixel(uint8_t* restrict dst,
+void nvnc_pixel_format_to_cpixel(struct nvnc_pixel_format* dst,
+		const struct nvnc_pixel_format* src)
+{
+	*dst = *src;
+
+	if (src->bytes_per_pixel != 4)
+		return;
+
+	dst->bytes_per_pixel = UDIV_UP(nvnc_pixel_format_depth(src), 8);
+	if (dst->bytes_per_pixel != 3)
+		return;
+
+	uint32_t min_shift = dst->red_shift;
+	if (min_shift > dst->green_shift)
+		min_shift = dst->green_shift;
+	if (min_shift > dst->blue_shift)
+		min_shift = dst->blue_shift;
+
+	dst->red_shift -= min_shift;
+	dst->green_shift -= min_shift;
+	dst->blue_shift -= min_shift;
+}
+
+void nvnc_convert_pixels(uint8_t* restrict dst,
 		const struct nvnc_pixel_format* dst_fmt,
 		const uint8_t* restrict src,
-		const struct nvnc_pixel_format* src_fmt,
-		size_t bytes_per_cpixel, size_t len)
+		const struct nvnc_pixel_format* src_fmt, size_t len)
 {
 	assert(src_fmt->bytes_per_pixel <= 4);
-	assert(dst_fmt->bytes_per_pixel <= 4);
-	assert(bytes_per_cpixel <= 4 && bytes_per_cpixel >= 1);
+	assert(dst_fmt->bytes_per_pixel >= 1 && dst_fmt->bytes_per_pixel <= 4);
 
 	struct nvnc_format_conversion_recipe recipe = {
 		.src = *src_fmt,
 		.dst = *dst_fmt,
 	};
-	recipe.dst.bytes_per_pixel = bytes_per_cpixel;
-
-	if (bytes_per_cpixel == 3 && dst_fmt->bytes_per_pixel == 4 &&
-			nvnc_pixel_format_depth(dst_fmt) <= 24) {
-		uint32_t min_shift = recipe.dst.red_shift;
-		if (min_shift > recipe.dst.green_shift)
-			min_shift = recipe.dst.green_shift;
-		if (min_shift > recipe.dst.blue_shift)
-			min_shift = recipe.dst.blue_shift;
-
-		recipe.dst.red_shift -= min_shift;
-		recipe.dst.green_shift -= min_shift;
-		recipe.dst.blue_shift -= min_shift;
-	}
 
 	switch (recipe.dst.bytes_per_pixel) {
 	case 4: convert_pixels_dst4(dst, src, len, &recipe); break;

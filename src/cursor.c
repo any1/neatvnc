@@ -75,7 +75,7 @@ int cursor_encode(struct vec* dst, struct nvnc_pixel_format* pixfmt,
 	uint8_t* dstdata = dst->data;
 	dstdata += dst->len;
 
-	pixel_to_cpixel(dstdata, pixfmt, fb->buffer->addr, &srcfmt, bpp, size);
+	nvnc_convert_pixels(dstdata, pixfmt, fb->buffer->addr, &srcfmt, size);
 
 	dst->len += size * bpp;
 	dstdata = dst->data;

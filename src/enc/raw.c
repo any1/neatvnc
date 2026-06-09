@@ -81,9 +81,8 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 	uint8_t* d = dst->data;
 
 	for (int y = y_start; y < y_start + height; ++y) {
-		pixel_to_cpixel(d + dst->len, dst_fmt,
-				b + xoff + y * src_stride, src_fmt,
-				bpp, width);
+		nvnc_convert_pixels(d + dst->len, dst_fmt,
+				b + xoff + y * src_stride, src_fmt, width);
 		dst->len += width * bpp;
 	}
 

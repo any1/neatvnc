@@ -44,11 +44,10 @@ struct nvnc_pixel_format {
 
 extern const uint32_t nvnc_supported_pixel_formats[];
 
-void pixel_to_cpixel(uint8_t* restrict dst,
+void nvnc_convert_pixels(uint8_t* restrict dst,
 		const struct nvnc_pixel_format* dst_fmt,
 		const uint8_t* restrict src,
-		const struct nvnc_pixel_format* src_fmt,
-		size_t bytes_per_cpixel, size_t len);
+		const struct nvnc_pixel_format* src_fmt, size_t len);
 
 int nvnc_pixel_format_from_fourcc(struct nvnc_pixel_format* dst, uint32_t src);
 void nvnc_pixel_format_from_rfb(struct nvnc_pixel_format* dst,
@@ -56,6 +55,8 @@ void nvnc_pixel_format_from_rfb(struct nvnc_pixel_format* dst,
 void nvnc_pixel_format_to_rfb(struct rfb_pixel_format* dst,
 		const struct nvnc_pixel_format* src);
 int nvnc_pixel_format_depth(const struct nvnc_pixel_format* fmt);
+void nvnc_pixel_format_to_cpixel(struct nvnc_pixel_format* dst,
+		const struct nvnc_pixel_format* src);
 
 int nvnc__pixel_size_from_fourcc(uint32_t fourcc);
 

@@ -99,12 +99,12 @@ static void zrle_encode_unichrome_tile(struct vec* dst,
 		uint8_t* colour,
 		const struct nvnc_pixel_format* src_fmt)
 {
-	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
 
 	vec_fast_append_8(dst, 1);
 
-	pixel_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, colour, src_fmt,
-			bytes_per_cpixel, 1);
+	nvnc_convert_pixels(((uint8_t*)dst->data) + 1, dst_fmt, colour,
+			src_fmt, 1);
 
 	dst->len += bytes_per_cpixel;
 }
@@ -133,12 +133,11 @@ static void zrle_encode_packed_tile(struct vec* dst,
 		size_t length, uint8_t* palette,
 		int palette_size)
 {
-	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
 	int src_bpp = src_fmt->bytes_per_pixel;
 
 	uint8_t cpalette[16 * 4];
-	pixel_to_cpixel(cpalette, dst_fmt, palette, src_fmt,
-			bytes_per_cpixel, palette_size);
+	nvnc_convert_pixels(cpalette, dst_fmt, palette, src_fmt, palette_size);
 
 	vec_fast_append_8(dst, 128 | palette_size);
 
@@ -179,7 +178,7 @@ static void zrle_encode_tile(struct vec* dst,
 		const struct nvnc_pixel_format* src_fmt,
 		size_t length)
 {
-	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
 	int src_bpp = src_fmt->bytes_per_pixel;
 	vec_clear(dst);
 
@@ -205,8 +204,8 @@ static void zrle_encode_tile(struct vec* dst,
 
 	vec_fast_append_8(dst, 0);
 
-	pixel_to_cpixel(((uint8_t*)dst->data) + 1, dst_fmt, (uint8_t*)src, src_fmt,
-			bytes_per_cpixel, length);
+	nvnc_convert_pixels(((uint8_t*)dst->data) + 1, dst_fmt, (uint8_t*)src,
+			src_fmt, length);
 
 	dst->len += bytes_per_cpixel * length;
 }
@@ -218,7 +217,7 @@ static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
 		int stride, int width, int height)
 {
 	int r = -1;
-	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
+	int bytes_per_cpixel = dst_fmt->bytes_per_pixel;
 	int src_bpp = src_fmt->bytes_per_pixel;
 	struct vec in;
 
@@ -362,6 +361,9 @@ static void zrle_encoder_do_work(struct aml_work* work)
 	struct pixman_region16 subregions[NVNC_FB_COMPOSITE_MAX] = { 0 };
 	zlre_encoder_init_damage_subregions(self, subregions);
 
+	struct nvnc_pixel_format cpixel_format;
+	nvnc_pixel_format_to_cpixel(&cpixel_format, &self->output_format);
+
 	struct vec dst;
 	nvnc_assert(zrle_encoder_alloc_output_buffer(self, &dst) >= 0, "OOM");
 
@@ -376,7 +378,7 @@ static void zrle_encoder_do_work(struct aml_work* work)
 				nvnc_frame_get_fourcc_format(fb));
 		nvnc_assert(rc == 0, "Unsupported pixel format");
 
-		rc = zrle_encode_frame(self, &dst, &self->output_format, fb,
+		rc = zrle_encode_frame(self, &dst, &cpixel_format, fb,
 				&src_fmt, &subregions[i]);
 		nvnc_assert(rc == 0, "Failed to encode frame");
 	}

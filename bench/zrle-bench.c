@@ -203,8 +203,8 @@ static int run_benchmark(const char *image)
 	int height = nvnc_frame_get_height(fb);
 	int stride = nvnc_frame_get_stride(fb);
 
-	struct rfb_pixel_format pixfmt;
-	rfb_pixfmt_from_fourcc(&pixfmt, DRM_FORMAT_ARGB8888);
+	struct nvnc_pixel_format pixfmt;
+	nvnc_pixel_format_from_fourcc(&pixfmt, DRM_FORMAT_ARGB8888);
 
 	struct pixman_region16 region;
 	pixman_region_init(&region);

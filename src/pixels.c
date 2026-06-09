@@ -161,21 +161,8 @@
 	+ GREEN_SIZE(c1, c2, c3, c4, a, b, c, d) \
 	+ BLUE_SIZE(c1, c2, c3, c4, a, b, c, d))
 
-struct nvnc_pixel_format_description {
-	uint32_t bytes_per_pixel;
-	uint32_t red_shift;
-	uint32_t green_shift;
-	uint32_t blue_shift;
-	uint32_t red_size;
-	uint32_t green_size;
-	uint32_t blue_size;
-	uint32_t red_max;
-	uint32_t green_max;
-	uint32_t blue_max;
-};
-
 struct nvnc_format_conversion_recipe {
-	struct nvnc_pixel_format_description src, dst;
+	struct nvnc_pixel_format src, dst;
 };
 
 const uint32_t nvnc_supported_pixel_formats[] = {
@@ -192,8 +179,8 @@ const uint32_t nvnc_supported_pixel_formats[] = {
 static ALWAYS_INLINE uint32_t convert_pixel(uint32_t px,
 		const struct nvnc_format_conversion_recipe* restrict recipe)
 {
-	const struct nvnc_pixel_format_description* restrict s = &recipe->src;
-	const struct nvnc_pixel_format_description* restrict d = &recipe->dst;
+	const struct nvnc_pixel_format* restrict s = &recipe->src;
+	const struct nvnc_pixel_format* restrict d = &recipe->dst;
 
 	uint32_t r = ((px >> s->red_shift) & s->red_max)
 		<< d->red_size >> s->red_size << d->red_shift;
@@ -417,49 +404,23 @@ static NEVER_INLINE void convert_pixels_dst1(uint8_t* restrict dst,
 }
 
 void pixel_to_cpixel(uint8_t* restrict dst,
-		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_pixel_format* dst_fmt,
 		const uint8_t* restrict src,
-		const struct rfb_pixel_format* src_fmt,
+		const struct nvnc_pixel_format* src_fmt,
 		size_t bytes_per_cpixel, size_t len)
 {
-	assert(src_fmt->true_colour_flag);
-	assert(src_fmt->depth <= 32);
-	assert(dst_fmt->true_colour_flag);
-	assert(dst_fmt->bits_per_pixel <= 32);
-	assert(dst_fmt->depth <= 32);
+	assert(src_fmt->bytes_per_pixel <= 4);
+	assert(dst_fmt->bytes_per_pixel <= 4);
 	assert(bytes_per_cpixel <= 4 && bytes_per_cpixel >= 1);
 
-	struct nvnc_format_conversion_recipe recipe;
-	recipe.src.bytes_per_pixel = src_fmt->bits_per_pixel / 8;
-
-	recipe.src.red_shift = src_fmt->red_shift;
-	recipe.src.green_shift = src_fmt->green_shift;
-	recipe.src.blue_shift = src_fmt->blue_shift;
-
-	recipe.src.red_max = src_fmt->red_max;
-	recipe.src.green_max = src_fmt->green_max;
-	recipe.src.blue_max = src_fmt->blue_max;
-
-	recipe.src.red_size = POPCOUNT(src_fmt->red_max);
-	recipe.src.green_size = POPCOUNT(src_fmt->green_max);
-	recipe.src.blue_size = POPCOUNT(src_fmt->blue_max);
-
+	struct nvnc_format_conversion_recipe recipe = {
+		.src = *src_fmt,
+		.dst = *dst_fmt,
+	};
 	recipe.dst.bytes_per_pixel = bytes_per_cpixel;
 
-	recipe.dst.red_shift = dst_fmt->red_shift;
-	recipe.dst.green_shift = dst_fmt->green_shift;
-	recipe.dst.blue_shift = dst_fmt->blue_shift;
-
-	recipe.dst.red_max = dst_fmt->red_max;
-	recipe.dst.green_max = dst_fmt->green_max;
-	recipe.dst.blue_max = dst_fmt->blue_max;
-
-	recipe.dst.red_size = POPCOUNT(dst_fmt->red_max);
-	recipe.dst.green_size = POPCOUNT(dst_fmt->green_max);
-	recipe.dst.blue_size = POPCOUNT(dst_fmt->blue_max);
-
-	if (bytes_per_cpixel == 3 && dst_fmt->bits_per_pixel == 32 &&
-			dst_fmt->depth <= 24) {
+	if (bytes_per_cpixel == 3 && dst_fmt->bytes_per_pixel == 4 &&
+			nvnc_pixel_format_depth(dst_fmt) <= 24) {
 		uint32_t min_shift = recipe.dst.red_shift;
 		if (min_shift > recipe.dst.green_shift)
 			min_shift = recipe.dst.green_shift;
@@ -480,7 +441,7 @@ void pixel_to_cpixel(uint8_t* restrict dst,
 	}
 }
 
-int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src)
+int nvnc_pixel_format_from_fourcc(struct nvnc_pixel_format* dst, uint32_t src)
 {
 	assert(!(src & DRM_FORMAT_BIG_ENDIAN));
 
@@ -488,8 +449,10 @@ int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src)
 	dst->red_shift = RED_SHIFT(c1, c2, c3, c4, a, b, c, d); \
 	dst->green_shift = GREEN_SHIFT(c1, c2, c3, c4, a, b, c, d); \
 	dst->blue_shift = BLUE_SHIFT(c1, c2, c3, c4, a, b, c, d); \
-	dst->bits_per_pixel = BPP_FROM_SIZES(a, b, c, d); \
-	dst->depth = RGB_DEPTH(c1, c2, c3, c4, a, b, c, d); \
+	dst->bytes_per_pixel = BPP_FROM_SIZES(a, b, c, d) / 8; \
+	dst->red_size = RED_SIZE(c1, c2, c3, c4, a, b, c, d); \
+	dst->green_size = GREEN_SIZE(c1, c2, c3, c4, a, b, c, d); \
+	dst->blue_size = BLUE_SIZE(c1, c2, c3, c4, a, b, c, d); \
 	dst->red_max = (1 << RED_SIZE(c1, c2, c3, c4, a, b, c, d)) - 1; \
 	dst->green_max = (1 << GREEN_SIZE(c1, c2, c3, c4, a, b, c, d)) - 1; \
 	dst->blue_max = (1 << BLUE_SIZE(c1, c2, c3, c4, a, b, c, d)) - 1; \
@@ -513,10 +476,53 @@ int rfb_pixfmt_from_fourcc(struct rfb_pixel_format *dst, uint32_t src)
 
 #undef BODY
 
+	return 0;
+}
+
+void nvnc_pixel_format_from_rfb(struct nvnc_pixel_format* dst,
+		const struct rfb_pixel_format* src)
+{
+	dst->bytes_per_pixel = src->bits_per_pixel / 8;
+
+	dst->red_max = ntohs(src->red_max);
+	dst->green_max = ntohs(src->green_max);
+	dst->blue_max = ntohs(src->blue_max);
+
+	dst->red_size = POPCOUNT(dst->red_max);
+	dst->green_size = POPCOUNT(dst->green_max);
+	dst->blue_size = POPCOUNT(dst->blue_max);
+
+	if (src->big_endian_flag) {
+		dst->red_shift = src->bits_per_pixel - src->red_shift
+			- dst->red_size;
+		dst->green_shift = src->bits_per_pixel - src->green_shift
+			- dst->green_size;
+		dst->blue_shift = src->bits_per_pixel - src->blue_shift
+			- dst->blue_size;
+	} else {
+		dst->red_shift = src->red_shift;
+		dst->green_shift = src->green_shift;
+		dst->blue_shift = src->blue_shift;
+	}
+}
+
+void nvnc_pixel_format_to_rfb(struct rfb_pixel_format* dst,
+		const struct nvnc_pixel_format* src)
+{
+	memset(dst, 0, sizeof(*dst));
+
+	dst->bits_per_pixel = src->bytes_per_pixel * 8;
+	dst->depth = nvnc_pixel_format_depth(src);
 	dst->big_endian_flag = 0;
 	dst->true_colour_flag = 1;
 
-	return 0;
+	dst->red_max = htons(src->red_max);
+	dst->green_max = htons(src->green_max);
+	dst->blue_max = htons(src->blue_max);
+
+	dst->red_shift = src->red_shift;
+	dst->green_shift = src->green_shift;
+	dst->blue_shift = src->blue_shift;
 }
 
 int nvnc__pixel_size_from_fourcc(uint32_t fourcc)
@@ -701,10 +707,11 @@ const char* drm_format_to_string(uint32_t fmt)
 	return "UNKNOWN";
 }
 
-const char* rfb_pixfmt_to_string(const struct rfb_pixel_format* fmt)
+const char* nvnc_pixel_format_to_string(const struct nvnc_pixel_format* fmt)
 {
-	uint32_t profile = (fmt->bits_per_pixel << 24) | (fmt->red_shift << 16)
-		| (fmt->green_shift << 8) | (fmt->blue_shift);
+	uint32_t profile = (fmt->bytes_per_pixel * 8 << 24)
+		| (fmt->red_shift << 16) | (fmt->green_shift << 8)
+		| (fmt->blue_shift);
 
 #define FMT_PROFILE(c1, c2, c3, c4, a, b, c, d) \
 	((BPP_FROM_SIZES(a, b, c, d) << 24) \
@@ -810,15 +817,9 @@ static bool format_has_alpha(uint32_t format)
 	return false;
 }
 
-/* The client does not always report accurate depth.
- */
-int rfb_pixfmt_depth(const struct rfb_pixel_format *fmt)
+int nvnc_pixel_format_depth(const struct nvnc_pixel_format* fmt)
 {
-	unsigned int r = fmt->red_max;
-	unsigned int g = fmt->green_max;
-	unsigned int b = fmt->blue_max;
-
-	return POPCOUNT(r) + POPCOUNT(g) + POPCOUNT(b);
+	return fmt->red_size + fmt->green_size + fmt->blue_size;
 }
 
 // All AMD modifiers except DCC are allowed
@@ -883,19 +884,4 @@ double rate_pixel_format(uint32_t format, uint64_t modifier,
 	return (depth_weight * depth_rating
 	     + linear_weight * linear_rating
 	     + alpha_weight * alpha_rating) / total_weight;
-}
-
-void rfb_pixfmt_ensure_little_endian(struct rfb_pixel_format* fmt)
-{
-	if (!fmt->true_colour_flag || !fmt->big_endian_flag)
-		return;
-
-	int red_bits = POPCOUNT(fmt->red_max);
-	int green_bits = POPCOUNT(fmt->green_max);
-	int blue_bits = POPCOUNT(fmt->blue_max);
-
-	fmt->red_shift = fmt->bits_per_pixel - fmt->red_shift - red_bits;
-	fmt->green_shift = fmt->bits_per_pixel - fmt->green_shift - green_bits;
-	fmt->blue_shift = fmt->bits_per_pixel - fmt->blue_shift - blue_bits;
-	fmt->big_endian_flag = 0;
 }

@@ -80,9 +80,10 @@ static int run_permutation(uint32_t src_fmt, uint32_t dst_fmt)
 		return -1;
 	}
 
-	struct rfb_pixel_format src_pixfmt, dst_pixfmt;
-	if (rfb_pixfmt_from_fourcc(&src_pixfmt, src_fmt) < 0 ||
-			rfb_pixfmt_from_fourcc(&dst_pixfmt, dst_fmt) < 0) {
+	struct nvnc_pixel_format src_pixfmt, dst_pixfmt;
+	if (nvnc_pixel_format_from_fourcc(&src_pixfmt, src_fmt) < 0 ||
+			nvnc_pixel_format_from_fourcc(&dst_pixfmt,
+				dst_fmt) < 0) {
 		fprintf(stderr, "Unsupported pixel format\n");
 		free(dst);
 		nvnc_frame_unref(src);

@@ -23,6 +23,7 @@
 
 struct encoder;
 struct nvnc_composite_fb;
+struct nvnc_pixel_format;
 struct pixman_region16;
 
 enum encoder_impl_flags {
@@ -36,7 +37,7 @@ struct encoder_impl {
 	void (*destroy)(struct encoder*);
 
 	void (*set_output_format)(struct encoder*,
-			const struct rfb_pixel_format*);
+			const struct nvnc_pixel_format*);
 	void (*set_quality)(struct encoder*, int quality);
 
 	int (*encode)(struct encoder*, struct nvnc_composite_fb* fb,
@@ -76,7 +77,7 @@ enum rfb_encodings encoder_get_type(const struct encoder* self);
 enum encoder_kind encoder_get_kind(const struct encoder* self);
 
 void encoder_set_output_format(struct encoder* self,
-		const struct rfb_pixel_format*);
+		const struct nvnc_pixel_format*);
 void encoder_set_quality(struct encoder* self, int value);
 
 int encoder_encode(struct encoder* self, struct nvnc_composite_fb* fb,

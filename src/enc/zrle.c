@@ -41,7 +41,7 @@ struct encoder* zrle_encoder_new(void);
 struct zrle_encoder {
 	struct encoder encoder;
 
-	struct rfb_pixel_format output_format;
+	struct nvnc_pixel_format output_format;
 
 	struct nvnc_composite_fb current_fb;
 	struct pixman_region16 current_damage;
@@ -95,9 +95,9 @@ static int zrle_get_tile_palette(uint8_t* palette, const uint8_t* src,
 }
 
 static void zrle_encode_unichrome_tile(struct vec* dst,
-		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_pixel_format* dst_fmt,
 		uint8_t* colour,
-		const struct rfb_pixel_format* src_fmt)
+		const struct nvnc_pixel_format* src_fmt)
 {
 	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
 
@@ -127,14 +127,14 @@ static void encode_run_length(struct vec* dst, uint8_t index, int run_length)
 }
 
 static void zrle_encode_packed_tile(struct vec* dst,
-		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_pixel_format* dst_fmt,
 		const uint8_t* src,
-		const struct rfb_pixel_format* src_fmt,
+		const struct nvnc_pixel_format* src_fmt,
 		size_t length, uint8_t* palette,
 		int palette_size)
 {
 	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
-	int src_bpp = src_fmt->bits_per_pixel / 8;
+	int src_bpp = src_fmt->bytes_per_pixel;
 
 	uint8_t cpalette[16 * 4];
 	pixel_to_cpixel(cpalette, dst_fmt, palette, src_fmt,
@@ -174,13 +174,13 @@ static void zrle_copy_tile(uint8_t* tile, const uint8_t* src, int src_bpp,
 }
 
 static void zrle_encode_tile(struct vec* dst,
-		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_pixel_format* dst_fmt,
 		const uint8_t* src,
-		const struct rfb_pixel_format* src_fmt,
+		const struct nvnc_pixel_format* src_fmt,
 		size_t length)
 {
 	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
-	int src_bpp = src_fmt->bits_per_pixel / 8;
+	int src_bpp = src_fmt->bytes_per_pixel;
 	vec_clear(dst);
 
 	uint8_t palette[16 * 4];
@@ -212,14 +212,14 @@ static void zrle_encode_tile(struct vec* dst,
 }
 
 static int zrle_encode_box(struct zrle_encoder* self, struct vec* out,
-		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_pixel_format* dst_fmt,
 		const struct nvnc_frame* fb,
-		const struct rfb_pixel_format* src_fmt, int x, int y,
+		const struct nvnc_pixel_format* src_fmt, int x, int y,
 		int stride, int width, int height)
 {
 	int r = -1;
 	int bytes_per_cpixel = nvnc__calc_bytes_per_cpixel(dst_fmt);
-	int src_bpp = src_fmt->bits_per_pixel / 8;
+	int src_bpp = src_fmt->bytes_per_pixel;
 	struct vec in;
 
 	uint16_t x_pos = fb->x_off;
@@ -280,8 +280,8 @@ failure:
 }
 
 static int zrle_encode_frame(struct zrle_encoder* self,
-		struct vec* dst, const struct rfb_pixel_format* dst_fmt,
-		struct nvnc_frame* src, const struct rfb_pixel_format* src_fmt,
+		struct vec* dst, const struct nvnc_pixel_format* dst_fmt,
+		struct nvnc_frame* src, const struct nvnc_pixel_format* src_fmt,
 		struct pixman_region16* region)
 {
 	int rc __attribute__((unused)) = -1;
@@ -344,7 +344,7 @@ static int zrle_encoder_alloc_output_buffer(struct zrle_encoder* self,
 		struct vec* dst)
 {
 	int n_rects = pixman_region_n_rects(&self->current_damage);
-	size_t bpp = self->output_format.bits_per_pixel / 8;
+	size_t bpp = self->output_format.bytes_per_pixel;
 	size_t buffer_size = nvnc__calculate_region_area(&self->current_damage) * bpp
 		+ n_rects * sizeof(struct rfb_server_fb_rect);
 
@@ -371,8 +371,9 @@ static void zrle_encoder_do_work(struct aml_work* work)
 		struct nvnc_frame* fb = cfb->fbs[i];
 		assert(fb);
 
-		struct rfb_pixel_format src_fmt;
-		rc = rfb_pixfmt_from_fourcc(&src_fmt, nvnc_frame_get_fourcc_format(fb));
+		struct nvnc_pixel_format src_fmt;
+		rc = nvnc_pixel_format_from_fourcc(&src_fmt,
+				nvnc_frame_get_fourcc_format(fb));
 		nvnc_assert(rc == 0, "Unsupported pixel format");
 
 		rc = zrle_encode_frame(self, &dst, &self->output_format, fb,
@@ -464,7 +465,7 @@ static void zrle_encoder_destroy(struct encoder* encoder)
 }
 
 static void zrle_encoder_set_output_format(struct encoder* encoder,
-		const struct rfb_pixel_format* pixfmt)
+		const struct nvnc_pixel_format* pixfmt)
 {
 	struct zrle_encoder* self = zrle_encoder(encoder);
 	memcpy(&self->output_format, pixfmt, sizeof(self->output_format));

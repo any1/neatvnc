@@ -19,6 +19,7 @@
 #include "neatvnc.h"
 #include "config.h"
 #include "cut-text.h"
+#include "pixels.h"
 #include "rfb-proto.h"
 #include "weakref.h"
 #include "auth/auth.h"
@@ -74,7 +75,7 @@ struct nvnc_client {
 	struct nvnc* server;
 	enum nvnc_client_state state;
 	uint16_t rfb_minor_version;
-	struct rfb_pixel_format pixfmt;
+	struct nvnc_pixel_format pixfmt;
 	enum rfb_encodings encodings[MAX_ENCODINGS + 1];
 	size_t n_encodings;
 	LIST_ENTRY(nvnc_client) link;

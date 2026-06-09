@@ -30,7 +30,7 @@
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 
-int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
+int cursor_encode(struct vec* dst, struct nvnc_pixel_format* pixfmt,
 		struct nvnc_frame* image, uint32_t hotspot_x, uint32_t hotspot_y)
 {
 	int rc = -1;
@@ -55,8 +55,8 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 
 	composite_buffer_now(fb, &cfb, NULL);
 
-	struct rfb_pixel_format srcfmt = { 0 };
-	rc = rfb_pixfmt_from_fourcc(&srcfmt, fb->fourcc_format);
+	struct nvnc_pixel_format srcfmt = { 0 };
+	rc = nvnc_pixel_format_from_fourcc(&srcfmt, fb->fourcc_format);
 	if (rc < 0)
 		goto failure;
 
@@ -65,7 +65,7 @@ int cursor_encode(struct vec* dst, struct rfb_pixel_format* pixfmt,
 	if (rc < 0)
 		goto failure;
 
-	int bpp = pixfmt->bits_per_pixel / 8;
+	int bpp = pixfmt->bytes_per_pixel;
 	size_t size = width * height;
 
 	rc = vec_reserve(dst, dst->len + size * bpp + UDIV_UP(width, 8) * height);

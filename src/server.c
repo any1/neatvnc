@@ -631,7 +631,7 @@ static int send_server_init_message(struct nvnc_client* client)
 
 	uint32_t fourcc = nvnc_frame_get_fourcc_format(server->displays[0]->buffer);
 
-	if (rfb_pixfmt_from_fourcc(&client->pixfmt, fourcc) < 0) {
+	if (nvnc_pixel_format_from_fourcc(&client->pixfmt, fourcc) < 0) {
 		nvnc_log(NVNC_LOG_ERROR, "Failed to convert buffer format to RFB pixel format");
 		goto close;
 	}
@@ -640,8 +640,8 @@ static int send_server_init_message(struct nvnc_client* client)
 	 * internally, so we just nudge 24 to 32 before reporting the pixel
 	 * format to the client.
 	 */
-	if (client->pixfmt.bits_per_pixel == 24)
-		client->pixfmt.bits_per_pixel = 32;
+	if (client->pixfmt.bytes_per_pixel == 3)
+		client->pixfmt.bytes_per_pixel = 4;
 
 	struct rfb_server_init_msg* msg = calloc(1, size);
 	if (!msg)
@@ -652,11 +652,7 @@ static int send_server_init_message(struct nvnc_client* client)
 	msg->name_length = htonl(name_len);
 	memcpy(msg->name_string, server->name, name_len);
 
-	memcpy(&msg->pixel_format, &client->pixfmt, sizeof(msg->pixel_format));
-
-	msg->pixel_format.red_max = htons(msg->pixel_format.red_max);
-	msg->pixel_format.green_max = htons(msg->pixel_format.green_max);
-	msg->pixel_format.blue_max = htons(msg->pixel_format.blue_max);
+	nvnc_pixel_format_to_rfb(&msg->pixel_format, &client->pixfmt);
 
 	struct rcbuf* payload = rcbuf_new(msg, size);
 	stream_send(client->net_stream, payload, NULL, NULL);
@@ -709,16 +705,16 @@ static int on_init_message(struct nvnc_client* client)
 
 static int cook_pixel_map(struct nvnc_client* client)
 {
-	struct rfb_pixel_format* fmt = &client->pixfmt;
+	struct nvnc_pixel_format* fmt = &client->pixfmt;
 
 	// We'll just pretend that this is rgb332
-	fmt->true_colour_flag = true;
-	fmt->big_endian_flag = false;
-	fmt->bits_per_pixel = 8;
-	fmt->depth = 8;
+	fmt->bytes_per_pixel = 1;
 	fmt->red_max = 7;
 	fmt->green_max = 7;
 	fmt->blue_max = 3;
+	fmt->red_size = 3;
+	fmt->green_size = 3;
+	fmt->blue_size = 2;
 	fmt->red_shift = 5;
 	fmt->green_shift = 2;
 	fmt->blue_shift = 0;
@@ -744,12 +740,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	if (fmt->true_colour_flag) {
 		nvnc_log(NVNC_LOG_DEBUG, "Using true colour for client %p",
 				client);
-		fmt->red_max = ntohs(fmt->red_max);
-		fmt->green_max = ntohs(fmt->green_max);
-		fmt->blue_max = ntohs(fmt->blue_max);
-		memcpy(&client->pixfmt, fmt, sizeof(client->pixfmt));
-		client->pixfmt.depth = rfb_pixfmt_depth(&client->pixfmt);
-		rfb_pixfmt_ensure_little_endian(&client->pixfmt);
+		nvnc_pixel_format_from_rfb(&client->pixfmt, fmt);
 	} else {
 		nvnc_log(NVNC_LOG_DEBUG, "Using color palette for client %p",
 				client);
@@ -759,7 +750,7 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	client->formats_changed = true;
 
 	nvnc_log(NVNC_LOG_DEBUG, "Client %p chose pixel format: %s", client,
-			rfb_pixfmt_to_string(&client->pixfmt));
+			nvnc_pixel_format_to_string(&client->pixfmt));
 
 	return 4 + sizeof(struct rfb_pixel_format);
 }
@@ -3419,7 +3410,7 @@ static uint32_t find_highest_client_depth(const struct nvnc* self)
 
 	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link) {
-		int depth = rfb_pixfmt_depth(&client->pixfmt);
+		int depth = nvnc_pixel_format_depth(&client->pixfmt);
 		if (depth > max_depth)
 			max_depth = depth;
 	}

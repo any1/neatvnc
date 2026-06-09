@@ -16,6 +16,7 @@
 
 #include "enc/encoder.h"
 #include "enc/util.h"
+#include "pixels.h"
 #include "rfb-proto.h"
 #include "vec.h"
 
@@ -40,10 +41,12 @@ int nvnc__encode_rect_head(struct vec* dst, enum rfb_encodings encoding,
 	return vec_append(dst, &head, sizeof(head));
 }
 
-uint32_t nvnc__calc_bytes_per_cpixel(const struct rfb_pixel_format* fmt)
+uint32_t nvnc__calc_bytes_per_cpixel(const struct nvnc_pixel_format* fmt)
 {
-	return fmt->bits_per_pixel == 32 ? UDIV_UP(fmt->depth, 8)
-	                                 : UDIV_UP(fmt->bits_per_pixel, 8);
+	if (fmt->bytes_per_pixel != 4)
+		return fmt->bytes_per_pixel;
+
+	return UDIV_UP(nvnc_pixel_format_depth(fmt), 8);
 }
 
 uint32_t nvnc__calculate_region_area(struct pixman_region16* region)

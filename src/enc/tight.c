@@ -75,9 +75,9 @@ struct tight_encoder {
 	z_stream zs[4];
 	struct aml_work* zs_worker[4];
 
-	struct rfb_pixel_format dfmt;
+	struct nvnc_pixel_format dfmt;
 
-	struct rfb_pixel_format sfmt[NVNC_FB_COMPOSITE_MAX];
+	struct nvnc_pixel_format sfmt[NVNC_FB_COMPOSITE_MAX];
 	struct nvnc_composite_fb composite_fb;
 
 	uint64_t pts;
@@ -329,15 +329,15 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	assert(bytes_per_cpixel <= 4);
 	uint8_t row[TSL * 4];
 
-	struct rfb_pixel_format cfmt = { 0 };
+	struct nvnc_pixel_format cfmt = { 0 };
 	if (bytes_per_cpixel == 3)
-		rfb_pixfmt_from_fourcc(&cfmt, DRM_FORMAT_XBGR8888);
+		nvnc_pixel_format_from_fourcc(&cfmt, DRM_FORMAT_XBGR8888);
 	else
 		memcpy(&cfmt, &self->dfmt, sizeof(cfmt));
 
 	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
 	uint8_t* addr = nvnc_frame_get_addr(fb);
-	int32_t bpp = self->sfmt[fb_index].bits_per_pixel / 8;
+	int32_t bpp = self->sfmt[fb_index].bytes_per_pixel;
 	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
 	int32_t xoff = x * bpp;
 	// TODO: Limit width and hight to the sides
@@ -401,7 +401,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 		return -1;
 
 	uint8_t* addr = nvnc_frame_get_addr(fb);
-	int32_t bpp = self->sfmt[fb_index].bits_per_pixel / 8;
+	int32_t bpp = self->sfmt[fb_index].bytes_per_pixel;
 	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
 	int32_t xoff = x * bpp;
 	uint8_t* img = addr + xoff + y * byte_stride;
@@ -615,7 +615,7 @@ static void tight_encoder_destroy_wrapper(struct encoder* encoder)
 }
 
 static void tight_encoder_set_output_format(struct encoder* encoder,
-		const struct rfb_pixel_format* pixfmt)
+		const struct nvnc_pixel_format* pixfmt)
 {
 	struct tight_encoder* self = tight_encoder(encoder);
 	memcpy(&self->dfmt, pixfmt, sizeof(self->dfmt));
@@ -638,7 +638,7 @@ static int tight_encoder_encode(struct encoder* encoder,
 		struct nvnc_frame* fb = composite_fb->fbs[i];
 		assert(fb);
 
-		rc = rfb_pixfmt_from_fourcc(&self->sfmt[i],
+		rc = nvnc_pixel_format_from_fourcc(&self->sfmt[i],
 				nvnc_frame_get_fourcc_format(fb));
 		nvnc_assert(rc == 0, "Unhandled pixel format for input buffer");
 	}

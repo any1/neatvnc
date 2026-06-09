@@ -91,7 +91,7 @@ void encoder_unref(struct encoder* self)
 }
 
 void encoder_set_output_format(struct encoder* self,
-		const struct rfb_pixel_format* pixfmt)
+		const struct nvnc_pixel_format* pixfmt)
 {
 	if (self->impl->set_output_format)
 		self->impl->set_output_format(self, pixfmt);

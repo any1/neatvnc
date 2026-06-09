@@ -28,30 +28,30 @@ static bool test_pixel_to_cpixel_4bpp(void)
 	uint32_t dst;
 	uint8_t* src_addr = (uint8_t*)&src;
 
-	struct rfb_pixel_format dstfmt = { 0 }, srcfmt = { 0 };
+	struct nvnc_pixel_format dstfmt = { 0 }, srcfmt = { 0 };
 
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_RGBA8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_RGBA8888);
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&srcfmt, DRM_FORMAT_RGBA8888);
+	nvnc_pixel_format_from_fourcc(&srcfmt, DRM_FORMAT_RGBA8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if ((src & 0xffffff00u) != (dst & 0xffffff00u))
 		return false;
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_ABGR8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_ABGR8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x00332211u))
 		return false;
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_ARGB8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_ARGB8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x00112233u))
 		return false;
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_BGRA8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_BGRA8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x33221100u))
 		return false;
@@ -66,30 +66,30 @@ static bool test_pixel_to_cpixel_3bpp(void)
 	uint32_t dst;
 	uint8_t* src_addr = (uint8_t*)&src;
 
-	struct rfb_pixel_format dstfmt = { 0 }, srcfmt = { 0 };
+	struct nvnc_pixel_format dstfmt = { 0 }, srcfmt = { 0 };
 
-	rfb_pixfmt_from_fourcc(&srcfmt, DRM_FORMAT_RGB888);
+	nvnc_pixel_format_from_fourcc(&srcfmt, DRM_FORMAT_RGB888);
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_RGBA8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_RGBA8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x11223300u))
 		return false;
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_ABGR8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_ABGR8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x00332211u))
 		return false;
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_ARGB8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_ARGB8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x00112233u))
 		return false;
 
 	dst = 0;
-	rfb_pixfmt_from_fourcc(&dstfmt, DRM_FORMAT_BGRA8888);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_BGRA8888);
 	pixel_to_cpixel((uint8_t*)&dst, &dstfmt, src_addr, &srcfmt, 4, 1);
 	if (dst != u32_le(0x33221100u))
 		return false;
@@ -183,36 +183,36 @@ static bool test_drm_format_to_string(void)
 	return true;
 }
 
-static bool test_rfb_pixfmt_to_string(void)
+static bool test_nvnc_pixel_format_to_string(void)
 {
-	struct rfb_pixel_format rgbx8888;
-	struct rfb_pixel_format bgrx8888;
-	struct rfb_pixel_format xrgb8888;
-	struct rfb_pixel_format xbgr8888;
+	struct nvnc_pixel_format rgbx8888;
+	struct nvnc_pixel_format bgrx8888;
+	struct nvnc_pixel_format xrgb8888;
+	struct nvnc_pixel_format xbgr8888;
 
-	rfb_pixfmt_from_fourcc(&rgbx8888, DRM_FORMAT_RGBX8888);
-	rfb_pixfmt_from_fourcc(&bgrx8888, DRM_FORMAT_BGRX8888);
-	rfb_pixfmt_from_fourcc(&xrgb8888, DRM_FORMAT_XRGB8888);
-	rfb_pixfmt_from_fourcc(&xbgr8888, DRM_FORMAT_XBGR8888);
+	nvnc_pixel_format_from_fourcc(&rgbx8888, DRM_FORMAT_RGBX8888);
+	nvnc_pixel_format_from_fourcc(&bgrx8888, DRM_FORMAT_BGRX8888);
+	nvnc_pixel_format_from_fourcc(&xrgb8888, DRM_FORMAT_XRGB8888);
+	nvnc_pixel_format_from_fourcc(&xbgr8888, DRM_FORMAT_XBGR8888);
 
-	if (strcmp(rfb_pixfmt_to_string(&rgbx8888), "RGBX8888") != 0)
+	if (strcmp(nvnc_pixel_format_to_string(&rgbx8888), "RGBX8888") != 0)
 		return false;
 
-	if (strcmp(rfb_pixfmt_to_string(&bgrx8888), "BGRX8888") != 0)
+	if (strcmp(nvnc_pixel_format_to_string(&bgrx8888), "BGRX8888") != 0)
 		return false;
 
-	if (strcmp(rfb_pixfmt_to_string(&xrgb8888), "XRGB8888") != 0)
+	if (strcmp(nvnc_pixel_format_to_string(&xrgb8888), "XRGB8888") != 0)
 		return false;
 
-	if (strcmp(rfb_pixfmt_to_string(&xbgr8888), "XBGR8888") != 0)
+	if (strcmp(nvnc_pixel_format_to_string(&xbgr8888), "XBGR8888") != 0)
 		return false;
 
 	return true;
 }
 
-static bool test_rfb_pixfmt_ensure_little_endian(void)
+static bool test_nvnc_pixel_format_from_rfb_big_endian(void)
 {
-	struct rfb_pixel_format fmt = {
+	struct rfb_pixel_format rfb_fmt = {
 		.true_colour_flag = 1,
 		.big_endian_flag = 1,
 		.bits_per_pixel = 32,
@@ -220,14 +220,21 @@ static bool test_rfb_pixfmt_ensure_little_endian(void)
 		.red_shift = 16,
 		.green_shift = 8,
 		.blue_shift = 0,
-		.red_max = 255,
-		.green_max = 255,
-		.blue_max = 255,
+		.red_max = htons(255),
+		.green_max = htons(255),
+		.blue_max = htons(255),
 	};
 
-	rfb_pixfmt_ensure_little_endian(&fmt);
+	struct nvnc_pixel_format fmt;
+	nvnc_pixel_format_from_rfb(&fmt, &rfb_fmt);
 
-	return fmt.big_endian_flag == 0 &&
+	return fmt.bytes_per_pixel == 4 &&
+		fmt.red_max == 255 &&
+		fmt.green_max == 255 &&
+		fmt.blue_max == 255 &&
+		fmt.red_size == 8 &&
+		fmt.green_size == 8 &&
+		fmt.blue_size == 8 &&
 		fmt.red_shift == 8 &&
 		fmt.green_shift == 16 &&
 		fmt.blue_shift == 24;
@@ -240,7 +247,7 @@ int main()
 		test_fourcc_to_pixman_fmt() &&
 		test_extract_alpha_mask_rgba8888() &&
 		test_drm_format_to_string() &&
-		test_rfb_pixfmt_to_string() &&
-		test_rfb_pixfmt_ensure_little_endian();
+		test_nvnc_pixel_format_to_string() &&
+		test_nvnc_pixel_format_from_rfb_big_endian();
 	return ok ? 0 : 1;
 }

@@ -30,13 +30,13 @@ struct encoder* raw_encoder_new(void);
 
 struct raw_encoder {
 	struct encoder encoder;
-	struct rfb_pixel_format output_format;
+	struct nvnc_pixel_format output_format;
 	struct aml_work* work;
 };
 
 struct raw_encoder_work {
 	struct raw_encoder* parent;
-	struct rfb_pixel_format output_format;
+	struct nvnc_pixel_format output_format;
 	struct nvnc_composite_fb composite_fb;
 	struct pixman_region16 damage;
 	int n_rects;
@@ -52,9 +52,9 @@ static inline struct raw_encoder* raw_encoder(struct encoder* encoder)
 }
 
 static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
-		const struct rfb_pixel_format* dst_fmt,
+		const struct nvnc_pixel_format* dst_fmt,
 		const struct nvnc_frame* fb,
-		const struct rfb_pixel_format* src_fmt, int x_start,
+		const struct nvnc_pixel_format* src_fmt, int x_start,
 		int y_start, int stride, int width, int height)
 {
 	uint16_t x_pos = fb->x_off;
@@ -68,11 +68,11 @@ static int raw_encode_box(struct raw_encoder_work* ctx, struct vec* dst,
 		return -1;
 
 	uint8_t* b = fb->buffer->addr;
-	int32_t src_bpp = src_fmt->bits_per_pixel / 8;
+	int32_t src_bpp = src_fmt->bytes_per_pixel;
 	int32_t xoff = x_start * src_bpp;
 	int32_t src_stride = fb->stride * src_bpp;
 
-	int bpp = dst_fmt->bits_per_pixel / 8;
+	int bpp = dst_fmt->bytes_per_pixel;
 
 	rc = vec_reserve(dst, width * height * bpp + dst->len);
 	if (rc < 0)
@@ -121,7 +121,7 @@ static void raw_encoder_do_work(struct aml_work* work)
 		}
 	}
 
-	size_t bpp = ctx->output_format.bits_per_pixel / 8;
+	size_t bpp = ctx->output_format.bytes_per_pixel;
 	size_t buffer_size = nvnc__calculate_region_area(&ctx->damage) * bpp
 		+ n_rects * sizeof(struct rfb_server_fb_rect);
 
@@ -133,8 +133,8 @@ static void raw_encoder_do_work(struct aml_work* work)
 		struct nvnc_frame* fb = ctx->composite_fb.fbs[i];
 		assert(fb);
 
-		struct rfb_pixel_format src_fmt;
-		rc = rfb_pixfmt_from_fourcc(&src_fmt,
+		struct nvnc_pixel_format src_fmt;
+		rc = nvnc_pixel_format_from_fourcc(&src_fmt,
 				nvnc_frame_get_fourcc_format(fb));
 		assert(rc == 0);
 
@@ -208,7 +208,7 @@ static void raw_encoder_destroy(struct encoder* encoder)
 }
 
 static void raw_encoder_set_output_format(struct encoder* encoder,
-		const struct rfb_pixel_format* pixfmt)
+		const struct nvnc_pixel_format* pixfmt)
 {
 	struct raw_encoder* self = raw_encoder(encoder);
 	memcpy(&self->output_format, pixfmt, sizeof(self->output_format));

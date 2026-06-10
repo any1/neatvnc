@@ -162,7 +162,8 @@
 	+ BLUE_SIZE(c1, c2, c3, c4, a, b, c, d))
 
 struct nvnc_format_conversion_recipe {
-	struct nvnc_pixel_format src, dst;
+	const struct nvnc_pixel_format* restrict src;
+	const struct nvnc_pixel_format* restrict dst;
 };
 
 const uint32_t nvnc_supported_pixel_formats[] = {
@@ -177,10 +178,10 @@ const uint32_t nvnc_supported_pixel_formats[] = {
 };
 
 static ALWAYS_INLINE uint32_t convert_pixel(uint32_t px,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
-	const struct nvnc_pixel_format* restrict s = &recipe->src;
-	const struct nvnc_pixel_format* restrict d = &recipe->dst;
+	const struct nvnc_pixel_format* s = recipe->src;
+	const struct nvnc_pixel_format* d = recipe->dst;
 
 	uint32_t r = ((px >> s->red_shift) & s->red_max)
 		<< d->red_size >> s->red_size << d->red_shift;
@@ -193,7 +194,7 @@ static ALWAYS_INLINE uint32_t convert_pixel(uint32_t px,
 
 static ALWAYS_INLINE void convert_pixels_dst4_src(uint32_t src_bpp,
 		uint8_t* restrict dst, const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len--) {
 		uint32_t px = 0;
@@ -211,7 +212,7 @@ static ALWAYS_INLINE void convert_pixels_dst4_src(uint32_t src_bpp,
 
 static ALWAYS_INLINE void convert_pixels_dst4_src3(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len-- > 1) {
 		uint32_t px = 0;
@@ -239,9 +240,9 @@ static ALWAYS_INLINE void convert_pixels_dst4_src3(uint8_t* restrict dst,
 
 static NEVER_INLINE void convert_pixels_dst4(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
-	switch (recipe->src.bytes_per_pixel) {
+	switch (recipe->src->bytes_per_pixel) {
 	case 4: convert_pixels_dst4_src(4, dst, src, len, recipe); break;
 	case 3: convert_pixels_dst4_src3(dst, src, len, recipe); break;
 	case 2: convert_pixels_dst4_src(2, dst, src, len, recipe); break;
@@ -252,7 +253,7 @@ static NEVER_INLINE void convert_pixels_dst4(uint8_t* restrict dst,
 
 static ALWAYS_INLINE void convert_pixels_dst3_src(uint32_t src_bpp,
 		uint8_t* restrict dst, const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len--) {
 		uint32_t px = 0;
@@ -269,7 +270,7 @@ static ALWAYS_INLINE void convert_pixels_dst3_src(uint32_t src_bpp,
 
 static ALWAYS_INLINE void convert_pixels_dst3_src3(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len-- > 1) {
 		uint32_t px = 0;
@@ -295,9 +296,9 @@ static ALWAYS_INLINE void convert_pixels_dst3_src3(uint8_t* restrict dst,
 
 static NEVER_INLINE void convert_pixels_dst3(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
-	switch (recipe->src.bytes_per_pixel) {
+	switch (recipe->src->bytes_per_pixel) {
 	case 4: convert_pixels_dst3_src(4, dst, src, len, recipe); break;
 	case 3: convert_pixels_dst3_src3(dst, src, len, recipe); break;
 	case 2: convert_pixels_dst3_src(2, dst, src, len, recipe); break;
@@ -308,7 +309,7 @@ static NEVER_INLINE void convert_pixels_dst3(uint8_t* restrict dst,
 
 static ALWAYS_INLINE void convert_pixels_dst2_src(uint32_t src_bpp,
 		uint8_t* restrict dst, const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len--) {
 		uint32_t px = 0;
@@ -324,7 +325,7 @@ static ALWAYS_INLINE void convert_pixels_dst2_src(uint32_t src_bpp,
 
 static ALWAYS_INLINE void convert_pixels_dst2_src3(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len-- > 1) {
 		uint32_t px = 0;
@@ -348,9 +349,9 @@ static ALWAYS_INLINE void convert_pixels_dst2_src3(uint8_t* restrict dst,
 
 static NEVER_INLINE void convert_pixels_dst2(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
-	switch (recipe->src.bytes_per_pixel) {
+	switch (recipe->src->bytes_per_pixel) {
 	case 4: convert_pixels_dst2_src(4, dst, src, len, recipe); break;
 	case 3: convert_pixels_dst2_src3(dst, src, len, recipe); break;
 	case 2: convert_pixels_dst2_src(2, dst, src, len, recipe); break;
@@ -361,7 +362,7 @@ static NEVER_INLINE void convert_pixels_dst2(uint8_t* restrict dst,
 
 static ALWAYS_INLINE void convert_pixels_dst1_src(uint32_t src_bpp,
 		uint8_t* restrict dst, const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len--) {
 		uint32_t px = 0;
@@ -374,7 +375,7 @@ static ALWAYS_INLINE void convert_pixels_dst1_src(uint32_t src_bpp,
 
 static ALWAYS_INLINE void convert_pixels_dst1_src3(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
 	while (len-- > 1) {
 		uint32_t px = 0;
@@ -392,9 +393,9 @@ static ALWAYS_INLINE void convert_pixels_dst1_src3(uint8_t* restrict dst,
 
 static NEVER_INLINE void convert_pixels_dst1(uint8_t* restrict dst,
 		const uint8_t* restrict src, size_t len,
-		const struct nvnc_format_conversion_recipe* restrict recipe)
+		const struct nvnc_format_conversion_recipe* recipe)
 {
-	switch (recipe->src.bytes_per_pixel) {
+	switch (recipe->src->bytes_per_pixel) {
 	case 4: convert_pixels_dst1_src(4, dst, src, len, recipe); break;
 	case 3: convert_pixels_dst1_src3(dst, src, len, recipe); break;
 	case 2: convert_pixels_dst1_src(2, dst, src, len, recipe); break;
@@ -435,11 +436,11 @@ void nvnc_convert_pixels(uint8_t* restrict dst,
 	assert(dst_fmt->bytes_per_pixel >= 1 && dst_fmt->bytes_per_pixel <= 4);
 
 	struct nvnc_format_conversion_recipe recipe = {
-		.src = *src_fmt,
-		.dst = *dst_fmt,
+		.src = src_fmt,
+		.dst = dst_fmt,
 	};
 
-	switch (recipe.dst.bytes_per_pixel) {
+	switch (recipe.dst->bytes_per_pixel) {
 	case 4: convert_pixels_dst4(dst, src, len, &recipe); break;
 	case 3: convert_pixels_dst3(dst, src, len, &recipe); break;
 	case 2: convert_pixels_dst2(dst, src, len, &recipe); break;

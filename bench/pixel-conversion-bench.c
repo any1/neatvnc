@@ -93,10 +93,13 @@ static int run_permutation(uint32_t src_fmt, uint32_t dst_fmt)
 	struct stopwatch stopwatch;
 	stopwatch_start(&stopwatch);
 
-	for (int y = 0; y < HEIGHT; ++y)
-		nvnc_convert_pixels((uint8_t*)dst + (size_t)y * dst_stride,
-				&dst_pixfmt, src_addr + (size_t)y * WIDTH * src_bpp,
-				&src_pixfmt, WIDTH);
+	nvnc_frame_copy_region(src, &(const struct nvnc_frame_copy_options){
+		.buffer = dst,
+		.format = &dst_pixfmt,
+		.stride = WIDTH,
+		.crop.width = WIDTH,
+		.crop.height = HEIGHT,
+	});
 
 	uint64_t dt_cpu = stopwatch_cpu_us(&stopwatch);
 

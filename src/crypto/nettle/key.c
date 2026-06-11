@@ -91,7 +91,7 @@ static void initialise_p(mpz_t p)
 		"15728E5A8AACAA68FFFFFFFFFFFFFFFF";
 
 	char buf[256];
-	size_t len = 0;
+	size_t len = sizeof(buf);
 	struct base16_decode_ctx ctx;
 	nettle_base16_decode_init(&ctx);
 	nettle_base16_decode_update(&ctx, &len, (uint8_t*)buf, sizeof(s) - 1, s);
@@ -174,4 +174,3 @@ struct crypto_key* crypto_derive_shared_secret(
 
 	return shared;
 }
-

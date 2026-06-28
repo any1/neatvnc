@@ -1,0 +1,3 @@
+version=4
+ opts="repack,repacksuffix=+dfsg,dversionmangle=auto,filenamemangle=s/.+\/v?(\d\S+)\.tar\.gz/neatvnc-$1\.tar\.gz/" \
+  https://github.com/any1/neatvnc/tags .*/v?(\d\S+)\.tar\.gz debian uupdate

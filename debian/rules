@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+	        -Dtests=true \
+		$(NULL)
+
+# https://github.com/any1/neatvnc/issues/85
+ifneq (,$(filter $(DEB_HOST_ARCH),s390x hppa powerpc ppc64))
+override_dh_auto_test:
+	-dh_auto_test
+endif
+
+execute_after_dh_auto_test:
+	-cat obj-*/meson-logs/testlog.txt

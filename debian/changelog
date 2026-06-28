@@ -1,0 +1,147 @@
+neatvnc (0.9.5~github) trixie; urgency=medium
+
+  * Packaged GitHub version 0.9.5
+
+ -- Simon Long <simon@raspberrypi.com>  Wed, 30 Jul 2025 09:24:06 +0100
+
+neatvnc (0.9.1+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Cleanup patch.
+  * Use pkgconf instead of pkg-config for Build-Depends.
+
+ -- Han Gao <rabenda.cn@gmail.com>  Thu, 21 Nov 2024 08:04:16 +0000
+
+neatvnc (0.9.0+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Update Standards-Version 4.7.0
+  * Change Maintainer to Han Gao (Closes: #1065738)
+  * Cleanup patch
+  * Fix i386 build
+
+ -- Han Gao <rabenda.cn@gmail.com>  Wed, 20 Nov 2024 11:09:14 +0000
+
+neatvnc (0.8.0+dfsg-3) unstable; urgency=medium
+
+  * QA upload.
+  * Cherry-pick upstream patch to fix build with newer ffmpeg
+    (Closes: #1086304)
+
+ -- Dylan Aïssi <daissi@debian.org>  Fri, 08 Nov 2024 12:40:22 +0100
+
+neatvnc (0.8.0+dfsg-2) unstable; urgency=high
+
+  * QA upload.
+  * Add sanity check for chosen security type (CVE-2024-42458)
+    (Closes: #1077822)
+
+ -- Salvatore Bonaccorso <carnil@debian.org>  Sat, 03 Aug 2024 17:23:09 +0200
+
+neatvnc (0.8.0+dfsg-1) unstable; urgency=medium
+
+  * QA upload.
+  * New upstream release.
+  * Orphan the package. (See #1065738)
+
+ -- Boyuan Yang <byang@debian.org>  Sat, 09 Mar 2024 10:51:19 -0500
+
+neatvnc (0.7.1+dfsg-2) unstable; urgency=medium
+
+  * debian/control: Add missing binary dep libdrm-dev (Closes: #1060729)
+  * debian/libneatvnc-dev.examples:
+    Also distribute src/pngfb.c (Closes: #1060730)
+
+ -- Boyuan Yang <byang@debian.org>  Fri, 02 Feb 2024 15:44:02 -0500
+
+neatvnc (0.7.1+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Sun, 26 Nov 2023 10:51:04 -0500
+
+neatvnc (0.7.0+dfsg-1) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 24 Oct 2023 12:50:03 -0400
+
+neatvnc (0.7.0+dfsg-1~exp1) experimental; urgency=medium
+
+  * New upstream release.
+  * debian/copyright: Exclude xxhash.h and use system xxhash instead.
+  * debian/control: Add new build-dep on libxxhash-dev.
+
+ -- Boyuan Yang <byang@debian.org>  Sun, 15 Oct 2023 12:23:44 -0400
+
+neatvnc (0.6.0+dfsg-4) unstable; urgency=medium
+
+  * debian/rules: Enable verbose build.
+  * debian/rules: Allow build failure in tests for big-endian
+    architectures. (See upstream issue 85)
+  * debian/rules: Echo full test log for verbose debugging.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 25 Jul 2023 09:46:04 -0400
+
+neatvnc (0.6.0+dfsg-3) unstable; urgency=medium
+
+  * debian/rules: Enable post-build tests, accidentally missing
+    in last build.
+  * debian/control:
+    + Add missing optional build-dependency: ffmpeg, libgbm.
+    + Also add these binary dependencies for -dev packages.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 25 Jul 2023 09:34:15 -0400
+
+neatvnc (0.6.0+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/control: Limit libaml requirement to 0.3+.
+
+ -- Boyuan Yang <byang@debian.org>  Mon, 24 Jul 2023 21:17:42 -0400
+
+neatvnc (0.5.4+dfsg-2~exp1) experimental; urgency=medium
+
+  * debian/rules: Enable post-build tests per Gentoo maintainer's
+    suggestion.
+
+ -- Boyuan Yang <byang@debian.org>  Sat, 18 Mar 2023 21:53:27 -0400
+
+neatvnc (0.5.4+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Sat, 17 Sep 2022 13:07:41 -0400
+
+neatvnc (0.5.3+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 30 Aug 2022 16:52:56 -0400
+
+neatvnc (0.5.1+dfsg-2) unstable; urgency=high
+
+  * Update copyright file with missing info. (Closes: #1015155)
+
+ -- Boyuan Yang <byang@debian.org>  Fri, 29 Jul 2022 17:00:55 -0400
+
+neatvnc (0.5.1+dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 13 Jul 2022 09:32:05 -0400
+
+neatvnc (0.4.0+dfsg-2) unstable; urgency=medium
+
+  * Source-only upload.
+  * debian/control: Add missing dependency for package libneatvnc-dev:
+    gnutls-dev, libaml-dev, libpixman-1-dev, libturbojpeg0-dev,
+    zlib1g-dev.
+
+ -- Boyuan Yang <byang@debian.org>  Mon, 17 Jan 2022 14:17:42 -0500
+
+neatvnc (0.4.0+dfsg-1) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Boyuan Yang <byang@debian.org>  Sat, 11 Sep 2021 10:11:11 -0400

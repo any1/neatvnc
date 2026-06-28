@@ -1,0 +1,3 @@
+examples/*
+# See https://bugs.debian.org/1060730
+src/pngfb.c

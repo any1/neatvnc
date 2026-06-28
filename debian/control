@@ -29,13 +29,13 @@ Architecture: any
 Multi-Arch: same
 Depends:
  gnutls-dev,
- libaml-dev (>= 0.3),
+ libaml-dev (>= 1.0),
  libavcodec-dev,
  libavfilter-dev,
  libavutil-dev,
  libdrm-dev,
  libgbm-dev,
- libneatvnc0 (= ${binary:Version}),
+ libneatvnc1 (>= ${binary:Version}),
  libpixman-1-dev,
  libturbojpeg0-dev,
  libxxhash-dev,
@@ -48,7 +48,7 @@ Description: Fast and neat VNC server library (development files)
  .
  This package provides library development files.
 
-Package: libneatvnc0
+Package: libneatvnc1
 Architecture: any
 Multi-Arch: same
 Depends:

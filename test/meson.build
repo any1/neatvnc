@@ -15,6 +15,12 @@ base64 = executable('base64', 'test-base64.c',
 )
 test('base64', base64)
 
+utf8 = executable('utf8', 'test-utf8.c',
+	include_directories: inc,
+	dependencies: dependencies
+)
+test('utf8', utf8)
+
 if nettle.found() and python3.found()
 	rfb_test_server = executable('rfb-test-server', 'rfb-test-server.c',
 		include_directories: inc,

@@ -118,6 +118,7 @@ sources_dep = declare_dependency(
 		'src/parallel-deflate.c',
 		'src/compositor.c',
 		'src/region.c',
+		'src/utf8.c',
 	]
 )
 

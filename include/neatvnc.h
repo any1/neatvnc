@@ -343,7 +343,8 @@ void nvnc_set_normalised_pointer_fn(struct nvnc* self,
 void nvnc_set_new_client_fn(struct nvnc* self, nvnc_client_fn);
 
 /**
- * Set a handler for clipboard text received from clients.
+ * Set a handler for clipboard text received from clients. The text is always
+ * delivered to the handler as UTF-8; Latin-1 cut text is converted.
  */
 void nvnc_set_cut_text_fn(struct nvnc*, nvnc_cut_text_fn fn);
 
@@ -781,7 +782,9 @@ struct nvnc_display* nvnc_desktop_layout_get_display(
 		const struct nvnc_desktop_layout*, uint8_t display_index);
 
 /**
- * Broadcast clipboard text to all connected clients.
+ * Broadcast clipboard text to all connected clients. The text must be UTF-8;
+ * it is sent as-is to extended-clipboard clients and converted to Latin-1 for
+ * other clients, where code points that do not fit are replaced with '?'.
  */
 void nvnc_send_cut_text(struct nvnc*, const char* text, uint32_t len);
 

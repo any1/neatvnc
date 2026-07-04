@@ -3165,14 +3165,22 @@ const char* nvnc_client_get_auth_username(const struct nvnc_client* client) {
 EXPORT
 struct nvnc_client* nvnc_client_first(struct nvnc* self)
 {
-	return LIST_FIRST(&self->clients);
+	struct nvnc_client* client;
+	LIST_FOREACH(client, &self->clients, link)
+		if (client->state == VNC_CLIENT_STATE_READY)
+			return client;
+	return NULL;
 }
 
 EXPORT
 struct nvnc_client* nvnc_client_next(struct nvnc_client* client)
 {
 	assert(client);
-	return LIST_NEXT(client, link);
+	for (client = LIST_NEXT(client, link); client;
+			client = LIST_NEXT(client, link))
+		if (client->state == VNC_CLIENT_STATE_READY)
+			return client;
+	return NULL;
 }
 
 EXPORT

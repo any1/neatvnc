@@ -1,7 +1,7 @@
 project(
 	'neatvnc',
 	'c',
-	version: '1.0.0',
+	version: '1.0.1',
 	license: 'ISC',
 	default_options: [
 		'c_std=gnu11',

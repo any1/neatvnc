@@ -636,6 +636,12 @@ static int send_server_init_message(struct nvnc_client* client)
 		goto close;
 	}
 
+	if (server->quirks & NVNC_QUIRK_NO_10BIT_FORMATS &&
+			nvnc_pixel_format_depth(&client->pixfmt) > 24) {
+		fourcc = DRM_FORMAT_XRGB8888;
+		nvnc_pixel_format_from_fourcc(&client->pixfmt, fourcc);
+	}
+
 	/* According to rfc6143, bpp must be 8, 16 or 32, but we can handle 24
 	 * internally, so we just nudge 24 to 32 before reporting the pixel
 	 * format to the client.
@@ -3540,4 +3546,10 @@ void nvnc_auth_creds_reject(struct nvnc_auth_creds* self, const char* reason)
 
 out:
 	nvnc_auth_creds_destroy(self);
+}
+
+EXPORT
+void nvnc_set_quirks(struct nvnc* self, enum nvnc_quirks value)
+{
+	self->quirks = value;
 }

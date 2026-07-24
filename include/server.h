@@ -107,6 +107,8 @@ struct nvnc {
 	enum rfb_security_type security_types[MAX_SECURITY_TYPES];
 
 	uint32_t n_damage_clients;
+
+	enum nvnc_quirks quirks;
 };
 
 void nvnc__damage_region(struct nvnc* self,

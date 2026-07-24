@@ -124,6 +124,10 @@ enum nvnc_auth_flags {
 	NVNC_AUTH_REQUIRE_USERNAME = 1 << 3,
 };
 
+enum nvnc_quirks {
+	NVNC_QUIRK_NO_10BIT_FORMATS = 1 << 0,
+};
+
 struct nvnc_log_data {
 	size_t size;               /// Used by nvnc_default_logger
 	enum nvnc_log_level level; /// Log level
@@ -849,3 +853,10 @@ double nvnc_rate_pixel_format(const struct nvnc* self,
  */
 double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
 		enum nvnc_buffer_type, uint32_t format, uint64_t modifier);
+
+/**
+ * Set client quirks for compatibility with non-conformant VNC client software.
+ *
+ * Since: 1.1.0
+ */
+void nvnc_set_quirks(struct nvnc* self, enum nvnc_quirks value);

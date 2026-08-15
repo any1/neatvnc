@@ -6,7 +6,7 @@ Standards-Version: 4.7.0
 Build-Depends:
  debhelper-compat (= 13),
  gnutls-dev,
- libaml-dev (>= 0.3),
+ libaml-dev (>= 1.0),
  libavcodec-dev,
  libavfilter-dev,
  libavutil-dev,

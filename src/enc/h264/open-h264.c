@@ -55,6 +55,8 @@ struct open_h264_context {
 	bool quality_changed;
 
 	uint64_t last_pts;
+
+	bool hw;
 };
 
 struct open_h264 {
@@ -236,12 +238,12 @@ static void open_h264_destroy(struct encoder* enc)
 	free(self);
 }
 
-static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* fb)
+static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* fb, bool hw)
 {
 	int quality = 51 - round((50.0 / 9.0) * (float)self->parent->quality);
 
 	struct h264_encoder* encoder = h264_encoder_create(fb->width,
-			fb->height, fb->fourcc_format, quality);
+			fb->height, fb->fourcc_format, quality, hw);
 	if (!encoder)
 		return -1;
 
@@ -258,18 +260,19 @@ static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* f
 	self->format = fb->fourcc_format;
 	self->needs_reset = true;
 	self->quality_changed = false;
+	self->hw = hw;
 
 	return 0;
 }
 
-static int open_h264_ctx_encode(struct open_h264_context* self, struct nvnc_frame* fb)
+static int open_h264_ctx_encode(struct open_h264_context* self, struct nvnc_frame* fb, bool hw)
 {
 	DTRACE_PROBE1(neatvnc, open_h264_encode, fb->pts);
 
 	if (fb->width != self->width || fb->height != self->height ||
 			fb->fourcc_format != self->format ||
-			self->quality_changed) {
-		if (open_h264_resize(self, fb) < 0)
+			self->quality_changed || self->hw != hw) {
+		if (open_h264_resize(self, fb, hw) < 0)
 			return -1;
 	}
 
@@ -363,7 +366,8 @@ static int open_h264_encode(struct encoder* enc,
 		struct open_h264_context* ctx =
 			open_h264_get_context(self, fb->x_off, fb->y_off);
 
-		int rc = open_h264_ctx_encode(ctx, fb);
+		nvnc_log(NVNC_LOG_INFO, "open_h264_encode: hw = %u.", composite->fbs[i]->buffer->type == NVNC_BUFFER_GBM_BO);
+		int rc = open_h264_ctx_encode(ctx, fb, composite->fbs[i]->buffer->type == NVNC_BUFFER_GBM_BO);
 		nvnc_assert(rc == 0, "Failed to encode frame");
 
 		self->frame_barrier++;

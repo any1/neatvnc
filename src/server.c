@@ -2008,7 +2008,7 @@ static enum rfb_resize_status check_desktop_layout(struct nvnc_client* client,
 		return RFB_RESIZE_STATUS_PROHIBITED;
 	}
 
-	return RFB_RESIZE_STATUS_REQUEST_FORWARDED;
+	return RFB_RESIZE_STATUS_SUCCESS;
 }
 
 static const char* resize_status_string(enum rfb_resize_status status)

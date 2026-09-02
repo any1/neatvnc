@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
@@ -45,7 +46,19 @@ int stream_tcp_close(struct stream* self)
 	self->state = STREAM_STATE_CLOSED;
 	self->cork = true;
 
-	stream_ref(self);
+	/*
+	 * stream_tcp_destroy() calls us while self->ref is already 0, as
+	 * part of tearing self down. In that case we must not take a
+	 * temporary reference below: dropping it again via stream_destroy()
+	 * would hit zero and invoke self->impl->destroy() a second time,
+	 * freeing self and self->handler twice. Only do the ref dance when
+	 * we're being called on a still-live stream, to protect self across
+	 * the stream_req__finish() callbacks below, which may drop the
+	 * caller's own last reference.
+	 */
+	bool is_self_destructing = self->ref == 0;
+	if (!is_self_destructing)
+		stream_ref(self);
 
 	while (!TAILQ_EMPTY(&self->send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
@@ -58,7 +71,8 @@ int stream_tcp_close(struct stream* self)
 	self->fd = -1;
 
 	// unref
-	stream_destroy(self);
+	if (!is_self_destructing)
+		stream_destroy(self);
 
 	return 0;
 }

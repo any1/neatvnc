@@ -54,6 +54,36 @@ static void on_sigterm(struct aml_signal* sig)
 	aml_exit(aml_get_default());
 }
 
+#define FB_WIDTH 64
+#define FB_HEIGHT 64
+#define RESIZED_FB_WIDTH 128
+#define RESIZED_FB_HEIGHT 96
+
+static struct nvnc_display* test_display = NULL;
+static struct nvnc_frame* test_frame = NULL;
+
+static void feed_frame(uint16_t width, uint16_t height)
+{
+	struct nvnc_frame* fb = nvnc_frame_new(width, height,
+			DRM_FORMAT_RGBX8888, width);
+	assert(fb);
+
+	nvnc_display_feed_frame(test_display, fb);
+
+	if (test_frame)
+		nvnc_frame_unref(test_frame);
+	test_frame = fb;
+}
+
+/* Resize the desktop on demand, so that tests can exercise a server-initiated
+ * screen layout change.
+ */
+static void on_sigusr1(struct aml_signal* sig)
+{
+	(void)sig;
+	feed_frame(RESIZED_FB_WIDTH, RESIZED_FB_HEIGHT);
+}
+
 static int hex_to_bytes(const char* hex, uint8_t* out, size_t out_len)
 {
 	size_t hex_len = strlen(hex);
@@ -173,14 +203,12 @@ int main(int argc, char* argv[])
 		assert(rc == 0);
 	}
 
-	struct nvnc_display* display = nvnc_display_new(0, 0);
-	assert(display);
-	nvnc_add_display(server, display);
+	test_display = nvnc_display_new(0, 0);
+	assert(test_display);
+	nvnc_add_display(server, test_display);
 	nvnc_set_name(server, "test");
 
-	struct nvnc_frame* fb = nvnc_frame_new(64, 64, DRM_FORMAT_RGBX8888, 64);
-	assert(fb);
-	nvnc_display_feed_frame(display, fb);
+	feed_frame(FB_WIDTH, FB_HEIGHT);
 
 	/* SIGTERM handler for clean shutdown */
 	struct aml_signal* sig = aml_signal_new(SIGTERM, on_sigterm,
@@ -189,14 +217,20 @@ int main(int argc, char* argv[])
 	aml_start(aml, sig);
 	aml_unref(sig);
 
+	struct aml_signal* resize_sig = aml_signal_new(SIGUSR1, on_sigusr1,
+			NULL, NULL);
+	assert(resize_sig);
+	aml_start(aml, resize_sig);
+	aml_unref(resize_sig);
+
 	printf("READY %d\n", port);
 	fflush(stdout);
 
 	aml_run(aml);
 
 	nvnc_del(server);
-	nvnc_display_unref(display);
-	nvnc_frame_unref(fb);
+	nvnc_display_unref(test_display);
+	nvnc_frame_unref(test_frame);
 	aml_unref(aml);
 
 	return 0;

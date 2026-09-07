@@ -13,6 +13,10 @@ Verifies:
 - VeNCrypt: X509_PLAIN auth success with correct credentials
 - VeNCrypt: X509_PLAIN auth failure with wrong password
 - VeNCrypt: X509_PLAIN auth failure with wrong username
+- ExtendedDesktopSize: the layout answers a non-incremental update request
+- ExtendedDesktopSize: the layout update carries no framebuffer data
+- ExtendedDesktopSize: no layout rect for a client that did not request it
+- ExtendedDesktopSize: a server-side resize sends the layout on its own
 
 Usage: python3 test_rfb_handshake.py <path-to-rfb-test-server>
 """
@@ -69,6 +73,10 @@ class ServerProcess:
                 raise RuntimeError(
                     f'Server exited without printing READY\n'
                     f'stderr: {stderr}')
+
+    def resize(self):
+        """Make the server resize its desktop to RESIZED_FB_*."""
+        self.proc.send_signal(signal.SIGUSR1)
 
     def stop(self):
         self.proc.send_signal(signal.SIGTERM)
@@ -215,12 +223,100 @@ class RFBConnection:
         assert reason_len > 0, 'Expected non-empty reason string'
         return result, data[8:8 + reason_len].decode('utf-8', errors='replace')
 
+    # Post-authentication helpers
+
+    def send_client_init(self, shared=1):
+        self.sock.sendall(struct.pack('!B', shared))
+
+    def read_server_init(self):
+        """Read ServerInit, returning (width, height, name).
+
+        The pixel format is retained as bytes_per_pixel, which is needed to
+        consume Raw rect payloads.
+        """
+        width, height = struct.unpack('!HH', self.recv_exact(4))
+        pixel_format = self.recv_exact(16)
+        self.bytes_per_pixel = pixel_format[0] // 8
+        name_len = struct.unpack('!I', self.recv_exact(4))[0]
+        name = self.recv_exact(name_len).decode('utf-8', errors='replace')
+        return width, height, name
+
+    def send_set_encodings(self, encodings):
+        self.sock.sendall(struct.pack('!BBH', 2, 0, len(encodings)))
+        for encoding in encodings:
+            self.sock.sendall(struct.pack('!i', encoding))
+
+    def send_fb_update_request(self, incremental, x, y, width, height):
+        self.sock.sendall(struct.pack('!BBHHHH', 3, incremental, x, y,
+                                      width, height))
+
+    def read_framebuffer_update(self):
+        """Read one FramebufferUpdate, returning a list of parsed rects.
+
+        Raw is the only pixel encoding handled, since that is all these tests
+        ask for. Any other encoding would need its payload consumed by
+        encoding, so hitting one here is a test bug rather than something to
+        skip past.
+        """
+        msg_type = struct.unpack('!B', self.recv_exact(1))[0]
+        assert msg_type == 0, f'Expected FramebufferUpdate, got message {msg_type}'
+        self.recv_exact(1)  # padding
+        n_rects = struct.unpack('!H', self.recv_exact(2))[0]
+
+        rects = []
+        for _ in range(n_rects):
+            x, y, width, height, encoding = struct.unpack('!HHHHi',
+                                                          self.recv_exact(12))
+            rect = {
+                'encoding': encoding,
+                'width': width,
+                'height': height,
+            }
+            if encoding == ENCODING_EXTENDED_DESKTOP_SIZE:
+                # x and y carry the reason and status for this pseudo-encoding.
+                rect['reason'] = x
+                rect['status'] = y
+                n_screens = struct.unpack('!B', self.recv_exact(1))[0]
+                self.recv_exact(3)  # padding
+                rect['screens'] = [
+                    dict(zip(('id', 'x', 'y', 'width', 'height', 'flags'),
+                             struct.unpack('!IHHHHI', self.recv_exact(16))))
+                    for _ in range(n_screens)
+                ]
+            elif encoding == ENCODING_RAW:
+                self.recv_exact(width * height * self.bytes_per_pixel)
+            elif encoding != ENCODING_DESKTOP_SIZE:
+                raise AssertionError(f'Unexpected encoding {encoding} in update')
+            rects.append(rect)
+        return rects
+
+    def handshake_to_encodings(self):
+        """Take a no-auth RFB 3.8 connection as far as ServerInit."""
+        assert SECURITY_TYPE_NONE in self.read_security_type_list()
+        self.choose_security_type(SECURITY_TYPE_NONE)
+        assert self.read_security_result() == 0
+        self.send_client_init()
+        return self.read_server_init()
+
 
 # ---------------------------------------------------------------------------
 # Test classes
 # ---------------------------------------------------------------------------
 
 PASSWORD = 'testpass'
+
+SECURITY_TYPE_NONE = 1
+ENCODING_RAW = 0
+ENCODING_DESKTOP_SIZE = -223
+ENCODING_QEMU_EXT_KEY_EVENT = -258
+ENCODING_EXTENDED_DESKTOP_SIZE = -308
+
+# rfb-test-server feeds a single 64x64 frame from one display at 0,0, and
+# resizes to 128x96 on SIGUSR1.
+TEST_FB_WIDTH = 64
+TEST_FB_HEIGHT = 64
+RESIZED_FB_WIDTH = 128
+RESIZED_FB_HEIGHT = 96
 
 
 class TestDESAuth(unittest.TestCase):
@@ -426,6 +522,128 @@ class TestAuthBypass(unittest.TestCase):
             data = c.recv_all()
             self.assertEqual(len(data), 4, f'Expected 4 bytes, got {len(data)}')
             self.assertEqual(struct.unpack('!I', data)[0], 1)
+
+
+class TestExtendedDesktopSize(unittest.TestCase):
+    """A non-incremental update request must be answered with the layout.
+
+    The spec requires the server to send an ExtendedDesktopSize rect in reply
+    to a FramebufferUpdateRequest with incremental set to zero, since that is
+    the only way a client learns that SetDesktopSize is supported. Clients that
+    latch this at their first framebuffer update -- TurboVNC does so
+    permanently -- otherwise conclude that resizing is unsupported.
+    """
+
+    server = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ServerProcess('none')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.stop()
+
+    def test_layout_answers_a_non_incremental_request(self):
+        """The layout must come before the other pseudo-rect updates.
+
+        QEMUExtendedKeyEvent makes the server want to send an ext-support
+        frame, which used to consume the request and answer it with an update
+        that had no ExtendedDesktopSize rect in it.
+        """
+        with RFBConnection(self.server.port, 'RFB 003.008\n') as c:
+            width, height, _ = c.handshake_to_encodings()
+            self.assertEqual((width, height), (TEST_FB_WIDTH, TEST_FB_HEIGHT))
+
+            c.send_set_encodings([ENCODING_RAW,
+                                  ENCODING_EXTENDED_DESKTOP_SIZE,
+                                  ENCODING_QEMU_EXT_KEY_EVENT])
+            c.send_fb_update_request(0, 0, 0, width, height)
+
+            rects = c.read_framebuffer_update()
+
+            self.assertEqual(len(rects), 1,
+                             'the layout must arrive before anything else')
+            rect = rects[0]
+            self.assertEqual(rect['encoding'], ENCODING_EXTENDED_DESKTOP_SIZE)
+            self.assertEqual(rect['reason'], 0, 'should be server-initiated')
+            self.assertEqual(rect['status'], 0, 'should report success')
+            self.assertEqual((rect['width'], rect['height']),
+                             (TEST_FB_WIDTH, TEST_FB_HEIGHT))
+            self.assertEqual(len(rect['screens']), 1)
+            self.assertEqual(
+                (rect['screens'][0]['width'], rect['screens'][0]['height']),
+                (TEST_FB_WIDTH, TEST_FB_HEIGHT))
+
+    def test_layout_update_carries_no_framebuffer_data(self):
+        """An update holding the layout must contain nothing else."""
+        with RFBConnection(self.server.port, 'RFB 003.008\n') as c:
+            width, height, _ = c.handshake_to_encodings()
+
+            c.send_set_encodings([ENCODING_RAW, ENCODING_EXTENDED_DESKTOP_SIZE])
+            c.send_fb_update_request(0, 0, 0, width, height)
+
+            rects = c.read_framebuffer_update()
+
+            self.assertEqual([rect['encoding'] for rect in rects],
+                             [ENCODING_EXTENDED_DESKTOP_SIZE])
+
+    def test_no_layout_rect_without_the_encoding(self):
+        """A client that cannot parse the rect must not be sent one."""
+        with RFBConnection(self.server.port, 'RFB 003.008\n') as c:
+            width, height, _ = c.handshake_to_encodings()
+
+            c.send_set_encodings([ENCODING_RAW])
+            c.send_fb_update_request(0, 0, 0, width, height)
+
+            rects = c.read_framebuffer_update()
+
+            self.assertTrue(rects, 'expected framebuffer data')
+            for rect in rects:
+                self.assertEqual(rect['encoding'], ENCODING_RAW)
+
+
+class TestServerInitiatedResize(unittest.TestCase):
+    """A resize on the server sends the layout in an update of its own.
+
+    The spec forbids an update containing an ExtendedDesktopSize rect from
+    carrying any framebuffer data, neither before nor after the rect.
+    """
+
+    def test_resize_layout_arrives_without_framebuffer_data(self):
+        server = ServerProcess('none')
+        try:
+            with RFBConnection(server.port, 'RFB 003.008\n') as c:
+                width, height, _ = c.handshake_to_encodings()
+
+                c.send_set_encodings([ENCODING_RAW,
+                                      ENCODING_EXTENDED_DESKTOP_SIZE])
+
+                # Drain the layout that answers the non-incremental request.
+                c.send_fb_update_request(0, 0, 0, width, height)
+                self.assertEqual(c.read_framebuffer_update()[0]['width'],
+                                 TEST_FB_WIDTH)
+
+                server.resize()
+
+                rect = None
+                for _ in range(8):
+                    c.send_fb_update_request(1, 0, 0, width, height)
+                    rects = c.read_framebuffer_update()
+                    if rects[0]['encoding'] != ENCODING_EXTENDED_DESKTOP_SIZE:
+                        continue
+                    self.assertEqual(len(rects), 1,
+                                     'the resize must not carry pixel data')
+                    rect = rects[0]
+                    break
+
+                self.assertIsNotNone(rect, 'no layout rect after the resize')
+                self.assertEqual(rect['reason'], 0, 'should be server-initiated')
+                self.assertEqual(rect['status'], 0, 'should report success')
+                self.assertEqual((rect['width'], rect['height']),
+                                 (RESIZED_FB_WIDTH, RESIZED_FB_HEIGHT))
+        finally:
+            server.stop()
 
 
 if __name__ == '__main__':

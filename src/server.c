@@ -610,6 +610,51 @@ static struct nvnc_desktop_layout* build_desktop_layout(
 	return layout;
 }
 
+/* Send a FramebufferUpdate that carries nothing but the screen layout.
+ *
+ * An update containing an ExtendedDesktopSize rect must not contain any
+ * changes to the framebuffer data, neither before nor after the rect, so the
+ * layout always travels in a message of its own.
+ */
+static int send_desktop_resize_update(struct nvnc_client* client,
+		const struct nvnc_desktop_layout* layout)
+{
+	struct rfb_server_fb_update_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
+		.n_rects = htons(1),
+	};
+
+	if (stream_write(client->net_stream, &head, sizeof(head)) < 0)
+		return -1;
+
+	return send_desktop_resize_rect(client, layout);
+}
+
+/* Tell the client the current screen layout in reply to a non-incremental
+ * FramebufferUpdateRequest.
+ *
+ * The server must answer such a request with an ExtendedDesktopSize rect, as
+ * that is the only way a client learns that SetDesktopSize is supported.
+ * on_client_fb_update_request() sets this up by dropping the client's known
+ * layout, which is what we key on here.
+ */
+static void send_desktop_size_announcement(struct nvnc_client* client)
+{
+	struct nvnc* server = client->server;
+	uint16_t width, height;
+
+	calculate_desktop_extents(server, &width, &height);
+
+	struct nvnc_desktop_layout* layout =
+		build_desktop_layout(server, width, height);
+	if (!layout)
+		return;
+
+	send_desktop_resize_update(client, layout);
+
+	free(layout);
+}
+
 static int send_server_init_message(struct nvnc_client* client)
 {
 	struct nvnc* server = client->server;
@@ -1151,6 +1196,20 @@ static void process_fb_update_requests(struct nvnc_client* client)
 	if (!client->continuous_updates_enabled &&
 	    client->n_pending_requests == 0)
 		return;
+
+	/* A non-incremental request drops the known layout, and must be
+	 * answered with the layout before anything else. The pseudo-rect
+	 * updates below each consume the request on their own, so without this
+	 * the reply can be a cursor or ext-support frame with no layout in it.
+	 * Clients that latch resize support at their first update -- TurboVNC
+	 * does -- then conclude that resizing is unsupported.
+	 */
+	if (!client->known_layout && client_supports_resizing(client)) {
+		send_desktop_size_announcement(client);
+
+		if (decrement_pending_requests(client) <= 0)
+			return;
+	}
 
 	if (!client->is_ext_notified) {
 		client->is_ext_notified = true;
@@ -2895,15 +2954,18 @@ static void finish_fb_update(struct nvnc_client* client,
 		!client->known_layout ||
 		!nvnc_desktop_layout_eq(client->known_layout,
 				frame->metadata->desktop_layout);
-	if (is_resized) {
-		frame->n_rects += 1;
-
-		if (!client_supports_resizing(client)) {
-			nvnc_log(NVNC_LOG_ERROR, "Display has been resized but client does not support resizing.  Closing.");
-			client_close(client);
-			return;
-		}
+	if (is_resized && !client_supports_resizing(client)) {
+		nvnc_log(NVNC_LOG_ERROR, "Display has been resized but client does not support resizing.  Closing.");
+		client_close(client);
+		return;
 	}
+
+	/* The layout goes out in an update of its own, ahead of the frame, so
+	 * that the update carrying it contains no framebuffer data.
+	 */
+	if (is_resized && send_desktop_resize_update(client,
+				frame->metadata->desktop_layout) < 0)
+		goto complete;
 
 	struct rfb_server_fb_update_msg update_msg = {
 		.type = RFB_SERVER_TO_CLIENT_FRAMEBUFFER_UPDATE,
@@ -2911,10 +2973,6 @@ static void finish_fb_update(struct nvnc_client* client,
 	};
 	if (stream_write(client->net_stream, &update_msg,
 			sizeof(update_msg)) < 0)
-		goto complete;
-
-	if (is_resized && send_desktop_resize_rect(client,
-				frame->metadata->desktop_layout) < 0)
 		goto complete;
 
 	if (send_pts_rect(client, frame->pts) < 0)

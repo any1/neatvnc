@@ -45,16 +45,19 @@ static_assert(sizeof(struct stream_gnutls) <= STREAM_ALLOC_SIZE,
 
 static int stream__try_tls_accept(struct stream* self);
 
-static int stream_gnutls_close(struct stream* base)
+/*
+ * Runs the actual teardown of the session, socket and pending send queue.
+ * This is kept separate from the refcounted stream_gnutls_close()/
+ * stream_destroy() pair below so that stream_gnutls_destroy() can reuse it
+ * without going through stream_close() again, which would otherwise
+ * re-enter stream_destroy() while the stream is already being freed.
+ */
+static void stream_gnutls__teardown(struct stream_gnutls* self)
 {
-	struct stream_gnutls* self = (struct stream_gnutls*)base;
-
 	if (self->base.state == STREAM_STATE_CLOSED)
-		return -1;
+		return;
 
 	self->base.state = STREAM_STATE_CLOSED;
-
-	stream_ref(&self->base);
 
 	while (!TAILQ_EMPTY(&self->base.send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->base.send_queue);
@@ -69,6 +72,17 @@ static int stream_gnutls_close(struct stream* base)
 	aml_stop(aml_get_default(), self->base.handler);
 	close(self->base.fd);
 	self->base.fd = -1;
+}
+
+static int stream_gnutls_close(struct stream* base)
+{
+	struct stream_gnutls* self = (struct stream_gnutls*)base;
+
+	if (self->base.state == STREAM_STATE_CLOSED)
+		return -1;
+
+	stream_ref(&self->base);
+	stream_gnutls__teardown(self);
 
 	// unref
 	stream_destroy(&self->base);
@@ -78,7 +92,7 @@ static int stream_gnutls_close(struct stream* base)
 
 static void stream_gnutls_destroy(struct stream* self)
 {
-	stream_close(self);
+	stream_gnutls__teardown((struct stream_gnutls*)self);
 	aml_unref(self->handler);
 	free(self);
 }

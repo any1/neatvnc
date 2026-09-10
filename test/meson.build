@@ -21,6 +21,12 @@ utf8 = executable('utf8', 'test-utf8.c',
 )
 test('utf8', utf8)
 
+stream_tcp_destroy = executable('stream-tcp-destroy', 'test-stream-tcp-destroy.c',
+	include_directories: inc,
+	dependencies: dependencies
+)
+test('stream-tcp-destroy', stream_tcp_destroy)
+
 if nettle.found() and python3.found()
 	rfb_test_server = executable('rfb-test-server', 'rfb-test-server.c',
 		include_directories: inc,

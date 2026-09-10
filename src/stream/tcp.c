@@ -37,15 +37,20 @@
 static_assert(sizeof(struct stream) <= STREAM_ALLOC_SIZE,
 		"struct stream has grown too large, increase STREAM_ALLOC_SIZE");
 
-int stream_tcp_close(struct stream* self)
+/*
+ * Runs the actual teardown of the socket and the pending send queue. This
+ * is separate from the refcounted stream_tcp_close()/stream_destroy() pair
+ * below so that stream_tcp_destroy() can reuse it without going through
+ * stream_close() again, which would otherwise re-enter stream_destroy()
+ * while the stream is already being freed.
+ */
+static void stream_tcp__teardown(struct stream* self)
 {
 	if (self->state == STREAM_STATE_CLOSED)
-		return -1;
+		return;
 
 	self->state = STREAM_STATE_CLOSED;
 	self->cork = true;
-
-	stream_ref(self);
 
 	while (!TAILQ_EMPTY(&self->send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
@@ -56,6 +61,15 @@ int stream_tcp_close(struct stream* self)
 	aml_stop(aml_get_default(), self->handler);
 	close(self->fd);
 	self->fd = -1;
+}
+
+int stream_tcp_close(struct stream* self)
+{
+	if (self->state == STREAM_STATE_CLOSED)
+		return -1;
+
+	stream_ref(self);
+	stream_tcp__teardown(self);
 
 	// unref
 	stream_destroy(self);
@@ -66,7 +80,7 @@ int stream_tcp_close(struct stream* self)
 void stream_tcp_destroy(struct stream* self)
 {
 	vec_destroy(&self->tmp_buf);
-	stream_close(self);
+	stream_tcp__teardown(self);
 	aml_unref(self->handler);
 	free(self);
 }

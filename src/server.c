@@ -1255,7 +1255,7 @@ static int on_client_fb_update_request(struct nvnc_client* client)
 	int height = ntohs(msg->height);
 
 	if (incremental && client->continuous_updates_enabled)
-		return 0;
+		return sizeof(*msg);
 
 	client->n_pending_requests++;
 

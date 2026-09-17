@@ -30,5 +30,3 @@ ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size);
 int stream_tcp_send(struct stream* self, struct rcbuf* payload,
                 stream_req_fn on_done, void* userdata);
 int stream_tcp_send_first(struct stream* self, struct rcbuf* payload);
-void stream_tcp_exec_and_send(struct stream* self,
-		stream_exec_fn exec_fn, void* userdata);

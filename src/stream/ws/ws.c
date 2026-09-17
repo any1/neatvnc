@@ -32,11 +32,6 @@ enum stream_ws_state {
 	STREAM_WS_STATE_READY,
 };
 
-struct stream_ws_exec_ctx {
-	stream_exec_fn exec;
-	void* userdata;
-};
-
 struct stream_ws {
 	struct stream base;
 	stream_event_fn on_event;
@@ -251,54 +246,11 @@ static int stream_ws_send(struct stream* self, struct rcbuf* payload,
 	return stream_tcp_send(&ws->base, payload, on_done, userdata);
 }
 
-static struct rcbuf* stream_ws_chained_exec(struct stream* tcp_stream,
-		void* userdata)
-{
-	struct stream_ws* ws = (struct stream_ws*)tcp_stream;
-	struct stream_ws_exec_ctx* ctx = userdata;
-
-	struct rcbuf* buf = ctx->exec(&ws->base, ctx->userdata);
-
-	// TODO: This also needs to be cleaned it it's left on the send queue
-	// when the stream is destroyed.
-	free(ctx->userdata);
-
-	struct vec out;
-	vec_init(&out, WS_HEADER_MIN_SIZE + buf->size + 1);
-
-	struct ws_frame_header head = {
-		.fin = true,
-		.opcode = WS_OPCODE_BIN,
-		.payload_length = buf->size,
-	};
-	int head_len = ws_write_frame_header(out.data, &head);
-	out.len += head_len;
-
-	vec_append(&out, buf->payload, buf->size);
-	rcbuf_unref(buf);
-	return rcbuf_new(out.data, out.len);
-}
-
-static void stream_ws_exec_and_send(struct stream* self, stream_exec_fn exec,
-		void* userdata)
-{
-	struct stream_ws* ws = (struct stream_ws*)self;
-
-	struct stream_ws_exec_ctx* ctx = calloc(1, sizeof(*ctx));
-	assert(ctx);
-
-	ctx->exec = exec;
-	ctx->userdata = userdata;
-
-	stream_tcp_exec_and_send(&ws->base, stream_ws_chained_exec, ctx);
-}
-
 static struct stream_impl impl = {
 	.close = stream_tcp_close,
 	.destroy = stream_tcp_destroy,
 	.read = stream_ws_read,
 	.send = stream_ws_send,
-	.exec_and_send = stream_ws_exec_and_send,
 };
 
 struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata)

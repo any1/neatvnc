@@ -55,12 +55,10 @@ struct crypto_cipher;
 
 typedef void (*stream_event_fn)(struct stream*, enum stream_event);
 typedef void (*stream_req_fn)(void*, enum stream_req_status);
-typedef struct rcbuf* (*stream_exec_fn)(struct stream*, void* userdata);
 
 struct stream_req {
 	struct rcbuf* payload;
 	stream_req_fn on_done;
-	stream_exec_fn exec;
 	void* userdata;
 	TAILQ_ENTRY(stream_req) link;
 };
@@ -74,7 +72,6 @@ struct stream_impl {
 	int (*send)(struct stream*, struct rcbuf* payload,
 			stream_req_fn on_done, void* userdata);
 	int (*send_first)(struct stream*, struct rcbuf* payload);
-	void (*exec_and_send)(struct stream*, stream_exec_fn, void* userdata);
 };
 
 struct stream {
@@ -112,9 +109,6 @@ int stream_write(struct stream* self, const void* payload, size_t len);
 int stream_send(struct stream* self, struct rcbuf* payload,
 		stream_req_fn fn, void* userdata);
 int stream_send_first(struct stream* self, struct rcbuf* payload);
-
-// Queue a pure function to be executed when time comes to send it.
-void stream_exec_and_send(struct stream* self, stream_exec_fn, void* userdata);
 
 #ifdef ENABLE_TLS
 int stream_upgrade_to_tls(struct stream* self, void* context);

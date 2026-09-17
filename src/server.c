@@ -2118,14 +2118,6 @@ static void update_ntp_stats(struct nvnc_client* client,
 			delta / 1e3, theta / 1e3);
 }
 
-static struct rcbuf* on_ntp_msg_send(struct stream* tcp_stream,
-		void* userdata)
-{
-	struct rfb_ntp_msg* msg = userdata;
-	msg->t2 = htonl(gettime_us(CLOCK_MONOTONIC));
-	return rcbuf_from_mem(msg, sizeof(*msg));
-}
-
 static int on_client_ntp(struct nvnc_client* client)
 {
 	struct rfb_ntp_msg msg;
@@ -2141,14 +2133,9 @@ static int on_client_ntp(struct nvnc_client* client)
 	}
 
 	msg.t1 = htonl(gettime_us(CLOCK_MONOTONIC));
+	msg.t2 = msg.t1;
 
-	struct rfb_ntp_msg* out_msg = malloc(sizeof(*out_msg));
-	assert(out_msg);
-	memcpy(out_msg, &msg, sizeof(*out_msg));
-
-	// The callback gets executed as the message is leaving the send queue
-	// so that we can set t2 as late as possible.
-	stream_exec_and_send(client->net_stream, on_ntp_msg_send, out_msg);
+	stream_write(client->net_stream, &msg, sizeof(msg));
 
 	return sizeof(msg);
 }

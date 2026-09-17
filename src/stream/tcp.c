@@ -45,20 +45,19 @@ int stream_tcp_close(struct stream* self)
 	self->state = STREAM_STATE_CLOSED;
 	self->cork = true;
 
-	stream_ref(self);
+	struct stream_send_queue send_queue;
+	TAILQ_INIT(&send_queue);
+	TAILQ_CONCAT(&send_queue, &self->send_queue, link);
 
-	while (!TAILQ_EMPTY(&self->send_queue)) {
-		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
-		TAILQ_REMOVE(&self->send_queue, req, link);
+	while (!TAILQ_EMPTY(&send_queue)) {
+		struct stream_req* req = TAILQ_FIRST(&send_queue);
+		TAILQ_REMOVE(&send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_FAILED);
 	}
 
 	aml_stop(aml_get_default(), self->handler);
 	close(self->fd);
 	self->fd = -1;
-
-	// unref
-	stream_destroy(self);
 
 	return 0;
 }
@@ -125,14 +124,19 @@ static int stream_tcp__flush(struct stream* self)
 	// Don't flush while flushing
 	self->cork = true;
 
-	stream_ref(self);
+	struct weakref_observer ref;
+	weakref_observer_init(&ref, &self->weakref);
+
+	struct stream_send_queue send_queue;
+	TAILQ_INIT(&send_queue);
+	TAILQ_CONCAT(&send_queue, &self->send_queue, link);
 
 	struct stream_req* tmp;
-	TAILQ_FOREACH_SAFE(req, &self->send_queue, link, tmp) {
+	TAILQ_FOREACH_SAFE(req, &send_queue, link, tmp) {
 		bytes_left -= req->payload->size;
 
 		if (bytes_left >= 0) {
-			TAILQ_REMOVE(&self->send_queue, req, link);
+			TAILQ_REMOVE(&send_queue, req, link);
 			stream_req__finish(req, STREAM_REQ_DONE);
 		} else {
 			if (req->exec) {
@@ -151,15 +155,19 @@ static int stream_tcp__flush(struct stream* self)
 			break;
 	}
 
-	self->cork = false;
+	if (ref.subject) {
+		TAILQ_CONCAT(&send_queue, &self->send_queue, link);
+		TAILQ_CONCAT(&self->send_queue, &send_queue, link);
 
-	if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
-		stream__poll_r(self);
+		self->cork = false;
 
-	assert(bytes_left <= 0);
+		if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
+			stream__poll_r(self);
 
-	// unref
-	stream_destroy(self);
+		assert(bytes_left <= 0);
+	}
+
+	weakref_observer_deinit(&ref);
 
 	return bytes_sent;
 }
@@ -198,16 +206,16 @@ static void stream_tcp__on_event(struct aml_handler* handler)
 
 	// We hold a reference here in case the stream gets destroyed inside
 	// callback.
-	stream_ref(self);
+	struct weakref_observer ref;
+	weakref_observer_init(&ref, &self->weakref);
 
 	if (events & AML_EVENT_READ)
 		stream_tcp__on_readable(self);
 
-	if (events & AML_EVENT_WRITE)
+	if ((events & AML_EVENT_WRITE) && ref.subject)
 		stream_tcp__on_writable(self);
 
-	// unref
-	stream_destroy(self);
+	weakref_observer_deinit(&ref);
 }
 
 ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)

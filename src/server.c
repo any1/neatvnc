@@ -2802,21 +2802,6 @@ static void process_pending_fence(struct nvnc_client* client)
 	process_client_messages(client);
 }
 
-static void complete_fb_update(struct nvnc_client* client)
-{
-	if (!client->is_updating)
-		return;
-	client->is_updating = false;
-	process_fb_update_requests(client);
-	DTRACE_PROBE1(neatvnc, update_fb_done, client);
-}
-
-static void on_write_frame_done(void* userdata, enum stream_req_status status)
-{
-	struct nvnc_client* client = userdata;
-	complete_fb_update(client);
-}
-
 static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 		const struct nvnc_composite_fb* fb)
 {
@@ -2908,19 +2893,22 @@ static void finish_fb_update(struct nvnc_client* client,
 		goto complete;
 
 	encoded_frame_ref(frame);
-	if (stream_send(client->net_stream, &frame->buf, on_write_frame_done,
-				client) < 0)
+	if (stream_send(client->net_stream, &frame->buf, NULL, NULL) < 0)
 		goto complete;
 
 	send_ping(client, frame->buf.size);
 
-	process_pending_fence(client);
+	if (WEAKREF_GUARD(client->weakref, process_pending_fence(client)))
+		return; // client's gone
 
 	DTRACE_PROBE2(neatvnc, send_fb_done, client, pts);
-	return;
 
 complete:
-	complete_fb_update(client);
+	if (!client->is_updating)
+		return;
+	client->is_updating = false;
+	process_fb_update_requests(client);
+	DTRACE_PROBE1(neatvnc, update_fb_done, client);
 }
 
 static void on_encode_frame_done(struct encoder* encoder,

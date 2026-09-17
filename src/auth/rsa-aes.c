@@ -55,7 +55,7 @@ int rsa_aes_send_public_key(struct nvnc_client* client)
 	crypto_rsa_pub_key_modulus(server->rsa_pub, modulus, key_len);
 	crypto_rsa_pub_key_exponent(server->rsa_pub, exponent, key_len);
 
-	stream_send(client->net_stream, rcbuf_new(buffer, buf_len), NULL, NULL);
+	stream_send(client->net_stream, rcbuf_new(buffer, buf_len));
 	return 0;
 }
 
@@ -74,7 +74,7 @@ static int rsa_aes_send_challenge(struct nvnc_client* client,
 			client->rsa.challenge, client->rsa.challenge_len);
 	msg->length = htons(key_len);
 
-	stream_send(client->net_stream, rcbuf_new(msg, msg_size), NULL, NULL);
+	stream_send(client->net_stream, rcbuf_new(msg, msg_size));
 	return 0;
 }
 

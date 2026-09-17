@@ -86,8 +86,7 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 
 		uint8_t buf[WS_HEADER_MIN_SIZE];
 		int reply_len = ws_write_frame_header(buf, &reply);
-		stream_tcp_send(&ws->base, rcbuf_from_mem(buf, reply_len),
-				NULL, NULL);
+		stream_tcp_send(&ws->base, rcbuf_from_mem(buf, reply_len));
 	}
 
 	int payload_len = MIN(ws->read_index - offset, ws->header.payload_length);
@@ -97,7 +96,7 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 	assert(rcbuf && rcbuf->payload);
 	ws_copy_payload(&ws->header, rcbuf->payload, ws->read_buffer + offset,
 			payload_len);
-	stream_tcp_send(&ws->base, rcbuf, NULL, NULL);
+	stream_tcp_send(&ws->base, rcbuf);
 
 	stream_ws_advance_read_buffer(ws, payload_len, offset);
 	return 0;
@@ -227,8 +226,7 @@ static ssize_t stream_ws_read(struct stream* self, void* dst, size_t size)
 	return -1;
 }
 
-static int stream_ws_send(struct stream* self, struct rcbuf* payload,
-		stream_req_fn on_done, void* userdata)
+static int stream_ws_send(struct stream* self, struct rcbuf* payload)
 {
 	struct stream_ws* ws = (struct stream_ws*)self;
 
@@ -241,9 +239,8 @@ static int stream_ws_send(struct stream* self, struct rcbuf* payload,
 	uint8_t raw_head[WS_HEADER_MIN_SIZE];
 	int head_len = ws_write_frame_header(raw_head, &head);
 
-	stream_tcp_send(&ws->base, rcbuf_from_mem(&raw_head, head_len),
-			NULL, NULL);
-	return stream_tcp_send(&ws->base, payload, on_done, userdata);
+	stream_tcp_send(&ws->base, rcbuf_from_mem(&raw_head, head_len));
+	return stream_tcp_send(&ws->base, payload);
 }
 
 static struct stream_impl impl = {

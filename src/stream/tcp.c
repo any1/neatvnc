@@ -52,7 +52,7 @@ int stream_tcp_close(struct stream* self)
 	while (!TAILQ_EMPTY(&send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&send_queue);
 		TAILQ_REMOVE(&send_queue, req, link);
-		stream_req__finish(req, STREAM_REQ_FAILED);
+		stream_req__finish(req);
 	}
 
 	aml_stop(aml_get_default(), self->handler);
@@ -129,7 +129,7 @@ static int stream_tcp__flush(struct stream* self)
 
 		if (bytes_left >= 0) {
 			TAILQ_REMOVE(&send_queue, req, link);
-			stream_req__finish(req, STREAM_REQ_DONE);
+			stream_req__finish(req);
 		} else {
 			char* p = req->payload->payload;
 			size_t s = req->payload->size;
@@ -226,8 +226,7 @@ ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size)
 	return rc;
 }
 
-int stream_tcp_send(struct stream* self, struct rcbuf* payload,
-		stream_req_fn on_done, void* userdata)
+int stream_tcp_send(struct stream* self, struct rcbuf* payload)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		goto failure;
@@ -237,8 +236,6 @@ int stream_tcp_send(struct stream* self, struct rcbuf* payload,
 		goto failure;
 
 	req->payload = payload;
-	req->on_done = on_done;
-	req->userdata = userdata;
 
 	TAILQ_INSERT_TAIL(&self->send_queue, req, link);
 

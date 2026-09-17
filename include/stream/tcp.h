@@ -27,6 +27,5 @@ int stream_tcp_init(struct stream* self, int fd, stream_event_fn on_event,
 int stream_tcp_close(struct stream* self);
 void stream_tcp_destroy(struct stream* self);
 ssize_t stream_tcp_read(struct stream* self, void* dst, size_t size);
-int stream_tcp_send(struct stream* self, struct rcbuf* payload,
-                stream_req_fn on_done, void* userdata);
+int stream_tcp_send(struct stream* self, struct rcbuf* payload);
 int stream_tcp_send_first(struct stream* self, struct rcbuf* payload);

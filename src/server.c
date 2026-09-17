@@ -662,7 +662,7 @@ static int send_server_init_message(struct nvnc_client* client)
 	nvnc_pixel_format_to_rfb(&msg->pixel_format, &client->pixfmt);
 
 	struct rcbuf* payload = rcbuf_new(msg, size);
-	stream_send(client->net_stream, payload, NULL, NULL);
+	stream_send(client->net_stream, payload);
 
 	struct nvnc_desktop_layout* known_layout =
 			build_desktop_layout(server, width, height);
@@ -925,8 +925,7 @@ static void send_cursor_update(struct nvnc_client* client)
 
 	client->cursor_seq = server->cursor_seq;
 
-	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len),
-			NULL, NULL);
+	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len));
 }
 
 static void send_desktop_name_update(struct nvnc_client* client)
@@ -2484,7 +2483,7 @@ static void on_connection(struct aml_handler* poll_handle)
 	}
 
 	client->last_ping_time = gettime_us(CLOCK_MONOTONIC);
-	stream_send(client->net_stream, payload, NULL, NULL);
+	stream_send(client->net_stream, payload);
 
 	LIST_INSERT_HEAD(&server->clients, client, link);
 
@@ -2893,7 +2892,7 @@ static void finish_fb_update(struct nvnc_client* client,
 		goto complete;
 
 	encoded_frame_ref(frame);
-	if (stream_send(client->net_stream, &frame->buf, NULL, NULL) < 0)
+	if (stream_send(client->net_stream, &frame->buf) < 0)
 		goto complete;
 
 	send_ping(client, frame->buf.size);
@@ -3279,8 +3278,7 @@ static bool client_send_led_state(struct nvnc_client* client)
 		vec_append(&payload, &data, sizeof(data));
 	}
 
-	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len),
-			NULL, NULL);
+	stream_send(client->net_stream, rcbuf_new(payload.data, payload.len));
 	client->led_state = client->pending_led_state;
 
 	return true;

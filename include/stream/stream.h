@@ -40,11 +40,6 @@ enum stream_state {
 #endif
 };
 
-enum stream_req_status {
-	STREAM_REQ_DONE = 0,
-	STREAM_REQ_FAILED,
-};
-
 enum stream_event {
 	STREAM_EVENT_READ,
 	STREAM_EVENT_REMOTE_CLOSED,
@@ -54,12 +49,9 @@ struct stream;
 struct crypto_cipher;
 
 typedef void (*stream_event_fn)(struct stream*, enum stream_event);
-typedef void (*stream_req_fn)(void*, enum stream_req_status);
 
 struct stream_req {
 	struct rcbuf* payload;
-	stream_req_fn on_done;
-	void* userdata;
 	TAILQ_ENTRY(stream_req) link;
 };
 
@@ -69,8 +61,7 @@ struct stream_impl {
 	int (*close)(struct stream*);
 	void (*destroy)(struct stream*);
 	ssize_t (*read)(struct stream*, void* dst, size_t size);
-	int (*send)(struct stream*, struct rcbuf* payload,
-			stream_req_fn on_done, void* userdata);
+	int (*send)(struct stream*, struct rcbuf* payload);
 	int (*send_first)(struct stream*, struct rcbuf* payload);
 };
 
@@ -106,8 +97,7 @@ int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);
 ssize_t stream_read(struct stream* self, void* dst, size_t size);
 int stream_write(struct stream* self, const void* payload, size_t len);
-int stream_send(struct stream* self, struct rcbuf* payload,
-		stream_req_fn fn, void* userdata);
+int stream_send(struct stream* self, struct rcbuf* payload);
 int stream_send_first(struct stream* self, struct rcbuf* payload);
 
 #ifdef ENABLE_TLS

@@ -35,5 +35,5 @@ static inline void stream__poll_rw(struct stream* self)
 	aml_set_event_mask(self->handler, AML_EVENT_READ | AML_EVENT_WRITE);
 }
 
-void stream_req__finish(struct stream_req* req, enum stream_req_status status);
+void stream_req__finish(struct stream_req* req);
 void stream__remote_closed(struct stream* self);

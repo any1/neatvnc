@@ -61,7 +61,7 @@ static int stream_gnutls_close(struct stream* base)
 	while (!TAILQ_EMPTY(&send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&send_queue);
 		TAILQ_REMOVE(&send_queue, req, link);
-		stream_req__finish(req, STREAM_REQ_FAILED);
+		stream_req__finish(req);
 	}
 
 	if (self->session)
@@ -136,7 +136,7 @@ static int stream_gnutls__flush(struct stream* base)
 
 req_done:
 		TAILQ_REMOVE(&send_queue, req, link);
-		stream_req__finish(req, STREAM_REQ_DONE);
+		stream_req__finish(req);
 	}
 
 	rc = 1;
@@ -206,8 +206,7 @@ static void stream_gnutls__on_event(struct aml_handler* handler)
 	weakref_observer_deinit(&ref);
 }
 
-static int stream_gnutls_send(struct stream* self, struct rcbuf* payload,
-		stream_req_fn on_done, void* userdata)
+static int stream_gnutls_send(struct stream* self, struct rcbuf* payload)
 {
 	if (self->state == STREAM_STATE_CLOSED)
 		goto failure;
@@ -217,8 +216,6 @@ static int stream_gnutls_send(struct stream* self, struct rcbuf* payload,
 		goto failure;
 
 	req->payload = payload;
-	req->on_done = on_done;
-	req->userdata = userdata;
 
 	TAILQ_INSERT_TAIL(&self->send_queue, req, link);
 

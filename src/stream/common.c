@@ -24,11 +24,8 @@ void stream_init(struct stream* self)
 	weakref_subject_init(&self->weakref);
 }
 
-void stream_req__finish(struct stream_req* req, enum stream_req_status status)
+void stream_req__finish(struct stream_req* req)
 {
-	if (req->on_done)
-		req->on_done(req->userdata, status);
-
 	rcbuf_unref(req->payload);
 	free(req);
 }

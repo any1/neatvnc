@@ -21,7 +21,7 @@
 
 void stream_init(struct stream* self)
 {
-	self->ref = 1;
+	weakref_subject_init(&self->weakref);
 }
 
 void stream_req__finish(struct stream_req* req, enum stream_req_status status)

@@ -45,13 +45,9 @@ int stream_tcp_close(struct stream* self)
 	self->state = STREAM_STATE_CLOSED;
 	self->cork = true;
 
-	struct stream_send_queue send_queue;
-	TAILQ_INIT(&send_queue);
-	TAILQ_CONCAT(&send_queue, &self->send_queue, link);
-
-	while (!TAILQ_EMPTY(&send_queue)) {
-		struct stream_req* req = TAILQ_FIRST(&send_queue);
-		TAILQ_REMOVE(&send_queue, req, link);
+	while (!TAILQ_EMPTY(&self->send_queue)) {
+		struct stream_req* req = TAILQ_FIRST(&self->send_queue);
+		TAILQ_REMOVE(&self->send_queue, req, link);
 		stream_req__finish(req);
 	}
 
@@ -116,19 +112,12 @@ static int stream_tcp__flush(struct stream* self)
 	// Don't flush while flushing
 	self->cork = true;
 
-	struct weakref_observer ref;
-	weakref_observer_init(&ref, &self->weakref);
-
-	struct stream_send_queue send_queue;
-	TAILQ_INIT(&send_queue);
-	TAILQ_CONCAT(&send_queue, &self->send_queue, link);
-
 	struct stream_req* tmp;
-	TAILQ_FOREACH_SAFE(req, &send_queue, link, tmp) {
+	TAILQ_FOREACH_SAFE(req, &self->send_queue, link, tmp) {
 		bytes_left -= req->payload->size;
 
 		if (bytes_left >= 0) {
-			TAILQ_REMOVE(&send_queue, req, link);
+			TAILQ_REMOVE(&self->send_queue, req, link);
 			stream_req__finish(req);
 		} else {
 			char* p = req->payload->payload;
@@ -142,19 +131,12 @@ static int stream_tcp__flush(struct stream* self)
 			break;
 	}
 
-	if (ref.subject) {
-		TAILQ_CONCAT(&send_queue, &self->send_queue, link);
-		TAILQ_CONCAT(&self->send_queue, &send_queue, link);
+	self->cork = false;
 
-		self->cork = false;
+	if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
+		stream__poll_r(self);
 
-		if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
-			stream__poll_r(self);
-
-		assert(bytes_left <= 0);
-	}
-
-	weakref_observer_deinit(&ref);
+	assert(bytes_left <= 0);
 
 	return bytes_sent;
 }

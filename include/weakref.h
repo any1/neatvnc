@@ -3,9 +3,19 @@
 #include "sys/queue.h"
 #include "type-macros.h"
 #include <stddef.h>
+#include <stdbool.h>
 
 #define WEAKREF_CAST(ref, type, member) \
 	((ref).subject ? container_of((ref).subject, type, member) : NULL)
+
+#define WEAKREF_GUARD(subj, expr) ({ \
+	struct weakref_observer observer; \
+	weakref_observer_init(&observer, &(subj)); \
+	expr; \
+	bool alive = observer.subject; \
+	weakref_observer_deinit(&observer); \
+	!alive; \
+})
 
 struct weakref_subject;
 

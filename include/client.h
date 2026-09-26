@@ -71,7 +71,7 @@ struct nvnc_client {
 
 	struct aml_timer* handshake_timer;
 	struct stream* net_stream;
-	char username[256];
+	char username[NVNC_AUTH_USERNAME_MAX];
 	struct nvnc* server;
 	enum nvnc_client_state state;
 	uint16_t rfb_minor_version;

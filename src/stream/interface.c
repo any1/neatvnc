@@ -18,11 +18,6 @@
 
 #include <assert.h>
 
-void stream_ref(struct stream* self)
-{
-	self->ref++;
-}
-
 int stream_close(struct stream* self)
 {
 	assert(self->impl && self->impl->close);
@@ -32,8 +27,8 @@ int stream_close(struct stream* self)
 void stream_destroy(struct stream* self)
 {
 	assert(self->impl && self->impl->destroy);
-	if (--self->ref == 0)
-		return self->impl->destroy(self);
+	weakref_subject_deinit(&self->weakref);
+	self->impl->destroy(self);
 }
 
 int stream_send(struct stream* self, struct rcbuf* payload,

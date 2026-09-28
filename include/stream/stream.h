@@ -20,6 +20,7 @@
 #include "sys/queue.h"
 #include "rcbuf.h"
 #include "vec.h"
+#include "weakref.h"
 
 #ifdef HAVE_CRYPTO
 #include "crypto.h"
@@ -78,7 +79,7 @@ struct stream_impl {
 
 struct stream {
 	struct stream_impl *impl;
-	int ref;
+	struct weakref_subject weakref;
 
 	enum stream_state state;
 
@@ -104,7 +105,6 @@ struct stream* stream_ws_new(int fd, stream_event_fn on_event, void* userdata);
 
 struct stream* stream_new(int fd, stream_event_fn on_event, void* userdata);
 void stream_init(struct stream* self);
-void stream_ref(struct stream* self);
 int stream_close(struct stream* self);
 void stream_destroy(struct stream* self);
 ssize_t stream_read(struct stream* self, void* dst, size_t size);

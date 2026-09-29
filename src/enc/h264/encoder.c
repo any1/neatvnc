@@ -26,19 +26,22 @@ extern struct h264_encoder_impl h264_encoder_v4l2m2m_impl;
 #endif
 
 struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
-		uint32_t format, int quality)
+		uint32_t format, int quality, bool hw)
 {
 	struct h264_encoder* encoder = NULL;
 
 #ifdef HAVE_V4L2
-	encoder = h264_encoder_v4l2m2m_impl.create(width, height, format, quality);
-	if (encoder) {
-		return encoder;
+	// V4L2 is useless for sw frames
+	if (!hw) {
+		encoder = h264_encoder_v4l2m2m_impl.create(width, height, format, quality, /* hw = */ true);
+		if (encoder) {
+			return encoder;
+		}
 	}
 #endif
 
 #ifdef HAVE_FFMPEG
-	encoder = h264_encoder_ffmpeg_impl.create(width, height, format, quality);
+	encoder = h264_encoder_ffmpeg_impl.create(width, height, format, quality, hw);
 	if (encoder) {
 		return encoder;
 	}

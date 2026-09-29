@@ -642,7 +642,7 @@ static int find_capable_device(uint32_t width, uint32_t height)
 }
 
 static struct h264_encoder* h264_encoder_v4l2m2m_create(uint32_t width,
-		uint32_t height, uint32_t format, int quality)
+		uint32_t height, uint32_t format, int quality, bool hw)
 {
 	struct h264_encoder_v4l2m2m* self = calloc(1, sizeof(*self));
 	if (!self)

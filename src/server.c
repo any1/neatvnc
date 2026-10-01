@@ -1615,7 +1615,8 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 	uint32_t flags = ntohl(msg->flags);
 
 	/* make sure that there is space to read a correctly-sized caps message
-	 * right now */
+	 * right now
+	 */
 	if (flags & RFB_EXT_CLIPBOARD_CAPS)
 		if (left_to_process < sizeof(*msg) + MIN(16 * 4, length))
 			return 0;
@@ -1634,7 +1635,8 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 
 	/* this is expected to be a text provide message. if not, tell
 	 * process_big_cut_text to ignore it, to avoid unnecessarily attempting
-	 * to inflate garbage */
+	 * to inflate garbage
+	 */
 	if (msg_size > left_to_process) {
 		assert(!client->cut_text.buffer);
 		client->cut_text.buffer = malloc(length);
@@ -1662,8 +1664,7 @@ static int process_client_ext_clipboard(struct nvnc_client* client)
 	if (flags & RFB_EXT_CLIPBOARD_CAPS) {
 		client->ext_clipboard_caps = flags;
 
-		/* we only care about text, which will always be
-		 * listed first */
+		/* we only care about text, which will always be listed first */
 		if (length >= 4)
 			client->ext_clipboard_max_unsolicited_text_size =
 				ntohl(msg->max_unsolicited_sizes[0]);

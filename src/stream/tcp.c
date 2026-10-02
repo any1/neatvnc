@@ -155,16 +155,24 @@ static int stream_tcp__flush(struct stream* self)
 			break;
 	}
 
-	if (ref.subject) {
+	if (ref.subject && self->state != STREAM_STATE_CLOSED) {
 		TAILQ_CONCAT(&send_queue, &self->send_queue, link);
 		TAILQ_CONCAT(&self->send_queue, &send_queue, link);
 
 		self->cork = false;
 
-		if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
+		if (TAILQ_EMPTY(&self->send_queue))
 			stream__poll_r(self);
+		else
+			stream__poll_rw(self);
 
 		assert(bytes_left <= 0);
+	} else {
+		while (!TAILQ_EMPTY(&send_queue)) {
+			struct stream_req* req = TAILQ_FIRST(&send_queue);
+			TAILQ_REMOVE(&send_queue, req, link);
+			stream_req__finish(req, STREAM_REQ_FAILED);
+		}
 	}
 
 	weakref_observer_deinit(&ref);

@@ -84,6 +84,9 @@ static void stream_gnutls_destroy(struct stream* self)
 
 static int stream_gnutls__flush(struct stream* base)
 {
+	if (base->cork)
+		return 0;
+
 	struct stream_gnutls* self = (struct stream_gnutls*)base;
 
 	struct weakref_observer ref;
@@ -94,12 +97,13 @@ static int stream_gnutls__flush(struct stream* base)
 	TAILQ_CONCAT(&send_queue, &base->send_queue, link);
 
 	int rc = -1;
-	bool is_fatal = false;
+
+	base->cork = true;
 
 	while (!TAILQ_EMPTY(&send_queue)) {
 		struct stream_req* req = TAILQ_FIRST(&send_queue);
-		if (!ref.subject)
-			goto req_done;
+		if (!ref.subject || base->state == STREAM_STATE_CLOSED)
+			goto done;
 
 		/* GnuTLS returns an error when sending with 0 data_size */
 		if (req->payload->size == 0)
@@ -109,7 +113,7 @@ static int stream_gnutls__flush(struct stream* base)
 				req->payload->payload, req->payload->size);
 		if (n_sent < 0) {
 			if (gnutls_error_is_fatal(n_sent)) {
-				is_fatal = true;
+				stream_close(base);
 				goto done;
 			}
 
@@ -141,15 +145,22 @@ req_done:
 
 	rc = 1;
 done:
-	if (ref.subject) {
+	if (ref.subject && base->state != STREAM_STATE_CLOSED) {
 		TAILQ_CONCAT(&send_queue, &base->send_queue, link);
 		TAILQ_CONCAT(&base->send_queue, &send_queue, link);
 
-		if (is_fatal)
-			stream_close(base);
-		else if (TAILQ_EMPTY(&base->send_queue) &&
-				base->state != STREAM_STATE_CLOSED)
+		base->cork = false;
+
+		if (TAILQ_EMPTY(&base->send_queue))
 			stream__poll_r(base);
+		else
+			stream__poll_rw(base);
+	} else {
+		while (!TAILQ_EMPTY(&send_queue)) {
+			struct stream_req* req = TAILQ_FIRST(&send_queue);
+			TAILQ_REMOVE(&send_queue, req, link);
+			stream_req__finish(req, STREAM_REQ_FAILED);
+		}
 	}
 
 	weakref_observer_deinit(&ref);

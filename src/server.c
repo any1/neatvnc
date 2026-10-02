@@ -303,6 +303,11 @@ static void init_security_types(struct nvnc* server)
 	if (server->auth_flags & NVNC_AUTH_REQUIRE_AUTH) {
 		assert(server->auth_fn);
 
+#ifdef HAVE_CRYPTO
+		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_RSA_AES256);
+		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_RSA_AES);
+#endif
+
 #ifdef ENABLE_TLS
 		if (server->tls_creds) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_VENCRYPT);
@@ -310,9 +315,6 @@ static void init_security_types(struct nvnc* server)
 #endif
 
 #ifdef HAVE_CRYPTO
-		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_RSA_AES256);
-		ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_RSA_AES);
-
 		if (!(server->auth_flags & NVNC_AUTH_REQUIRE_ENCRYPTION)) {
 			ADD_SECURITY_TYPE(RFB_SECURITY_TYPE_APPLE_DH);
 

@@ -127,8 +127,12 @@ static int stream_tcp__flush(struct stream* self)
 			break;
 	}
 
-	if (bytes_left == 0 && self->state != STREAM_STATE_CLOSED)
-		stream__poll_r(self);
+	if (self->state != STREAM_STATE_CLOSED) {
+		if (TAILQ_EMPTY(&self->send_queue))
+			stream__poll_r(self);
+		else
+			stream__poll_rw(self);
+	}
 
 	assert(bytes_left <= 0);
 

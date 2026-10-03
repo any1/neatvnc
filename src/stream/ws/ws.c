@@ -80,6 +80,15 @@ static ssize_t stream_ws_copy_payload(struct stream_ws* ws, void* dst,
 	return payload_len;
 }
 
+static int stream_ws_queue(struct stream_ws* ws, struct rcbuf* payload)
+{
+	bool cork = ws->base.cork;
+	ws->base.cork = true;
+	int rc = stream_tcp_send(&ws->base, payload, NULL, NULL);
+	ws->base.cork = cork;
+	return rc;
+}
+
 static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 {
 	if (offset > 0) {
@@ -92,8 +101,7 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 
 		uint8_t buf[WS_HEADER_MIN_SIZE];
 		int reply_len = ws_write_frame_header(buf, &reply);
-		if (stream_tcp_send(&ws->base, rcbuf_from_mem(buf, reply_len),
-				NULL, NULL) < 0)
+		if (stream_ws_queue(ws, rcbuf_from_mem(buf, reply_len)) < 0)
 			return -1;
 	}
 
@@ -249,8 +257,7 @@ static int stream_ws_send(struct stream* self, struct rcbuf* payload,
 	uint8_t raw_head[WS_HEADER_MIN_SIZE];
 	int head_len = ws_write_frame_header(raw_head, &head);
 
-	if (stream_tcp_send(&ws->base, rcbuf_from_mem(&raw_head, head_len),
-			NULL, NULL) < 0) {
+	if (stream_ws_queue(ws, rcbuf_from_mem(&raw_head, head_len)) < 0) {
 		rcbuf_unref(payload);
 		return -1;
 	}

@@ -47,13 +47,14 @@ struct stream_ws {
 	uint8_t read_buffer[4096]; // TODO: Is this a reasonable size?
 };
 
-static void stream_ws_read_into_buffer(struct stream_ws* ws)
+static ssize_t stream_ws_read_into_buffer(struct stream_ws* ws)
 {
 	ssize_t n_read = stream_tcp_read(&ws->base,
 			ws->read_buffer + ws->read_index,
 			sizeof(ws->read_buffer) - ws->read_index);
 	if (n_read > 0)
 		ws->read_index += n_read;
+	return n_read;
 }
 
 static void stream_ws_advance_read_buffer(struct stream_ws* ws, size_t size,
@@ -218,9 +219,9 @@ static ssize_t stream_ws_read(struct stream* self, void* dst, size_t size)
 {
 	struct stream_ws* ws = (struct stream_ws*)self;
 
-	stream_ws_read_into_buffer(ws);
-	if (self->state == STREAM_STATE_CLOSED)
-		return 0;
+	ssize_t n_read = stream_ws_read_into_buffer(ws);
+	if (n_read <= 0)
+		return n_read;
 
 	switch (ws->ws_state) {
 	case STREAM_WS_STATE_HANDSHAKE:

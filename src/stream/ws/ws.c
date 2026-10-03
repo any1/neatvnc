@@ -150,6 +150,13 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 		return 0;
 	}
 
+	if (ws->header.opcode == WS_OPCODE_PING &&
+			ws->read_index - ws->header.header_length <
+			ws->header.payload_length) {
+		ws->header.payload_length = 0;
+		return 0;
+	}
+
 	if (ws->header.opcode != WS_OPCODE_CONT) {
 		ws->current_opcode = ws->header.opcode;
 	}

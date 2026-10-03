@@ -127,7 +127,10 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 static ssize_t stream_ws_process_payload(struct stream_ws* ws, void* dst,
 		size_t size, size_t offset)
 {
-	switch (ws->current_opcode) {
+	enum ws_opcode opcode = ws->header.opcode == WS_OPCODE_CONT ?
+		ws->current_opcode : ws->header.opcode;
+
+	switch (opcode) {
 	case WS_OPCODE_CONT:
 		// Remote end started with a continuation frame. This is
 		// unexpected, so we'll just close.
@@ -175,7 +178,8 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 		return 0;
 	}
 
-	if (ws->header.opcode != WS_OPCODE_CONT) {
+	if (ws->header.opcode == WS_OPCODE_TEXT ||
+			ws->header.opcode == WS_OPCODE_BIN) {
 		ws->current_opcode = ws->header.opcode;
 	}
 

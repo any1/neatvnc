@@ -54,6 +54,14 @@ static int stream_gnutls_close(struct stream* base)
 
 	self->base.state = STREAM_STATE_CLOSED;
 
+	if (self->session)
+		gnutls_deinit(self->session);
+	self->session = NULL;
+
+	aml_stop(aml_get_default(), self->base.handler);
+	close(self->base.fd);
+	self->base.fd = -1;
+
 	struct stream_send_queue send_queue;
 	TAILQ_INIT(&send_queue);
 	TAILQ_CONCAT(&send_queue, &self->base.send_queue, link);
@@ -63,14 +71,6 @@ static int stream_gnutls_close(struct stream* base)
 		TAILQ_REMOVE(&send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_FAILED);
 	}
-
-	if (self->session)
-		gnutls_deinit(self->session);
-	self->session = NULL;
-
-	aml_stop(aml_get_default(), self->base.handler);
-	close(self->base.fd);
-	self->base.fd = -1;
 
 	return 0;
 }
@@ -84,22 +84,20 @@ static void stream_gnutls_destroy(struct stream* self)
 
 static int stream_gnutls__flush(struct stream* base)
 {
+	if (base->cork)
+		return 0;
+
 	struct stream_gnutls* self = (struct stream_gnutls*)base;
 
 	struct weakref_observer ref;
 	weakref_observer_init(&ref, &base->weakref);
 
-	struct stream_send_queue send_queue;
-	TAILQ_INIT(&send_queue);
-	TAILQ_CONCAT(&send_queue, &base->send_queue, link);
-
 	int rc = -1;
-	bool is_fatal = false;
 
-	while (!TAILQ_EMPTY(&send_queue)) {
-		struct stream_req* req = TAILQ_FIRST(&send_queue);
-		if (!ref.subject)
-			goto req_done;
+	base->cork = true;
+
+	while (!TAILQ_EMPTY(&base->send_queue)) {
+		struct stream_req* req = TAILQ_FIRST(&base->send_queue);
 
 		/* GnuTLS returns an error when sending with 0 data_size */
 		if (req->payload->size == 0)
@@ -109,7 +107,7 @@ static int stream_gnutls__flush(struct stream* base)
 				req->payload->payload, req->payload->size);
 		if (n_sent < 0) {
 			if (gnutls_error_is_fatal(n_sent)) {
-				is_fatal = true;
+				stream_close(base);
 				goto done;
 			}
 
@@ -135,21 +133,21 @@ static int stream_gnutls__flush(struct stream* base)
 		assert(remaining == 0);
 
 req_done:
-		TAILQ_REMOVE(&send_queue, req, link);
+		TAILQ_REMOVE(&base->send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_DONE);
+		if (!ref.subject || base->state == STREAM_STATE_CLOSED)
+			goto done;
 	}
 
 	rc = 1;
 done:
-	if (ref.subject) {
-		TAILQ_CONCAT(&send_queue, &base->send_queue, link);
-		TAILQ_CONCAT(&base->send_queue, &send_queue, link);
+	if (ref.subject && base->state != STREAM_STATE_CLOSED) {
+		base->cork = false;
 
-		if (is_fatal)
-			stream_close(base);
-		else if (TAILQ_EMPTY(&base->send_queue) &&
-				base->state != STREAM_STATE_CLOSED)
+		if (TAILQ_EMPTY(&base->send_queue))
 			stream__poll_r(base);
+		else
+			stream__poll_rw(base);
 	}
 
 	weakref_observer_deinit(&ref);

@@ -47,13 +47,14 @@ struct stream_ws {
 	uint8_t read_buffer[4096]; // TODO: Is this a reasonable size?
 };
 
-static void stream_ws_read_into_buffer(struct stream_ws* ws)
+static ssize_t stream_ws_read_into_buffer(struct stream_ws* ws)
 {
 	ssize_t n_read = stream_tcp_read(&ws->base,
 			ws->read_buffer + ws->read_index,
 			sizeof(ws->read_buffer) - ws->read_index);
 	if (n_read > 0)
 		ws->read_index += n_read;
+	return n_read;
 }
 
 static void stream_ws_advance_read_buffer(struct stream_ws* ws, size_t size,
@@ -66,6 +67,11 @@ static void stream_ws_advance_read_buffer(struct stream_ws* ws, size_t size,
 	memmove(ws->read_buffer, ws->read_buffer + offset + payload_len,
 			ws->read_index);
 	ws->header.payload_length -= payload_len;
+
+	uint8_t key[4];
+	memcpy(key, ws->header.masking_key, sizeof(key));
+	for (int i = 0; i < 4; ++i)
+		ws->header.masking_key[i] = key[(i + payload_len) % 4];
 }
 
 static ssize_t stream_ws_copy_payload(struct stream_ws* ws, void* dst,
@@ -77,6 +83,15 @@ static ssize_t stream_ws_copy_payload(struct stream_ws* ws, void* dst,
 	ws_copy_payload(&ws->header, dst, ws->read_buffer + offset, payload_len);
 	stream_ws_advance_read_buffer(ws, size, offset);
 	return payload_len;
+}
+
+static int stream_ws_queue(struct stream_ws* ws, struct rcbuf* payload)
+{
+	bool cork = ws->base.cork;
+	ws->base.cork = true;
+	int rc = stream_tcp_send(&ws->base, payload, NULL, NULL);
+	ws->base.cork = cork;
+	return rc;
 }
 
 static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
@@ -91,8 +106,8 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 
 		uint8_t buf[WS_HEADER_MIN_SIZE];
 		int reply_len = ws_write_frame_header(buf, &reply);
-		stream_tcp_send(&ws->base, rcbuf_from_mem(buf, reply_len),
-				NULL, NULL);
+		if (stream_ws_queue(ws, rcbuf_from_mem(buf, reply_len)) < 0)
+			return -1;
 	}
 
 	int payload_len = MIN(ws->read_index - offset, ws->header.payload_length);
@@ -102,7 +117,8 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 	assert(rcbuf && rcbuf->payload);
 	ws_copy_payload(&ws->header, rcbuf->payload, ws->read_buffer + offset,
 			payload_len);
-	stream_tcp_send(&ws->base, rcbuf, NULL, NULL);
+	if (stream_tcp_send(&ws->base, rcbuf, NULL, NULL) < 0)
+		return -1;
 
 	stream_ws_advance_read_buffer(ws, payload_len, offset);
 	return 0;
@@ -111,7 +127,10 @@ static ssize_t stream_ws_process_ping(struct stream_ws* ws, size_t offset)
 static ssize_t stream_ws_process_payload(struct stream_ws* ws, void* dst,
 		size_t size, size_t offset)
 {
-	switch (ws->current_opcode) {
+	enum ws_opcode opcode = ws->header.opcode == WS_OPCODE_CONT ?
+		ws->current_opcode : ws->header.opcode;
+
+	switch (opcode) {
 	case WS_OPCODE_CONT:
 		// Remote end started with a continuation frame. This is
 		// unexpected, so we'll just close.
@@ -152,7 +171,15 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 		return 0;
 	}
 
-	if (ws->header.opcode != WS_OPCODE_CONT) {
+	if (ws->header.opcode == WS_OPCODE_PING &&
+			ws->read_index - ws->header.header_length <
+			ws->header.payload_length) {
+		ws->header.payload_length = 0;
+		return 0;
+	}
+
+	if (ws->header.opcode == WS_OPCODE_TEXT ||
+			ws->header.opcode == WS_OPCODE_BIN) {
 		ws->current_opcode = ws->header.opcode;
 	}
 
@@ -165,18 +192,28 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 static ssize_t stream_ws_read_ready(struct stream_ws* ws, void* dst,
 		size_t size)
 {
-	size_t total_read = 0;
+	struct weakref_observer ref;
+	weakref_observer_init(&ref, &ws->base.weakref);
+
+	ssize_t total_read = 0;
 
 	while (true) {
+		size_t read_index = ws->read_index;
 		ssize_t n_read = stream_ws_read_frame(ws, dst, size);
-		if (n_read == 0)
+		if (!ref.subject)
 			break;
 
-		if (n_read < 0) {
-			if (errno == EAGAIN) {
+		if (n_read == 0) {
+			if (ws->base.state == STREAM_STATE_CLOSED ||
+					ws->read_index == read_index)
 				break;
-			}
-			return -1;
+			continue;
+		}
+
+		if (n_read < 0) {
+			if (errno != EAGAIN)
+				total_read = -1;
+			break;
 		}
 
 		total_read += n_read;
@@ -184,6 +221,7 @@ static ssize_t stream_ws_read_ready(struct stream_ws* ws, void* dst,
 		size -= n_read;
 	}
 
+	weakref_observer_deinit(&ref);
 	return total_read;
 }
 
@@ -218,9 +256,9 @@ static ssize_t stream_ws_read(struct stream* self, void* dst, size_t size)
 {
 	struct stream_ws* ws = (struct stream_ws*)self;
 
-	stream_ws_read_into_buffer(ws);
-	if (self->state == STREAM_STATE_CLOSED)
-		return 0;
+	ssize_t n_read = stream_ws_read_into_buffer(ws);
+	if (n_read <= 0)
+		return n_read;
 
 	switch (ws->ws_state) {
 	case STREAM_WS_STATE_HANDSHAKE:
@@ -246,8 +284,11 @@ static int stream_ws_send(struct stream* self, struct rcbuf* payload,
 	uint8_t raw_head[WS_HEADER_MIN_SIZE];
 	int head_len = ws_write_frame_header(raw_head, &head);
 
-	stream_tcp_send(&ws->base, rcbuf_from_mem(&raw_head, head_len),
-			NULL, NULL);
+	if (stream_ws_queue(ws, rcbuf_from_mem(&raw_head, head_len)) < 0) {
+		rcbuf_unref(payload);
+		return -1;
+	}
+
 	return stream_tcp_send(&ws->base, payload, on_done, userdata);
 }
 

@@ -39,8 +39,13 @@ void stream_req__finish(struct stream_req* req, enum stream_req_status status)
 
 void stream__remote_closed(struct stream* self)
 {
+	struct weakref_observer ref;
+	weakref_observer_init(&ref, &self->weakref);
+
 	stream_close(self);
 
-	if (self->on_event)
+	if (ref.subject && self->on_event)
 		self->on_event(self, STREAM_EVENT_REMOTE_CLOSED);
+
+	weakref_observer_deinit(&ref);
 }

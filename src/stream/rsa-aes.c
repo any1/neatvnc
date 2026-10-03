@@ -52,13 +52,14 @@ static void stream_rsa_aes_destroy(struct stream* base)
 	stream_tcp_destroy(base);
 }
 
-static void stream_rsa_aes_read_into_buffer(struct stream_rsa_aes* self)
+static ssize_t stream_rsa_aes_read_into_buffer(struct stream_rsa_aes* self)
 {
 	ssize_t n_read = stream_tcp_read(&self->base,
 			self->read_buffer + self->read_index,
 			RSA_AES_BUFFER_SIZE - self->read_index);
 	if (n_read > 0)
 		self->read_index += n_read;
+	return n_read;
 }
 
 static ssize_t stream_rsa_aes_parse_header(struct stream_rsa_aes* self)
@@ -121,9 +122,9 @@ static ssize_t stream_rsa_aes_read(struct stream* base, void* dst, size_t size)
 {
 	struct stream_rsa_aes* self = (struct stream_rsa_aes*)base;
 
-	stream_rsa_aes_read_into_buffer(self);
-	if (self->base.state == STREAM_STATE_CLOSED)
-		return 0;
+	ssize_t n_read = stream_rsa_aes_read_into_buffer(self);
+	if (n_read <= 0)
+		return n_read;
 
 	size_t total_read = 0;
 

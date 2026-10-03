@@ -179,18 +179,28 @@ static ssize_t stream_ws_read_frame(struct stream_ws* ws, void* dst,
 static ssize_t stream_ws_read_ready(struct stream_ws* ws, void* dst,
 		size_t size)
 {
-	size_t total_read = 0;
+	struct weakref_observer ref;
+	weakref_observer_init(&ref, &ws->base.weakref);
+
+	ssize_t total_read = 0;
 
 	while (true) {
+		size_t read_index = ws->read_index;
 		ssize_t n_read = stream_ws_read_frame(ws, dst, size);
-		if (n_read == 0)
+		if (!ref.subject)
 			break;
 
-		if (n_read < 0) {
-			if (errno == EAGAIN) {
+		if (n_read == 0) {
+			if (ws->base.state == STREAM_STATE_CLOSED ||
+					ws->read_index == read_index)
 				break;
-			}
-			return -1;
+			continue;
+		}
+
+		if (n_read < 0) {
+			if (errno != EAGAIN)
+				total_read = -1;
+			break;
 		}
 
 		total_read += n_read;
@@ -198,6 +208,7 @@ static ssize_t stream_ws_read_ready(struct stream_ws* ws, void* dst,
 		size -= n_read;
 	}
 
+	weakref_observer_deinit(&ref);
 	return total_read;
 }
 

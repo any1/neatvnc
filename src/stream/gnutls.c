@@ -54,6 +54,14 @@ static int stream_gnutls_close(struct stream* base)
 
 	self->base.state = STREAM_STATE_CLOSED;
 
+	if (self->session)
+		gnutls_deinit(self->session);
+	self->session = NULL;
+
+	aml_stop(aml_get_default(), self->base.handler);
+	close(self->base.fd);
+	self->base.fd = -1;
+
 	struct stream_send_queue send_queue;
 	TAILQ_INIT(&send_queue);
 	TAILQ_CONCAT(&send_queue, &self->base.send_queue, link);
@@ -63,14 +71,6 @@ static int stream_gnutls_close(struct stream* base)
 		TAILQ_REMOVE(&send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_FAILED);
 	}
-
-	if (self->session)
-		gnutls_deinit(self->session);
-	self->session = NULL;
-
-	aml_stop(aml_get_default(), self->base.handler);
-	close(self->base.fd);
-	self->base.fd = -1;
 
 	return 0;
 }

@@ -45,6 +45,10 @@ int stream_tcp_close(struct stream* self)
 	self->state = STREAM_STATE_CLOSED;
 	self->cork = true;
 
+	aml_stop(aml_get_default(), self->handler);
+	close(self->fd);
+	self->fd = -1;
+
 	struct stream_send_queue send_queue;
 	TAILQ_INIT(&send_queue);
 	TAILQ_CONCAT(&send_queue, &self->send_queue, link);
@@ -54,10 +58,6 @@ int stream_tcp_close(struct stream* self)
 		TAILQ_REMOVE(&send_queue, req, link);
 		stream_req__finish(req, STREAM_REQ_FAILED);
 	}
-
-	aml_stop(aml_get_default(), self->handler);
-	close(self->fd);
-	self->fd = -1;
 
 	return 0;
 }

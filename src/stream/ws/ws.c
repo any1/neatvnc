@@ -67,6 +67,11 @@ static void stream_ws_advance_read_buffer(struct stream_ws* ws, size_t size,
 	memmove(ws->read_buffer, ws->read_buffer + offset + payload_len,
 			ws->read_index);
 	ws->header.payload_length -= payload_len;
+
+	uint8_t key[4];
+	memcpy(key, ws->header.masking_key, sizeof(key));
+	for (int i = 0; i < 4; ++i)
+		ws->header.masking_key[i] = key[(i + payload_len) % 4];
 }
 
 static ssize_t stream_ws_copy_payload(struct stream_ws* ws, void* dst,

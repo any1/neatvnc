@@ -1,3 +1,9 @@
+neatvnc (1.0.3-1+rpt1) trixie; urgency=medium
+
+  * Packaged GitHub version 1.0.3
+
+ -- Andri Yngvason <andri@yngvason.is>  Sat, 03 Oct 2026 16:30:00 +0000
+
 neatvnc (1.0.2-1+rpt1) trixie; urgency=medium
 
   * Packaged GitHub version 1.0.2

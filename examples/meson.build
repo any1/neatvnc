@@ -1,5 +1,6 @@
 libpng = dependency('libpng', required: false)
 libavformat = dependency('libavformat', required: false)
+libswresample = dependency('libswresample', required: false)
 
 executable(
 	'draw',
@@ -16,7 +17,7 @@ executable(
 )
 
 if gbm.found() and libavcodec.found() and libavutil.found() and \
-   libavformat.found() and libavfilter.found()
+   libavformat.found() and libavfilter.found() and libswresample.found()
 	executable(
 		'video-player',
 		[
@@ -32,6 +33,7 @@ if gbm.found() and libavcodec.found() and libavutil.found() and \
 			libavcodec,
 			libavutil,
 			libavfilter,
+			libswresample,
 		]
 	)
 endif

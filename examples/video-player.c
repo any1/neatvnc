@@ -19,6 +19,7 @@
 #include <aml.h>
 
 #include <assert.h>
+#include <endian.h>
 #include <fcntl.h>
 #include <math.h>
 #include <signal.h>
@@ -37,15 +38,19 @@
 #include <libavfilter/buffersrc.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include <libavutil/channel_layout.h>
 #include <libavutil/hwcontext_drm.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/samplefmt.h>
+#include <libswresample/swresample.h>
 
 #define CURSOR_SIZE 32
+#define MAX_PENDING_AUDIO_FRAMES 64
 
 struct video_player {
 	struct aml_work* work;
 	AVFrame* pending_frame;
-	AVCodecContext* codec_ctx;
+	AVCodecContext* video_codec_ctx;
 
 	AVFilterGraph* filter_graph;
 	AVFilterContext* filter_in;
@@ -53,6 +58,11 @@ struct video_player {
 
 	AVFormatContext* format_context;
 	int video_stream_index;
+
+	AVCodecContext* audio_codec_ctx;
+	int audio_stream_index;
+	AVFrame* pending_audio_frames[MAX_PENDING_AUDIO_FRAMES];
+	int n_pending_audio_frames;
 
 	struct nvnc* server;
 	struct nvnc_display* display;
@@ -67,6 +77,14 @@ struct video_player {
 struct frame_context {
 	AVFrame* av_frame;
 	struct gbm_bo* bo;
+};
+
+struct client_context {
+	struct video_player* player;
+	struct SwrContext* swr;
+	enum AVSampleFormat sample_format;
+	enum nvnc_audio_format wire_format;
+	int channel_count;
 };
 
 static uint64_t gettime_us(void)
@@ -145,7 +163,7 @@ static int init_filters(struct video_player* self, AVFrame* first_frame)
 
 	for (unsigned int i = 0; i < self->filter_graph->nb_filters; ++i) {
 		self->filter_graph->filters[i]->hw_device_ctx =
-			av_buffer_ref(self->codec_ctx->hw_device_ctx);
+			av_buffer_ref(self->video_codec_ctx->hw_device_ctx);
 	}
 
 	rc = avfilter_graph_config(self->filter_graph, NULL);
@@ -172,7 +190,7 @@ static int receive_decoded_frame(struct video_player* self)
 		goto out;
 	}
 
-	rc = avcodec_receive_frame(self->codec_ctx, frame);
+	rc = avcodec_receive_frame(self->video_codec_ctx, frame);
 	if (rc < 0)
 		goto out;
 
@@ -222,12 +240,47 @@ static void read_next_packet(struct video_player* self, AVPacket* packet)
 			continue;
 		}
 
-		if (packet->stream_index != self->video_stream_index) {
+		int index = packet->stream_index;
+		if (index != self->video_stream_index &&
+				index != self->audio_stream_index) {
 			av_packet_unref(packet);
 			continue;
 		}
 
 		break;
+	}
+}
+
+static void queue_audio_frame(struct video_player* self, AVFrame* frame)
+{
+	if (self->n_pending_audio_frames >= MAX_PENDING_AUDIO_FRAMES) {
+		av_frame_free(&frame);
+		return;
+	}
+
+	self->pending_audio_frames[self->n_pending_audio_frames++] = frame;
+}
+
+static void decode_audio_packet(struct video_player* self, AVPacket* packet)
+{
+	int rc = avcodec_send_packet(self->audio_codec_ctx, packet);
+	if (rc < 0) {
+		fprintf(stderr, "Error sending packet to audio decoder\n");
+		return;
+	}
+
+	while (true) {
+		AVFrame* frame = av_frame_alloc();
+		if (!frame)
+			return;
+
+		rc = avcodec_receive_frame(self->audio_codec_ctx, frame);
+		if (rc < 0) {
+			av_frame_free(&frame);
+			return;
+		}
+
+		queue_audio_frame(self, frame);
 	}
 }
 
@@ -277,7 +330,13 @@ static void do_decode_work(struct aml_work* work)
 	while (!self->pending_frame) {
 		read_next_packet(self, packet);
 
-		int rc = avcodec_send_packet(self->codec_ctx, packet);
+		if (packet->stream_index == self->audio_stream_index) {
+			decode_audio_packet(self, packet);
+			av_packet_unref(packet);
+			continue;
+		}
+
+		int rc = avcodec_send_packet(self->video_codec_ctx, packet);
 		av_packet_unref(packet);
 		if (rc < 0) {
 			fprintf(stderr, "Error sending packet to decoder\n");
@@ -296,9 +355,87 @@ static void do_decode_work(struct aml_work* work)
 	av_packet_free(&packet);
 }
 
+static void convert_to_wire_format(uint8_t* samples, int n_values,
+		enum nvnc_audio_format format)
+{
+	uint16_t* samples16 = (uint16_t*)samples;
+	uint32_t* samples32 = (uint32_t*)samples;
+
+	switch (format) {
+	case NVNC_AUDIO_FORMAT_S8:
+		for (int i = 0; i < n_values; ++i)
+			samples[i] ^= 0x80;
+		break;
+	case NVNC_AUDIO_FORMAT_U16:
+		for (int i = 0; i < n_values; ++i)
+			samples16[i] = htole16(samples16[i] ^ 0x8000);
+		break;
+	case NVNC_AUDIO_FORMAT_S16:
+		for (int i = 0; i < n_values; ++i)
+			samples16[i] = htole16(samples16[i]);
+		break;
+	case NVNC_AUDIO_FORMAT_U32:
+		for (int i = 0; i < n_values; ++i)
+			samples32[i] = htole32(samples32[i] ^ 0x80000000);
+		break;
+	case NVNC_AUDIO_FORMAT_S32:
+		for (int i = 0; i < n_values; ++i)
+			samples32[i] = htole32(samples32[i]);
+		break;
+	case NVNC_AUDIO_FORMAT_UNSPEC:
+	case NVNC_AUDIO_FORMAT_U8:
+		break;
+	}
+}
+
+static void feed_audio_frame(struct nvnc_client* client, AVFrame* frame)
+{
+	struct client_context* ctx = nvnc_client_get_userdata(client);
+	if (!ctx->swr)
+		return;
+
+	int max_samples = swr_get_out_samples(ctx->swr, frame->nb_samples);
+	uint8_t* samples = NULL;
+	int rc = av_samples_alloc(&samples, NULL, ctx->channel_count,
+			max_samples, ctx->sample_format, 0);
+	if (rc < 0)
+		return;
+
+	int n_samples = swr_convert(ctx->swr, &samples, max_samples,
+			(const uint8_t* const*)frame->extended_data,
+			frame->nb_samples);
+	if (n_samples > 0) {
+		convert_to_wire_format(samples, n_samples * ctx->channel_count,
+				ctx->wire_format);
+		nvnc_client_audio_sink_feed(client, samples, n_samples,
+				NVNC_NO_PTS);
+	}
+
+	av_freep(&samples);
+}
+
+static void feed_pending_audio(struct video_player* self)
+{
+	for (int i = 0; i < self->n_pending_audio_frames; ++i) {
+		AVFrame* frame = self->pending_audio_frames[i];
+
+		struct nvnc_client* client = nvnc_client_first(self->server);
+		while (client) {
+			feed_audio_frame(client, frame);
+			client = nvnc_client_next(client);
+		}
+
+		av_frame_free(&frame);
+	}
+
+	self->n_pending_audio_frames = 0;
+}
+
 static void on_decode_done(struct aml_work* work)
 {
 	struct video_player* self = aml_get_userdata(work);
+
+	feed_pending_audio(self);
 
 	AVFrame* frame = self->pending_frame;
 	if (!frame)
@@ -412,7 +549,12 @@ static void pause_playback(struct video_player* player)
 
 static void on_client_cleanup(void* userdata)
 {
-	struct video_player* player = userdata;
+	struct client_context* ctx = userdata;
+	struct video_player* player = ctx->player;
+
+	swr_free(&ctx->swr);
+	free(ctx);
+
 	if (--player->client_count == 0)
 		pause_playback(player);
 }
@@ -421,10 +563,80 @@ static void on_new_client(struct nvnc_client* client)
 {
 	struct video_player* player =
 		nvnc_get_userdata(nvnc_client_get_server(client));
-	nvnc_client_set_userdata(client, player, on_client_cleanup);
+
+	struct client_context* ctx = calloc(1, sizeof(*ctx));
+	assert(ctx);
+	ctx->player = player;
+	nvnc_client_set_userdata(client, ctx, on_client_cleanup);
 
 	if (player->client_count++ == 0)
 		start_playback(player);
+}
+
+static enum AVSampleFormat av_sample_format_from_nvnc(
+		enum nvnc_audio_format format)
+{
+	switch (format) {
+	case NVNC_AUDIO_FORMAT_U8:
+	case NVNC_AUDIO_FORMAT_S8:
+		return AV_SAMPLE_FMT_U8;
+	case NVNC_AUDIO_FORMAT_U16:
+	case NVNC_AUDIO_FORMAT_S16:
+		return AV_SAMPLE_FMT_S16;
+	case NVNC_AUDIO_FORMAT_U32:
+	case NVNC_AUDIO_FORMAT_S32:
+		return AV_SAMPLE_FMT_S32;
+	case NVNC_AUDIO_FORMAT_UNSPEC:
+		break;
+	}
+	return AV_SAMPLE_FMT_NONE;
+}
+
+static void on_audio_config(struct nvnc_client* client,
+		const struct nvnc_audio_config* config)
+{
+	struct client_context* ctx = nvnc_client_get_userdata(client);
+	AVCodecContext* decoder = ctx->player->audio_codec_ctx;
+
+	swr_free(&ctx->swr);
+
+	if (!nvnc_audio_config_is_enabled(config))
+		return;
+
+	enum nvnc_audio_format wire_format =
+		nvnc_audio_config_get_format(config);
+	enum AVSampleFormat sample_format =
+		av_sample_format_from_nvnc(wire_format);
+	if (sample_format == AV_SAMPLE_FMT_NONE) {
+		fprintf(stderr, "Unsupported audio sample format requested by client\n");
+		return;
+	}
+
+	int channel_count = nvnc_audio_config_get_channel_count(config);
+
+	AVChannelLayout layout;
+	av_channel_layout_default(&layout, channel_count);
+
+	int rc = swr_alloc_set_opts2(&ctx->swr, &layout, sample_format,
+			nvnc_audio_config_get_rate(config), &decoder->ch_layout,
+			decoder->sample_fmt, decoder->sample_rate, 0, NULL);
+	av_channel_layout_uninit(&layout);
+	if (rc < 0) {
+		fprintf(stderr, "Failed to configure audio resampler\n");
+		swr_free(&ctx->swr);
+		return;
+	}
+
+	rc = swr_init(ctx->swr);
+	if (rc < 0) {
+		fprintf(stderr, "Failed to initialise audio resampler\n");
+		swr_free(&ctx->swr);
+		return;
+	}
+
+	ctx->sample_format = sample_format;
+	ctx->wire_format = wire_format;
+	ctx->channel_count = channel_count;
 }
 
 static void on_sigint()
@@ -485,13 +697,13 @@ static bool setup_video(struct video_player* player, const char* filename)
 		return false;
 	}
 
-	player->codec_ctx = avcodec_alloc_context3(codec);
-	if (!player->codec_ctx) {
+	player->video_codec_ctx = avcodec_alloc_context3(codec);
+	if (!player->video_codec_ctx) {
 		fprintf(stderr, "Failed to allocate codec context\n");
 		return false;
 	}
 
-	avcodec_parameters_to_context(player->codec_ctx, par);
+	avcodec_parameters_to_context(player->video_codec_ctx, par);
 
 	AVBufferRef* hwctx_ref;
 	rc = av_hwdevice_ctx_create(&hwctx_ref, AV_HWDEVICE_TYPE_VAAPI,
@@ -500,9 +712,9 @@ static bool setup_video(struct video_player* player, const char* filename)
 		fprintf(stderr, "Failed to create VAAPI device\n");
 		return false;
 	}
-	player->codec_ctx->hw_device_ctx = hwctx_ref;
+	player->video_codec_ctx->hw_device_ctx = hwctx_ref;
 
-	rc = avcodec_open2(player->codec_ctx, codec, NULL);
+	rc = avcodec_open2(player->video_codec_ctx, codec, NULL);
 	if (rc < 0) {
 		fprintf(stderr, "Failed to open codec\n");
 		return false;
@@ -527,6 +739,41 @@ static bool setup_video(struct video_player* player, const char* filename)
 	return true;
 }
 
+static void setup_audio(struct video_player* player)
+{
+	int index = av_find_best_stream(player->format_context,
+			AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+	if (index < 0) {
+		printf("No audio stream found\n");
+		return;
+	}
+
+	AVCodecParameters* par =
+		player->format_context->streams[index]->codecpar;
+
+	const AVCodec* codec = avcodec_find_decoder(par->codec_id);
+	if (!codec) {
+		fprintf(stderr, "Failed to find audio decoder\n");
+		return;
+	}
+
+	AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+	if (!codec_ctx) {
+		fprintf(stderr, "Failed to allocate audio codec context\n");
+		return;
+	}
+
+	if (avcodec_parameters_to_context(codec_ctx, par) < 0 ||
+			avcodec_open2(codec_ctx, codec, NULL) < 0) {
+		fprintf(stderr, "Failed to open audio decoder\n");
+		avcodec_free_context(&codec_ctx);
+		return;
+	}
+
+	player->audio_codec_ctx = codec_ctx;
+	player->audio_stream_index = index;
+}
+
 static int usage(void)
 {
 	printf("Usage: video-player <video-file> [address [port]]\n");
@@ -544,6 +791,7 @@ int main(int argc, char* argv[])
 
 	struct video_player player = {
 		.drm_fd = -1,
+		.audio_stream_index = -1,
 	};
 
 	struct aml* aml = aml_new();
@@ -555,6 +803,8 @@ int main(int argc, char* argv[])
 
 	if (!setup_video(&player, filename))
 		goto out;
+
+	setup_audio(&player);
 
 	player.server = nvnc_new();
 	assert(player.server);
@@ -573,6 +823,9 @@ int main(int argc, char* argv[])
 	nvnc_add_display(player.server, player.display);
 	nvnc_set_name(player.server, filename);
 	nvnc_set_new_client_fn(player.server, on_new_client);
+
+	if (player.audio_codec_ctx)
+		nvnc_set_audio_sink_config_fn(player.server, on_audio_config);
 
 	update_cursor(&player);
 
@@ -597,8 +850,11 @@ out:
 		av_frame_unref(player.pending_frame);
 		av_frame_free(&player.pending_frame);
 	}
+	for (int i = 0; i < player.n_pending_audio_frames; ++i)
+		av_frame_free(&player.pending_audio_frames[i]);
 	avfilter_graph_free(&player.filter_graph);
-	avcodec_free_context(&player.codec_ctx);
+	avcodec_free_context(&player.video_codec_ctx);
+	avcodec_free_context(&player.audio_codec_ctx);
 	if (player.format_context)
 		avformat_close_input(&player.format_context);
 	if (player.ticker)

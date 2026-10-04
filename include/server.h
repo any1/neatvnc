@@ -81,6 +81,7 @@ struct nvnc {
 	nvnc_cut_text_fn cut_text_fn;
 	struct cut_text ext_clipboard_provide_msg;
 	nvnc_desktop_layout_fn desktop_layout_fn;
+	nvnc_audio_config_fn audio_sink_config_fn;
 	int n_displays;
 	struct nvnc_display* displays[NVNC_FB_COMPOSITE_MAX];
 	uint32_t next_display_id;

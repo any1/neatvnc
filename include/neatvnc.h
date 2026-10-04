@@ -56,6 +56,7 @@
 		nvnc_log(NVNC_LOG_PANIC, fmt, ## __VA_ARGS__)
 
 struct nvnc;
+struct nvnc_audio_config;
 struct nvnc_client;
 struct nvnc_auth_creds;
 struct nvnc_desktop_layout;
@@ -128,6 +129,59 @@ enum nvnc_quirks {
 	NVNC_QUIRK_NO_10BIT_FORMATS = 1 << 0,
 };
 
+// All sample formats are little-endian
+enum nvnc_audio_format {
+	NVNC_AUDIO_FORMAT_UNSPEC = 0,
+	NVNC_AUDIO_FORMAT_U8,
+	NVNC_AUDIO_FORMAT_S8,
+	NVNC_AUDIO_FORMAT_U16,
+	NVNC_AUDIO_FORMAT_S16,
+	NVNC_AUDIO_FORMAT_U32,
+	NVNC_AUDIO_FORMAT_S32,
+};
+
+// This is a subset of spa_audio_channel from pipewire's spa-0.2
+enum nvnc_audio_channel {
+	NVNC_AUDIO_CHANNEL_UNKNOWN,
+	NVNC_AUDIO_CHANNEL_NA,
+	NVNC_AUDIO_CHANNEL_MONO,
+	NVNC_AUDIO_CHANNEL_FL,
+	NVNC_AUDIO_CHANNEL_FR,
+	NVNC_AUDIO_CHANNEL_FC,
+	NVNC_AUDIO_CHANNEL_LFE,
+	NVNC_AUDIO_CHANNEL_SL,
+	NVNC_AUDIO_CHANNEL_SR,
+	NVNC_AUDIO_CHANNEL_FLC,
+	NVNC_AUDIO_CHANNEL_FRC,
+	NVNC_AUDIO_CHANNEL_RC,
+	NVNC_AUDIO_CHANNEL_RL,
+	NVNC_AUDIO_CHANNEL_RR,
+	NVNC_AUDIO_CHANNEL_TC,
+	NVNC_AUDIO_CHANNEL_TFL,
+	NVNC_AUDIO_CHANNEL_TFC,
+	NVNC_AUDIO_CHANNEL_TFR,
+	NVNC_AUDIO_CHANNEL_TRL,
+	NVNC_AUDIO_CHANNEL_TRC,
+	NVNC_AUDIO_CHANNEL_TRR,
+	NVNC_AUDIO_CHANNEL_RLC,
+	NVNC_AUDIO_CHANNEL_RRC,
+	NVNC_AUDIO_CHANNEL_FLW,
+	NVNC_AUDIO_CHANNEL_FRW,
+	NVNC_AUDIO_CHANNEL_LFE2,
+	NVNC_AUDIO_CHANNEL_FLH,
+	NVNC_AUDIO_CHANNEL_FCH,
+	NVNC_AUDIO_CHANNEL_FRH,
+	NVNC_AUDIO_CHANNEL_TFLC,
+	NVNC_AUDIO_CHANNEL_TFRC,
+	NVNC_AUDIO_CHANNEL_TSL,
+	NVNC_AUDIO_CHANNEL_TSR,
+	NVNC_AUDIO_CHANNEL_LLFE,
+	NVNC_AUDIO_CHANNEL_RLFE,
+	NVNC_AUDIO_CHANNEL_BC,
+	NVNC_AUDIO_CHANNEL_BLC,
+	NVNC_AUDIO_CHANNEL_BRC,
+};
+
 struct nvnc_log_data {
 	size_t size;               /// Used by nvnc_default_logger
 	enum nvnc_log_level level; /// Log level
@@ -151,6 +205,8 @@ typedef void (*nvnc_cleanup_fn)(void* userdata);
 typedef void (*nvnc_log_fn)(const struct nvnc_log_data*, const char* message);
 typedef bool (*nvnc_desktop_layout_fn)(
 		struct nvnc_client*, const struct nvnc_desktop_layout*);
+typedef void (*nvnc_audio_config_fn)(struct nvnc_client*,
+		const struct nvnc_audio_config*);
 
 extern const char nvnc_version[];
 
@@ -863,3 +919,46 @@ double nvnc_rate_cursor_pixel_format(const struct nvnc* self,
  * Since: 1.1.0
  */
 void nvnc_set_quirks(struct nvnc* self, enum nvnc_quirks value);
+
+/**
+ * Get stream state, channel count, sample rate, sample format and speaker
+ * positions, respectively from the audio config.
+ *
+ * Since: 1.1.0
+ */
+bool nvnc_audio_config_is_enabled(const struct nvnc_audio_config*);
+uint32_t nvnc_audio_config_get_channel_count(const struct nvnc_audio_config*);
+uint32_t nvnc_audio_config_get_rate(const struct nvnc_audio_config*);
+enum nvnc_audio_format nvnc_audio_config_get_format(
+		const struct nvnc_audio_config*);
+const enum nvnc_audio_channel* nvnc_audio_config_get_positions(
+		const struct nvnc_audio_config*);
+
+/**
+ * Set the audio sink config function.
+ *
+ * The callback is dispatched per client to configure the audio sink when the
+ * stream is enabled. Samples must be fed to each client according to this
+ * configuration.
+ *
+ * The config function will also be dispatched when disabled, in which case
+ * nvnc_audio_config_is_enabled will return false.
+ *
+ * Since: 1.1.0
+ */
+void nvnc_set_audio_sink_config_fn(struct nvnc* self, nvnc_audio_config_fn);
+
+/**
+ * Feed audio samples to the client.
+ *
+ * Samples must be in the configured format from the audio config callback.
+ * The samples are interleaved and n_frames is the number of samples per
+ * channel.
+ *
+ * The pts argument is reserved for future use, but not currently implemented.
+ * May be set to NVNC_NO_PTS.
+ *
+ * Since: 1.1.0
+ */
+void nvnc_client_audio_sink_feed(struct nvnc_client* self, const void* samples,
+		int n_frames, uint64_t pts);

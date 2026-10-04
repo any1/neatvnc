@@ -17,6 +17,7 @@
 #pragma once
 
 #include "neatvnc.h"
+#include "audio.h"
 #include "config.h"
 #include "cut-text.h"
 #include "pixels.h"
@@ -121,6 +122,8 @@ struct nvnc_client {
 	bool has_ext_mouse_buttons;
 	struct aml_idle* close_task;
 	bool needs_desktop_name_update;
+	struct nvnc_audio_config audio_config;
+	bool is_audio_without_encoding_logged;
 
 #ifdef HAVE_CRYPTO
 	uint8_t des_challenge[NVNC_AUTH_DES_CHALLENGE_SIZE];

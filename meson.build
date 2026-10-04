@@ -119,6 +119,7 @@ sources_dep = declare_dependency(
 		'src/compositor.c',
 		'src/region.c',
 		'src/utf8.c',
+		'src/audio.c',
 	]
 )
 

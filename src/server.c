@@ -37,6 +37,7 @@
 #include "type-macros.h"
 #include "server.h"
 #include "utf8.h"
+#include "audio.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -855,6 +856,7 @@ static int on_client_set_encodings(struct nvnc_client* client)
 		case RFB_ENCODING_DESKTOPNAME:
 		case RFB_ENCODING_EXTENDEDDESKTOPSIZE:
 		case RFB_ENCODING_QEMU_EXT_KEY_EVENT:
+		case RFB_ENCODING_QEMU_AUDIO:
 		case RFB_ENCODING_QEMU_LED_STATE:
 		case RFB_ENCODING_VMWARE_LED_STATE:
 		case RFB_ENCODING_EXTENDED_CLIPBOARD:
@@ -989,6 +991,7 @@ static const char* encoding_to_string(enum rfb_encodings encoding)
 	case RFB_ENCODING_DESKTOPNAME: return "desktop-name";
 	case RFB_ENCODING_EXTENDEDDESKTOPSIZE: return "extended-desktop-size";
 	case RFB_ENCODING_QEMU_EXT_KEY_EVENT: return "qemu-extended-key-event";
+	case RFB_ENCODING_QEMU_AUDIO: return "qemu-audio";
 	case RFB_ENCODING_QEMU_LED_STATE: return "qemu-led-state";
 	case RFB_ENCODING_VMWARE_LED_STATE: return "vmware-led-state";
 	case RFB_ENCODING_EXTENDED_CLIPBOARD: return "extended-clipboard";
@@ -1340,6 +1343,148 @@ static int on_client_qemu_key_event(struct nvnc_client* client)
 	return sizeof(*msg);
 }
 
+// These should be BE according to spec but they are LE in practice.
+static enum nvnc_audio_format audio_format_from_qemu(uint8_t format)
+{
+	switch (format) {
+	case RFB_QEMU_AUDIO_FORMAT_U8: return NVNC_AUDIO_FORMAT_U8;
+	case RFB_QEMU_AUDIO_FORMAT_S8: return NVNC_AUDIO_FORMAT_S8;
+	case RFB_QEMU_AUDIO_FORMAT_U16: return NVNC_AUDIO_FORMAT_U16;
+	case RFB_QEMU_AUDIO_FORMAT_S16: return NVNC_AUDIO_FORMAT_S16;
+	case RFB_QEMU_AUDIO_FORMAT_U32: return NVNC_AUDIO_FORMAT_U32;
+	case RFB_QEMU_AUDIO_FORMAT_S32: return NVNC_AUDIO_FORMAT_S32;
+	}
+	return NVNC_AUDIO_FORMAT_UNSPEC;
+}
+
+static void send_qemu_audio_op(struct nvnc_client* client,
+		enum rfb_qemu_audio_server_op op)
+{
+	struct rfb_qemu_audio_msg msg = {
+		.type = RFB_SERVER_TO_CLIENT_QEMU,
+		.subtype = RFB_SERVER_TO_CLIENT_QEMU_AUDIO,
+		.operation = htons(op),
+	};
+	stream_write(client->net_stream, &msg, sizeof(msg));
+}
+
+static void notify_audio_config(struct nvnc_client* client)
+{
+	nvnc_audio_config_fn fn = client->server->audio_sink_config_fn;
+	if (fn)
+		fn(client, &client->audio_config);
+}
+
+static void warn_qemu_audio_without_encoding(struct nvnc_client* client)
+{
+	if (client->is_audio_without_encoding_logged)
+		return;
+
+	nvnc_log(NVNC_LOG_WARNING, "Client %p sent audio message without announcing qemu-audio encoding; ignoring",
+			client);
+	client->is_audio_without_encoding_logged = true;
+}
+
+static int on_client_qemu_audio_enable(struct nvnc_client* client)
+{
+	if (!client_has_encoding(client, RFB_ENCODING_QEMU_AUDIO)) {
+		warn_qemu_audio_without_encoding(client);
+		return sizeof(struct rfb_qemu_audio_msg);
+	}
+
+	if (client->audio_config.is_enabled)
+		return sizeof(struct rfb_qemu_audio_msg);
+
+	client->audio_config.is_enabled = true;
+	send_qemu_audio_op(client, RFB_QEMU_AUDIO_SERVER_OP_BEGIN);
+	notify_audio_config(client);
+
+	return sizeof(struct rfb_qemu_audio_msg);
+}
+
+static int on_client_qemu_audio_disable(struct nvnc_client* client)
+{
+	if (!client_has_encoding(client, RFB_ENCODING_QEMU_AUDIO)) {
+		warn_qemu_audio_without_encoding(client);
+		return sizeof(struct rfb_qemu_audio_msg);
+	}
+
+	if (!client->audio_config.is_enabled)
+		return sizeof(struct rfb_qemu_audio_msg);
+
+	client->audio_config.is_enabled = false;
+	send_qemu_audio_op(client, RFB_QEMU_AUDIO_SERVER_OP_END);
+	notify_audio_config(client);
+
+	return sizeof(struct rfb_qemu_audio_msg);
+}
+
+static int on_client_qemu_audio_set_format(struct nvnc_client* client)
+{
+	struct rfb_client_qemu_audio_format_msg* msg =
+		(struct rfb_client_qemu_audio_format_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	if (!client_has_encoding(client, RFB_ENCODING_QEMU_AUDIO)) {
+		warn_qemu_audio_without_encoding(client);
+		return sizeof(*msg);
+	}
+
+	enum nvnc_audio_format format =
+		audio_format_from_qemu(msg->sample_format);
+	if (format == NVNC_AUDIO_FORMAT_UNSPEC) {
+		nvnc_log(NVNC_LOG_WARNING, "Client requested invalid audio sample format: %d",
+				msg->sample_format);
+		nvnc_client_close(client);
+		return -1;
+	}
+
+	if (msg->n_channels != 1 && msg->n_channels != 2) {
+		nvnc_log(NVNC_LOG_WARNING, "Client requested invalid audio channel count: %d",
+				msg->n_channels);
+		nvnc_client_close(client);
+		return -1;
+	}
+
+	client->audio_config.format = format;
+	client->audio_config.rate = ntohl(msg->frequency);
+	audio_config_set_channel_count(&client->audio_config, msg->n_channels);
+
+	if (client->audio_config.is_enabled)
+		notify_audio_config(client);
+
+	return sizeof(*msg);
+}
+
+static int on_client_qemu_audio(struct nvnc_client* client)
+{
+	struct rfb_qemu_audio_msg* msg =
+		(struct rfb_qemu_audio_msg*)(client->msg_buffer +
+				client->buffer_index);
+
+	if (client->buffer_len - client->buffer_index < sizeof(*msg))
+		return 0;
+
+	enum rfb_qemu_audio_client_op op = ntohs(msg->operation);
+
+	switch (op) {
+	case RFB_QEMU_AUDIO_CLIENT_OP_ENABLE:
+		return on_client_qemu_audio_enable(client);
+	case RFB_QEMU_AUDIO_CLIENT_OP_DISABLE:
+		return on_client_qemu_audio_disable(client);
+	case RFB_QEMU_AUDIO_CLIENT_OP_SET_FORMAT:
+		return on_client_qemu_audio_set_format(client);
+	}
+
+	nvnc_log(NVNC_LOG_WARNING, "Got invalid qemu audio operation from client: %p",
+			client);
+	nvnc_client_close(client);
+	return -1;
+}
+
 static int on_client_qemu_event(struct nvnc_client* client)
 {
 	if (client->buffer_len - client->buffer_index < 2)
@@ -1351,6 +1496,8 @@ static int on_client_qemu_event(struct nvnc_client* client)
 	switch (subtype) {
 	case RFB_CLIENT_TO_SERVER_QEMU_KEY_EVENT:
 		return on_client_qemu_key_event(client);
+	case RFB_CLIENT_TO_SERVER_QEMU_AUDIO:
+		return on_client_qemu_audio(client);
 	}
 
 	nvnc_log(NVNC_LOG_WARNING, "Got uninterpretable qemu message from client: %p",
@@ -2961,7 +3108,10 @@ static bool send_ext_support_frame(struct nvnc_client* client)
 	int has_ntp = client_has_encoding(client, RFB_ENCODING_NTP);
 	int has_ext_mouse_buttons =
 		client_has_encoding(client, RFB_ENCODING_EXT_MOUSE_BUTTONS);
-	int n_rects = has_qemu_ext + has_ntp + has_ext_mouse_buttons;
+	int has_qemu_audio = client->server->audio_sink_config_fn &&
+		client_has_encoding(client, RFB_ENCODING_QEMU_AUDIO);
+	int n_rects = has_qemu_ext + has_ntp + has_ext_mouse_buttons +
+		has_qemu_audio;
 	if (n_rects == 0)
 		return false;
 
@@ -2991,6 +3141,13 @@ static bool send_ext_support_frame(struct nvnc_client* client)
 		};
 		stream_write(client->net_stream, &rect, sizeof(rect));
 		client->has_ext_mouse_buttons = true;
+	}
+
+	if (has_qemu_audio) {
+		struct rfb_server_fb_rect rect = {
+			.encoding = htonl(RFB_ENCODING_QEMU_AUDIO),
+		};
+		stream_write(client->net_stream, &rect, sizeof(rect));
 	}
 
 	return true;
@@ -3133,6 +3290,12 @@ EXPORT
 void nvnc_set_desktop_layout_fn(struct nvnc* self, nvnc_desktop_layout_fn fn)
 {
 	self->desktop_layout_fn = fn;
+}
+
+EXPORT
+void nvnc_set_audio_sink_config_fn(struct nvnc* self, nvnc_audio_config_fn fn)
+{
+	self->audio_sink_config_fn = fn;
 }
 
 EXPORT
@@ -3293,6 +3456,39 @@ void nvnc_client_set_led_state(struct nvnc_client* client,
 {
 	client->pending_led_state = state;
 	process_fb_update_requests(client);
+}
+
+EXPORT
+void nvnc_client_audio_sink_feed(struct nvnc_client* self, const void* samples,
+		int n_frames, uint64_t pts)
+{
+	if (!self->audio_config.is_enabled || n_frames <= 0)
+		return;
+
+	if (self->net_stream->state == STREAM_STATE_CLOSED)
+		return;
+
+	const struct nvnc_audio_config* config = &self->audio_config;
+	size_t len = (size_t)n_frames * config->channel_count *
+		audio_format_sample_size(config->format);
+	if (len == 0 || len > UINT32_MAX)
+		return;
+
+	struct rfb_server_qemu_audio_data_msg head = {
+		.type = RFB_SERVER_TO_CLIENT_QEMU,
+		.subtype = RFB_SERVER_TO_CLIENT_QEMU_AUDIO,
+		.operation = htons(RFB_QEMU_AUDIO_SERVER_OP_DATA),
+		.length = htonl(len),
+	};
+
+	struct vec payload;
+	if (vec_init(&payload, sizeof(head) + len) < 0)
+		return;
+
+	vec_append(&payload, &head, sizeof(head));
+	vec_append(&payload, samples, len);
+
+	stream_send(self->net_stream, rcbuf_new(payload.data, payload.len));
 }
 
 EXPORT

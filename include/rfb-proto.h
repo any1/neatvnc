@@ -57,6 +57,7 @@ enum rfb_client_to_server_msg_type {
 
 enum rfb_client_to_server_qemu_msg_type {
 	RFB_CLIENT_TO_SERVER_QEMU_KEY_EVENT = 0,
+	RFB_CLIENT_TO_SERVER_QEMU_AUDIO = 1,
 };
 
 enum rfb_encodings {
@@ -71,6 +72,7 @@ enum rfb_encodings {
 	RFB_ENCODING_CURSOR = -239,
 	RFB_ENCODING_DESKTOPSIZE = -223,
 	RFB_ENCODING_QEMU_EXT_KEY_EVENT = -258,
+	RFB_ENCODING_QEMU_AUDIO = -259,
 	RFB_ENCODING_QEMU_LED_STATE = -261,
 	RFB_ENCODING_DESKTOPNAME = -307,
 	RFB_ENCODING_EXTENDEDDESKTOPSIZE = -308,
@@ -95,6 +97,32 @@ enum rfb_server_to_client_msg_type {
 	RFB_SERVER_TO_CLIENT_END_OF_CONTINUOUS_UPDATES = 150,
 	RFB_SERVER_TO_CLIENT_NTP = 160,
 	RFB_SERVER_TO_CLIENT_FENCE = 248,
+	RFB_SERVER_TO_CLIENT_QEMU = 255,
+};
+
+enum rfb_server_to_client_qemu_msg_type {
+	RFB_SERVER_TO_CLIENT_QEMU_AUDIO = 1,
+};
+
+enum rfb_qemu_audio_client_op {
+	RFB_QEMU_AUDIO_CLIENT_OP_ENABLE = 0,
+	RFB_QEMU_AUDIO_CLIENT_OP_DISABLE = 1,
+	RFB_QEMU_AUDIO_CLIENT_OP_SET_FORMAT = 2,
+};
+
+enum rfb_qemu_audio_server_op {
+	RFB_QEMU_AUDIO_SERVER_OP_END = 0,
+	RFB_QEMU_AUDIO_SERVER_OP_BEGIN = 1,
+	RFB_QEMU_AUDIO_SERVER_OP_DATA = 2,
+};
+
+enum rfb_qemu_audio_format {
+	RFB_QEMU_AUDIO_FORMAT_U8 = 0,
+	RFB_QEMU_AUDIO_FORMAT_S8 = 1,
+	RFB_QEMU_AUDIO_FORMAT_U16 = 2,
+	RFB_QEMU_AUDIO_FORMAT_S16 = 3,
+	RFB_QEMU_AUDIO_FORMAT_U32 = 4,
+	RFB_QEMU_AUDIO_FORMAT_S32 = 5,
 };
 
 enum rfb_vencrypt_subtype {
@@ -221,6 +249,29 @@ struct rfb_client_qemu_key_event_msg {
 	uint16_t down_flag;
 	uint32_t keysym;
 	uint32_t keycode;
+} RFB_PACKED;
+
+struct rfb_qemu_audio_msg {
+	uint8_t type;
+	uint8_t subtype;
+	uint16_t operation;
+} RFB_PACKED;
+
+struct rfb_client_qemu_audio_format_msg {
+	uint8_t type;
+	uint8_t subtype;
+	uint16_t operation;
+	uint8_t sample_format;
+	uint8_t n_channels;
+	uint32_t frequency;
+} RFB_PACKED;
+
+struct rfb_server_qemu_audio_data_msg {
+	uint8_t type;
+	uint8_t subtype;
+	uint16_t operation;
+	uint32_t length;
+	uint8_t data[0];
 } RFB_PACKED;
 
 struct rfb_client_pointer_event_msg {

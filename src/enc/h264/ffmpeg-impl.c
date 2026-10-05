@@ -665,6 +665,14 @@ static void h264_encoder_ffmpeg_destroy(struct h264_encoder* base)
 		return;
 	}
 
+	while (true) {
+		struct nvnc_frame* fb = fb_queue_dequeue(&self->fb_queue);
+		if (!fb)
+			break;
+
+		nvnc_frame_unref(fb);
+	}
+
 	vec_destroy(&self->current_packet);
 	h264_encoder__teardown_pipeline(self);
 	aml_unref(self->work);

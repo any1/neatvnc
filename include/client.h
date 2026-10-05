@@ -100,6 +100,7 @@ struct nvnc_client {
 	struct encoder* encoder;
 	struct encoder* zrle_encoder;
 	struct encoder* tight_encoder;
+	bool is_h264_broken;
 	struct compositor* compositor;
 	uint32_t cursor_seq;
 	int quality;

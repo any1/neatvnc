@@ -262,22 +262,26 @@ static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* f
 	return 0;
 }
 
-static int open_h264_ctx_encode(struct open_h264_context* self, struct nvnc_frame* fb)
+static int open_h264_ctx_prepare(struct open_h264_context* self,
+		struct nvnc_frame* fb)
 {
-	DTRACE_PROBE1(neatvnc, open_h264_encode, fb->pts);
-
 	if (fb->width != self->width || fb->height != self->height ||
 			fb->fourcc_format != self->format ||
-			self->quality_changed) {
-		if (open_h264_resize(self, fb) < 0)
-			return -1;
-	}
+			self->quality_changed)
+		return open_h264_resize(self, fb);
+
+	return 0;
+}
+
+static void open_h264_ctx_encode(struct open_h264_context* self,
+		struct nvnc_frame* fb)
+{
+	DTRACE_PROBE1(neatvnc, open_h264_encode, fb->pts);
 
 	assert(self->width && self->height);
 
 	// TODO: encoder_feed should return an error code
 	h264_encoder_feed(self->encoder, fb);
-	return 0;
 }
 
 static struct open_h264_context* open_h264_find_context(struct open_h264* self,
@@ -346,6 +350,8 @@ static int open_h264_encode(struct encoder* enc,
 	self->frame_width = nvnc_composite_fb_width(composite);
 	self->frame_height = nvnc_composite_fb_height(composite);
 
+	struct open_h264_context* contexts[NVNC_FB_COMPOSITE_MAX] = { 0 };
+
 	for (int i = 0; i < composite->n_fbs; ++i) {
 		struct nvnc_frame* fb = composite->fbs[i];
 		assert(fb);
@@ -362,10 +368,20 @@ static int open_h264_encode(struct encoder* enc,
 
 		struct open_h264_context* ctx =
 			open_h264_get_context(self, fb->x_off, fb->y_off);
+		if (!ctx)
+			return -1;
 
-		int rc = open_h264_ctx_encode(ctx, fb);
-		nvnc_assert(rc == 0, "Failed to encode frame");
+		if (open_h264_ctx_prepare(ctx, fb) < 0)
+			return -1;
 
+		contexts[i] = ctx;
+	}
+
+	for (int i = 0; i < composite->n_fbs; ++i) {
+		if (!contexts[i])
+			continue;
+
+		open_h264_ctx_encode(contexts[i], composite->fbs[i]);
 		self->frame_barrier++;
 	}
 
@@ -385,7 +401,8 @@ static void open_h264_request_keyframe(struct encoder* enc)
 	for (int i = 0; i < self->n_contexts; ++i) {
 		struct open_h264_context* ctx = self->context[i];
 		assert(ctx);
-		h264_encoder_request_keyframe(ctx->encoder);
+		if (ctx->encoder)
+			h264_encoder_request_keyframe(ctx->encoder);
 	}
 }
 

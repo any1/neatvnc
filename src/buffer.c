@@ -20,6 +20,7 @@
 #include "logging.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <sys/param.h>
 
 #include "config.h"
@@ -91,6 +92,34 @@ struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo)
 }
 
 EXPORT
+struct nvnc_buffer* nvnc_buffer_from_custom(const struct nvnc_buffer_impl* impl,
+		size_t size)
+{
+	if (size > sizeof(struct nvnc_buffer_impl)) {
+		nvnc_log(NVNC_LOG_ERROR, "nvnc_buffer_impl is newer than implementation");
+		return NULL;
+	}
+
+	struct nvnc_buffer* buffer = calloc(1, sizeof(*buffer));
+	if (!buffer)
+		return NULL;
+
+	buffer->ref = 1;
+	buffer->type = NVNC_BUFFER_CUSTOM;
+	buffer->is_external = true;
+
+	memcpy(&buffer->impl, impl, size);
+
+	if (!buffer->impl.map || !buffer->impl.unmap) {
+		nvnc_log(NVNC_LOG_ERROR, "nvnc_buffer_impl is missing required methods");
+		free(buffer);
+		return NULL;
+	}
+
+	return buffer;
+}
+
+EXPORT
 void nvnc_buffer_ref(struct nvnc_buffer* buffer)
 {
 	buffer->ref++;
@@ -111,6 +140,8 @@ static void nvnc__buffer_free_internal(struct nvnc_buffer* buffer)
 		abort();
 #endif
 		break;
+	case NVNC_BUFFER_CUSTOM:
+		abort();
 	}
 }
 
@@ -149,6 +180,12 @@ void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,
 		int32_t* stride_out)
 {
+	if (buffer->type == NVNC_BUFFER_CUSTOM) {
+		if (buffer->addr)
+			return 0;
+		return buffer->impl.map(buffer, &buffer->addr, stride_out);
+	}
+
 #ifdef HAVE_GBM
 	if (buffer->type != NVNC_BUFFER_GBM_BO)
 		return 0;
@@ -181,6 +218,13 @@ failure:
 
 void nvnc_buffer_unmap(struct nvnc_buffer* buffer)
 {
+	if (buffer->type == NVNC_BUFFER_CUSTOM) {
+		if (buffer->addr)
+			buffer->impl.unmap(buffer);
+		buffer->addr = NULL;
+		return;
+	}
+
 #ifdef HAVE_GBM
 	if (buffer->type != NVNC_BUFFER_GBM_BO)
 		return;

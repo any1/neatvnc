@@ -568,10 +568,8 @@ static void h264_encoder__on_work_done(struct aml_work* work)
 		return;
 	}
 
-	if (self->current_packet.len == 0) {
-		nvnc_log(NVNC_LOG_WARNING, "Whoops, encoded packet length is 0");
-		return;
-	}
+	if (self->current_packet.len == 0)
+		nvnc_log(NVNC_LOG_DEBUG, "Encoded packet length is 0");
 
 	void* userdata = self->base.userdata;
 

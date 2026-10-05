@@ -65,6 +65,7 @@ struct nvnc_frame;
 struct nvnc_frame_pool;
 struct nvnc_buffer;
 struct nvnc_buffer_pool;
+struct nvnc_h264_encoder;
 struct pixman_region16;
 struct gbm_bo;
 
@@ -183,6 +184,10 @@ enum nvnc_audio_channel {
 	NVNC_AUDIO_CHANNEL_BRC,
 };
 
+enum nvnc_h264_encoder_frame_flags {
+	NVNC_H264_ENCODER_FRAME_KEYFRAME = 1 << 0,
+};
+
 struct nvnc_log_data {
 	size_t size;               /// Used by nvnc_default_logger
 	enum nvnc_log_level level; /// Log level
@@ -212,6 +217,15 @@ typedef void (*nvnc_audio_config_fn)(struct nvnc_client*,
 struct nvnc_buffer_impl {
 	int (*map)(struct nvnc_buffer*, void** addr, int32_t* stride);
 	void (*unmap)(struct nvnc_buffer*);
+};
+
+struct nvnc_h264_encoder_impl {
+	int (*create)(struct nvnc_h264_encoder*, enum nvnc_buffer_type,
+			uint16_t width, uint16_t height, uint32_t format,
+			int quality);
+	void (*destroy)(struct nvnc_h264_encoder*);
+	void (*feed)(struct nvnc_h264_encoder*, struct nvnc_frame*,
+			enum nvnc_h264_encoder_frame_flags);
 };
 
 extern const char nvnc_version[];
@@ -981,3 +995,50 @@ void nvnc_set_audio_sink_config_fn(struct nvnc* self, nvnc_audio_config_fn);
  */
 void nvnc_client_audio_sink_feed(struct nvnc_client* self, const void* samples,
 		int n_frames, uint64_t pts);
+
+/**
+ * Set an H.264 encoder implementation which is tried before the built-in ones.
+ *
+ * Must be called before any clients connect.
+ *
+ * size: size of passed nvnc_h264_encoder_impl. Impl will be copied.
+ *
+ * create() returns -1 if the encoder cannot handle the given frames. Quality
+ * ranges from 1 (best) to 51 (worst).
+ *
+ * For each frame, the encoder must call nvnc_h264_encoder_packet_ready() once
+ * from the main loop, but not directly from feed().
+ *
+ * Since: 1.1.0
+ */
+int nvnc_set_h264_encoder_impl(const struct nvnc_h264_encoder_impl* impl,
+		size_t size);
+
+/**
+ * Set userdata.
+ *
+ * To be called by H.264 encoder implementations.
+ *
+ * Since: 1.1.0
+ */
+void nvnc_h264_encoder_set_userdata(struct nvnc_h264_encoder* self,
+		void* userdata);
+
+/**
+ * Get userdata.
+ *
+ * To be called by H.264 encoder implementations.
+ *
+ * Since: 1.1.0
+ */
+void* nvnc_h264_encoder_get_userdata(const struct nvnc_h264_encoder* self);
+
+/**
+ * Pass an encoded H.264 frame in Annex B format to the server.
+ *
+ * To be called by H.264 encoder implementations.
+ *
+ * Since: 1.1.0
+ */
+void nvnc_h264_encoder_packet_ready(struct nvnc_h264_encoder* self,
+		const void* data, size_t size, uint64_t pts);

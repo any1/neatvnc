@@ -69,6 +69,9 @@ int vec_assign(struct vec* vec, const void* data, size_t size)
 
 int vec_append(struct vec* vec, const void* data, size_t size)
 {
+	if (size == 0)
+		return 0;
+
 	if (unlikely(vec__grow(vec, size) < 0))
 		return -1;
 

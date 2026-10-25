@@ -20,10 +20,12 @@
 #include "pixels.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
@@ -387,7 +389,6 @@ static void process_src_bufs(struct h264_encoder_v4l2m2m* self)
 		// TODO: This assumes that there's only one fd
 		close(srcbuf->planes[0].m.fd);
 
-		nvnc_frame_unmap(srcbuf->fb);
 		nvnc_frame_unref(srcbuf->fb);
 		srcbuf->fb = NULL;
 	}
@@ -458,6 +459,16 @@ static void force_key_frame(struct h264_encoder_v4l2m2m* self)
 	ioctl(self->fd, VIDIOC_S_CTRL, &ctrl);
 }
 
+static void wait_for_dmabuf_writers(int fd)
+{
+	struct pollfd pollfd = {
+		.fd = fd,
+		.events = POLLIN,
+	};
+	if (poll(&pollfd, 1, -1) < 0 && errno != EINTR)
+		nvnc_log(NVNC_LOG_ERROR, "Failed to wait for dmabuf fences: %m");
+}
+
 static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 		struct nvnc_frame* fb)
 {
@@ -470,12 +481,6 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 	assert(!srcbuf->fb);
 
 	nvnc_frame_ref(fb);
-
-	/* For some reason the v4l2m2m h264 encoder in the Rapberry Pi 4 gets
-	 * really glitchy unless the buffer is mapped first.
-	 * This should probably be handled by the driver, but it's not.
-	 */
-	nvnc_frame_map(fb);
 
 	srcbuf->fb = fb;
 
@@ -502,6 +507,9 @@ static void encode_buffer(struct h264_encoder_v4l2m2m* self,
 	if (self->base.next_frame_should_be_keyframe)
 		force_key_frame(self);
 	self->base.next_frame_should_be_keyframe = false;
+
+	/* V4L2 does not wait for implicit fences */
+	wait_for_dmabuf_writers(fd);
 
 	int rc = v4l2_qbuf(self->fd, &srcbuf->buffer);
 	if (rc < 0) {

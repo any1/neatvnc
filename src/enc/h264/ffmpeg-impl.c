@@ -124,9 +124,13 @@ static AVFrame* fb_to_avframe(struct nvnc_frame* fb)
 	struct gbm_bo* bo = fb->buffer->bo;
 
 	int n_planes = gbm_bo_get_plane_count(bo);
+	int fd = gbm_bo_get_fd(bo);
 
 	AVDRMFrameDescriptor* desc = calloc(1, sizeof(*desc));
-	desc->nb_objects = n_planes;
+	desc->nb_objects = 1;
+	desc->objects[0].fd = fd;
+	desc->objects[0].size = lseek(fd, 0, SEEK_END);
+	desc->objects[0].format_modifier = gbm_bo_get_modifier(bo);
 
 	desc->nb_layers = 1;
 	desc->layers[0].format = gbm_bo_get_format(bo);
@@ -135,12 +139,8 @@ static AVFrame* fb_to_avframe(struct nvnc_frame* fb)
 	for (int i = 0; i < n_planes; ++i) {
 		uint32_t stride = gbm_bo_get_stride_for_plane(bo, i);
 
-		desc->objects[i].fd = gbm_bo_get_fd_for_plane(bo, i);
-		desc->objects[i].size = stride * fb->height;
-		desc->objects[i].format_modifier = gbm_bo_get_modifier(bo);
-
 		desc->layers[0].format = gbm_bo_get_format(bo);
-		desc->layers[0].planes[i].object_index = i;
+		desc->layers[0].planes[i].object_index = 0;
 		desc->layers[0].planes[i].offset = gbm_bo_get_offset(bo, i);
 		desc->layers[0].planes[i].pitch = stride;
 	}

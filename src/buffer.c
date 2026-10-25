@@ -81,6 +81,7 @@ struct nvnc_buffer* nvnc_buffer_from_gbm_bo(struct gbm_bo* bo)
 	buffer->type = NVNC_BUFFER_GBM_BO;
 	buffer->is_external = true;
 	buffer->bo = bo;
+	pthread_mutex_init(&buffer->map_mutex, NULL);
 
 	return buffer;
 #else
@@ -138,27 +139,41 @@ void nvnc_buffer_unref(struct nvnc_buffer* buffer)
 
 	// The cleanup function can save the buffer from deletion and put it
 	// into its own buffer pool.
-	if (buffer->ref == 0)
+	if (buffer->ref == 0) {
+		if (buffer->type == NVNC_BUFFER_GBM_BO)
+			pthread_mutex_destroy(&buffer->map_mutex);
 		free(buffer);
+	}
 }
 
 int nvnc_buffer_map(struct nvnc_buffer* buffer, uint16_t width, uint16_t height,
 		int32_t* stride_out)
 {
 #ifdef HAVE_GBM
-	if (buffer->type != NVNC_BUFFER_GBM_BO || buffer->bo_map_handle)
+	if (buffer->type != NVNC_BUFFER_GBM_BO)
 		return 0;
 
+	int rc = -1;
 	uint32_t stride = 0;
+
+	pthread_mutex_lock(&buffer->map_mutex);
+
+	if (buffer->bo_map_handle)
+		goto success;
+
 	buffer->addr = gbm_bo_map(buffer->bo, 0, 0, width, height,
 			GBM_BO_TRANSFER_READ, &stride, &buffer->bo_map_handle);
 	if (!buffer->addr) {
 		buffer->bo_map_handle = NULL;
-		return -1;
+		goto failure;
 	}
 
 	*stride_out = stride;
-	return 0;
+success:
+	rc = 0;
+failure:
+	pthread_mutex_unlock(&buffer->map_mutex);
+	return rc;
 #else
 	return 0;
 #endif
@@ -170,10 +185,14 @@ void nvnc_buffer_unmap(struct nvnc_buffer* buffer)
 	if (buffer->type != NVNC_BUFFER_GBM_BO)
 		return;
 
+	pthread_mutex_lock(&buffer->map_mutex);
+
 	if (buffer->bo_map_handle)
 		gbm_bo_unmap(buffer->bo, buffer->bo_map_handle);
 
 	buffer->bo_map_handle = NULL;
 	buffer->addr = NULL;
+
+	pthread_mutex_unlock(&buffer->map_mutex);
 #endif
 }

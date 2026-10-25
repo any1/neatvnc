@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "neatvnc.h"
 #include "weakref.h"
@@ -39,6 +40,7 @@ struct nvnc_buffer {
 	/* dmabuf attributes */
 	struct gbm_bo* bo;
 	void* bo_map_handle;
+	pthread_mutex_t map_mutex;
 
 	struct weakref_observer pool;
 	TAILQ_ENTRY(nvnc_buffer) link;

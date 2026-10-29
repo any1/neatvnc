@@ -419,6 +419,7 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 
 	if (size > MAX_TILE_SIZE) {
 		nvnc_log(NVNC_LOG_ERROR, "Whoops, encoded JPEG was too big for the buffer");
+		rc = -1;
 		goto failure;
 	}
 
@@ -426,8 +427,8 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	tile->size = size;
 
 	rc = 0;
-	tjFree(buffer);
 failure:
+	tjFree(buffer);
 	tjDestroy(handle);
 
 	return rc;

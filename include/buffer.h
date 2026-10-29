@@ -42,6 +42,9 @@ struct nvnc_buffer {
 	void* bo_map_handle;
 	pthread_mutex_t map_mutex;
 
+	/* custom buffer attributes */
+	struct nvnc_buffer_impl impl;
+
 	struct weakref_observer pool;
 	TAILQ_ENTRY(nvnc_buffer) link;
 };

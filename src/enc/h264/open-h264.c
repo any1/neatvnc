@@ -20,6 +20,7 @@
 #include "enc/util.h"
 #include "vec.h"
 #include "frame.h"
+#include "buffer.h"
 #include "enc/encoder.h"
 #include "usdt.h"
 #include "neatvnc.h"
@@ -50,6 +51,7 @@ struct open_h264_context {
 	uint16_t height;
 
 	uint32_t format;
+	enum nvnc_buffer_type type;
 
 	bool needs_reset;
 	bool quality_changed;
@@ -240,8 +242,8 @@ static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* f
 {
 	int quality = 51 - round((50.0 / 9.0) * (float)self->parent->quality);
 
-	struct h264_encoder* encoder = h264_encoder_create(fb->width,
-			fb->height, fb->fourcc_format, quality);
+	struct h264_encoder* encoder = h264_encoder_create(fb->buffer->type,
+			fb->width, fb->height, fb->fourcc_format, quality);
 	if (!encoder)
 		return -1;
 
@@ -256,6 +258,7 @@ static int open_h264_resize(struct open_h264_context* self, struct nvnc_frame* f
 	self->width = fb->width;
 	self->height = fb->height;
 	self->format = fb->fourcc_format;
+	self->type = fb->buffer->type;
 	self->needs_reset = true;
 	self->quality_changed = false;
 
@@ -267,6 +270,7 @@ static int open_h264_ctx_prepare(struct open_h264_context* self,
 {
 	if (fb->width != self->width || fb->height != self->height ||
 			fb->fourcc_format != self->format ||
+			fb->buffer->type != self->type ||
 			self->quality_changed)
 		return open_h264_resize(self, fb);
 

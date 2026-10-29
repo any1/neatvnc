@@ -128,23 +128,23 @@ static uint64_t gettime_us(clockid_t clock)
 }
 
 #ifdef ENABLE_OPEN_H264
-static bool have_working_h264_encoder(void)
+static bool have_working_h264_encoder(enum nvnc_buffer_type type)
 {
-	static int cached_result;
+	static int cached_result[NVNC_BUFFER_CUSTOM + 1];
 
-	if (cached_result) {
-		return cached_result == 1;
+	if (cached_result[type]) {
+		return cached_result[type] == 1;
 	}
 
-	struct h264_encoder *encoder = h264_encoder_create(1920, 1080,
+	struct h264_encoder *encoder = h264_encoder_create(type, 1920, 1080,
 			DRM_FORMAT_XRGB8888, 5);
-	cached_result = encoder ? 1 : -1;
+	cached_result[type] = encoder ? 1 : -1;
 	h264_encoder_destroy(encoder);
 
 	nvnc_log(NVNC_LOG_DEBUG, "H.264 encoding is %s",
-			cached_result == 1 ? "available" : "unavailable");
+			cached_result[type] == 1 ? "available" : "unavailable");
 
-	return cached_result == 1;
+	return cached_result[type] == 1;
 }
 #endif // ENABLE_OPEN_H264
 
@@ -2991,11 +2991,14 @@ static enum rfb_encodings choose_frame_encoding(struct nvnc_client* client,
 #ifdef ENABLE_OPEN_H264
 		case RFB_ENCODING_OPEN_H264:
 			// h264 is useless for sw frames
-			for (int i = 0; i < fb->n_fbs; ++i)
-				if (fb->fbs[i]->buffer->type != NVNC_BUFFER_GBM_BO)
+			for (int i = 0; i < fb->n_fbs; ++i) {
+				struct nvnc_buffer* buf = fb->fbs[i]->buffer;
+				if (buf->type == NVNC_BUFFER_SIMPLE)
 					goto skip;
-			if (client->is_h264_broken ||
-					!have_working_h264_encoder())
+				if (!have_working_h264_encoder(buf->type))
+					goto skip;
+			}
+			if (client->is_h264_broken)
 				break;
 			return client->encodings[i];
 #endif

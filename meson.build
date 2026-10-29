@@ -68,12 +68,13 @@ hogweed = dependency('hogweed', required: get_option('nettle'),
 gmp = dependency('gmp', required: get_option('nettle'))
 zlib = dependency('zlib')
 gbm = dependency('gbm', required: get_option('gbm'))
-libdrm = dependency('libdrm', required: get_option('h264'))
 libsixel = dependency('libsixel', required: false)
 
-libavcodec = dependency('libavcodec', required: get_option('h264'))
-libavfilter = dependency('libavfilter', required: get_option('h264'))
-libavutil = dependency('libavutil', required: get_option('h264'))
+h264_builtin = get_option('h264').disabled() ? get_option('h264') : false
+libdrm = dependency('libdrm', required: h264_builtin)
+libavcodec = dependency('libavcodec', required: h264_builtin)
+libavfilter = dependency('libavfilter', required: h264_builtin)
+libavutil = dependency('libavutil', required: h264_builtin)
 
 libpng = dependency('libpng', required: false)
 
@@ -120,6 +121,7 @@ sources_dep = declare_dependency(
 		'src/region.c',
 		'src/utf8.c',
 		'src/audio.c',
+		'src/enc/h264/plugin-impl.c',
 	]
 )
 
@@ -232,7 +234,7 @@ if have_v4l2
 	config.set('HAVE_V4L2', true)
 endif
 
-if have_ffmpeg or have_v4l2
+if get_option('h264').allowed()
 	open_h264 = declare_dependency(
 		sources: [
 			'src/enc/h264/encoder.c',

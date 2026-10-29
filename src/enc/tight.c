@@ -449,13 +449,10 @@ static void tight_encode_tile(struct tight_encoder* self, int fb_index,
 	tile->size = 0;
 
 #ifdef HAVE_JPEG
-	if (self->quality >= 10) {
+	if (self->quality >= 10 || tight_encode_tile_jpeg(self, tile,
+				fb_index, x, y, width, height) < 0)
 		tight_encode_tile_basic(self, tile, fb_index, x, y, width,
 				height, gx % 4);
-	} else {
-		tight_encode_tile_jpeg(self, tile, fb_index, x, y, width,
-				height);
-	}
 #else
 	tight_encode_tile_basic(self, tile, fb_index, x, y, width, height, gx % 4);
 #endif

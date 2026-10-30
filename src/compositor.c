@@ -118,16 +118,44 @@ void compositor_destroy(struct compositor* self)
 	free(self);
 }
 
+/* pixman rotates a8r8g8b8 quickly, but e.g. XRGB2101010 slowly. Without
+ * scaling, the pixels only move, so their format does not matter.
+ */
+static bool can_copy_as_a8r8g8b8(struct nvnc_frame* dst,
+		struct nvnc_composite_fb* csrc)
+{
+	if (nvnc_frame_get_pixel_size(dst) != 4)
+		return false;
+
+	for (int i = 0; i < csrc->n_fbs; ++i) {
+		struct nvnc_frame* src = csrc->fbs[i];
+		if (src->fourcc_format != dst->fourcc_format)
+			return false;
+
+		uint32_t width = src->width;
+		uint32_t height = src->height;
+		nvnc_transform_dimensions(src->transform, &width, &height);
+		if (src->logical_width && (src->logical_width != width ||
+				src->logical_height != height))
+			return false;
+	}
+
+	return true;
+}
+
 void composite_buffer_now(struct nvnc_frame* dst, struct nvnc_composite_fb* csrc,
 		struct pixman_region16* damage)
 {
 	assert(dst->transform == NVNC_TRANSFORM_NORMAL);
 
 	bool ok __attribute__((unused));
+	bool copy_as_a8r8g8b8 = can_copy_as_a8r8g8b8(dst, csrc);
 
-	pixman_format_code_t dst_fmt = 0;
-	ok = fourcc_to_pixman_fmt(&dst_fmt, dst->fourcc_format);
-	assert(ok);
+	pixman_format_code_t dst_fmt = PIXMAN_a8r8g8b8;
+	if (!copy_as_a8r8g8b8) {
+		ok = fourcc_to_pixman_fmt(&dst_fmt, dst->fourcc_format);
+		assert(ok);
+	}
 
 	pixman_image_t* dstimg = pixman_image_create_bits_no_clear(
 			dst_fmt, dst->width, dst->height, dst->buffer->addr,
@@ -140,9 +168,11 @@ void composite_buffer_now(struct nvnc_frame* dst, struct nvnc_composite_fb* csrc
 		struct nvnc_frame* src = csrc->fbs[i];
 		assert(src);
 
-		pixman_format_code_t src_fmt = 0;
-		ok = fourcc_to_pixman_fmt(&src_fmt, src->fourcc_format);
-		assert(ok);
+		pixman_format_code_t src_fmt = PIXMAN_a8r8g8b8;
+		if (!copy_as_a8r8g8b8) {
+			ok = fourcc_to_pixman_fmt(&src_fmt, src->fourcc_format);
+			assert(ok);
+		}
 
 		pixman_image_t* srcimg = pixman_image_create_bits_no_clear(
 				src_fmt, src->width, src->height, src->buffer->addr,

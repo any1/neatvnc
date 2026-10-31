@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
 enum httplex_token_type {
 	HTTPLEX_SOLIDUS,
@@ -54,7 +55,7 @@ struct httplex {
 	const char* next_pos;
 	struct vec buffer;
 	int accepted;
-	int errno_;
+	int failed;
 };
 
 static int httplex_init(struct httplex* self, const char* input)
@@ -402,6 +403,11 @@ static int http__field_key(struct http_req* req, struct httplex* lex)
 	if (tok->type != HTTPLEX_KEY)
 		return 0;
 
+	if (req->field_index >= HTTP_FIELD_INDEX_MAX) {
+		lex->failed = 1;
+		return 0;
+	}
+
 	req->field[req->field_index].key = strdup(tok->value);
 
 	return httplex_accept_token(lex);
@@ -418,6 +424,7 @@ static int http__field_value(struct http_req* req, struct httplex* lex)
 	if (tok->type != HTTPLEX_VALUE)
 		return 0;
 
+	assert(req->field_index < HTTP_FIELD_INDEX_MAX);
 	req->field[req->field_index++].value = strdup(tok->value);
 
 	return httplex_accept_token(lex);
@@ -459,6 +466,9 @@ int http_req_parse(struct http_req* req, const char* input)
 		goto failure;
 
 	if (!http__header(req, &lex))
+		goto failure;
+
+	if (lex.failed)
 		goto failure;
 
 	req->header_length = lex.next_pos - input;

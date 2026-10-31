@@ -84,6 +84,19 @@ static int test_get_with_content_type()
 	return 0;
 }
 
+static int test_get_with_too_many_fields()
+{
+	char text[4096] = "GET / HTTP/1.1\r\n";
+	for (int i = 0; i < HTTP_FIELD_INDEX_MAX + 1; ++i)
+		strcat(text, "foo: bar\r\n");
+	strcat(text, "\r\n");
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
 static int test_get_with_single_query()
 {
 	const char* text = "GET /path?key=value HTTP/1.1\r\n\r\nasdf";
@@ -119,6 +132,7 @@ int main()
 	RUN_TEST(test_put_empty_path);
 	RUN_TEST(test_get_with_content_length);
 	RUN_TEST(test_get_with_content_type);
+	RUN_TEST(test_get_with_too_many_fields);
 	RUN_TEST(test_get_with_single_query);
 	RUN_TEST(test_get_with_two_query_pairs);
 	return r;

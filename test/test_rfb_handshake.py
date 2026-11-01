@@ -13,6 +13,8 @@ Verifies:
 - VeNCrypt: X509_PLAIN auth success with correct credentials
 - VeNCrypt: X509_PLAIN auth failure with wrong password
 - VeNCrypt: X509_PLAIN auth failure with wrong username
+- SetPixelFormat: true colour with 8, 16 or 32 bpp is accepted
+- SetPixelFormat: true colour with any other bpp closes the connection
 
 Usage: python3 test_rfb_handshake.py <path-to-rfb-test-server>
 """
@@ -214,6 +216,43 @@ class RFBConnection:
         reason_len = struct.unpack('!I', data[4:8])[0]
         assert reason_len > 0, 'Expected non-empty reason string'
         return result, data[8:8 + reason_len].decode('utf-8', errors='replace')
+
+    def read_server_init(self):
+        width, height = struct.unpack('!HH', self.recv_exact(4))
+        self.recv_exact(16)
+        name_len = struct.unpack('!I', self.recv_exact(4))[0]
+        self.recv_exact(name_len)
+        return width, height
+
+    def do_noauth_init(self):
+        types = self.read_security_type_list()
+        assert 1 in types, f'NONE (1) not in security types: {types}'
+        self.choose_security_type(1)
+        assert self.read_security_result() == 0
+        self.sock.sendall(struct.pack('!B', 1))
+        return self.read_server_init()
+
+    def send_set_pixel_format(self, bpp, depth, red_max, green_max,
+                              blue_max, red_shift, green_shift, blue_shift):
+        self.sock.sendall(struct.pack(
+            '!B3xBBBBHHHBBB3x', 0, bpp, depth, 0, 1,
+            red_max, green_max, blue_max,
+            red_shift, green_shift, blue_shift))
+
+    def send_fb_update_request(self, incremental, x, y, width, height):
+        self.sock.sendall(struct.pack(
+            '!BBHHHH', 3, incremental, x, y, width, height))
+
+    def is_closed_by_server(self, timeout=2):
+        self.sock.settimeout(timeout)
+        try:
+            while True:
+                if not self.sock.recv(4096):
+                    return True
+        except socket.timeout:
+            return False
+        except ConnectionResetError:
+            return True
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +465,69 @@ class TestAuthBypass(unittest.TestCase):
             data = c.recv_all()
             self.assertEqual(len(data), 4, f'Expected 4 bytes, got {len(data)}')
             self.assertEqual(struct.unpack('!I', data)[0], 1)
+
+
+class TestSetPixelFormat(unittest.TestCase):
+    server = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ServerProcess('none')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.stop()
+
+    def _connect(self):
+        c = RFBConnection(self.server.port, 'RFB 003.008\n')
+        c.do_noauth_init()
+        return c
+
+    def _assert_accepted(self, bpp, depth, red_max, green_max, blue_max,
+                         red_shift, green_shift, blue_shift):
+        with self._connect() as c:
+            c.send_set_pixel_format(bpp, depth, red_max, green_max, blue_max,
+                                    red_shift, green_shift, blue_shift)
+            c.send_fb_update_request(0, 0, 0, 64, 64)
+            msg_type = struct.unpack('!B', c.recv_exact(1))[0]
+            self.assertEqual(msg_type, 0)
+
+    def _assert_rejected(self, bpp):
+        with self._connect() as c:
+            c.send_set_pixel_format(bpp, 24, 255, 255, 255, 16, 8, 0)
+            self.assertTrue(c.is_closed_by_server())
+
+    def test_bpp32_accepted(self):
+        """SetPixelFormat with 32 bpp true colour is accepted."""
+        self._assert_accepted(32, 24, 255, 255, 255, 16, 8, 0)
+
+    def test_bpp16_accepted(self):
+        """SetPixelFormat with 16 bpp true colour is accepted."""
+        self._assert_accepted(16, 16, 31, 63, 31, 11, 5, 0)
+
+    def test_bpp8_accepted(self):
+        """SetPixelFormat with 8 bpp true colour is accepted."""
+        self._assert_accepted(8, 8, 7, 7, 3, 5, 2, 0)
+
+    def test_bpp24_rejected(self):
+        """SetPixelFormat with 24 bpp true colour closes the connection."""
+        self._assert_rejected(24)
+
+    def test_bpp0_rejected(self):
+        """SetPixelFormat with 0 bpp true colour closes the connection."""
+        self._assert_rejected(0)
+
+    def test_bpp1_rejected(self):
+        """SetPixelFormat with 1 bpp true colour closes the connection."""
+        self._assert_rejected(1)
+
+    def test_bpp64_rejected(self):
+        """SetPixelFormat with 64 bpp true colour closes the connection."""
+        self._assert_rejected(64)
+
+    def test_bpp255_rejected(self):
+        """SetPixelFormat with 255 bpp true colour closes the connection."""
+        self._assert_rejected(255)
 
 
 if __name__ == '__main__':

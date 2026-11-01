@@ -21,6 +21,12 @@ utf8 = executable('utf8', 'test-utf8.c',
 )
 test('utf8', utf8)
 
+http = executable('http', 'test-http.c',
+	include_directories: inc,
+	dependencies: dependencies
+)
+test('http', http)
+
 if nettle.found() and python3.found()
 	rfb_test_server = executable('rfb-test-server', 'rfb-test-server.c',
 		include_directories: inc,

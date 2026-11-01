@@ -87,7 +87,7 @@ static inline int httplex__is_literal(char c)
 		return 0;
 	}
 
-	return isprint(c);
+	return isprint((unsigned char)c);
 }
 
 static inline size_t httplex__literal_length(const char* str)
@@ -147,7 +147,7 @@ static int httplex__classify_request_token(struct httplex* self)
 
 static inline int httplex__is_key_char(char c)
 {
-	return isalnum(c) || c == '-';
+	return isalnum((unsigned char)c) || c == '-';
 }
 
 static inline size_t httplex__key_length(const char* str)

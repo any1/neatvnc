@@ -97,6 +97,57 @@ static int test_get_with_too_many_fields()
 	return 0;
 }
 
+static int test_get_without_header_terminator()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"foo: bar\r\n";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
+static int test_get_with_truncated_field_value()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"foo: bar\r\n"
+	"asdf: xy";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
+static int test_get_with_truncated_field_key()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"foo: bar\r\n"
+	"as";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
+static int test_get_with_malformed_field()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"foo bar\r\n"
+	"\r\n";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
 static int test_get_with_single_query()
 {
 	const char* text = "GET /path?key=value HTTP/1.1\r\n\r\nasdf";
@@ -133,6 +184,10 @@ int main()
 	RUN_TEST(test_get_with_content_length);
 	RUN_TEST(test_get_with_content_type);
 	RUN_TEST(test_get_with_too_many_fields);
+	RUN_TEST(test_get_without_header_terminator);
+	RUN_TEST(test_get_with_truncated_field_value);
+	RUN_TEST(test_get_with_truncated_field_key);
+	RUN_TEST(test_get_with_malformed_field);
 	RUN_TEST(test_get_with_single_query);
 	RUN_TEST(test_get_with_two_query_pairs);
 	return r;

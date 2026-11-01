@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <stdbool.h>
 
+#include "neatvnc.h"
+
 struct nvnc_frame;
 struct h264_encoder;
 
@@ -39,8 +41,11 @@ struct h264_encoder {
 	bool next_frame_should_be_keyframe;
 };
 
-struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
-		uint32_t format, int quality);
+struct h264_encoder* h264_encoder_create(enum nvnc_buffer_type type,
+		uint32_t width, uint32_t height, uint32_t format, int quality);
+
+struct h264_encoder* h264_encoder_plugin_create(enum nvnc_buffer_type type,
+		uint32_t width, uint32_t height, uint32_t format, int quality);
 
 void h264_encoder_destroy(struct h264_encoder*);
 

@@ -387,6 +387,7 @@ static int http__content_type(struct http_req* req, struct httplex* lex)
 	if (tok->type != HTTPLEX_VALUE)
 		return 0;
 
+	free(req->content_type);
 	req->content_type = strdup(tok->value);
 
 	return httplex_accept_token(lex);

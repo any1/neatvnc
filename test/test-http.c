@@ -67,6 +67,45 @@ static int test_get_with_content_length()
 	return 0;
 }
 
+static int test_get_with_negative_content_length()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"Content-Length: -1\r\n"
+	"\r\n";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
+static int test_get_with_overflowing_content_length()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"Content-Length: 99999999999999999999999\r\n"
+	"\r\n";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
+static int test_get_with_non_numeric_content_length()
+{
+	const char* text =
+	"GET / HTTP/1.1\r\n"
+	"Content-Length: 42foo\r\n"
+	"\r\n";
+
+	struct http_req req;
+	ASSERT_INT_LT(0, http_req_parse(&req, text));
+
+	return 0;
+}
+
 static int test_get_with_content_type()
 {
 	const char* text =
@@ -182,6 +221,9 @@ int main()
 	RUN_TEST(test_get_two_elem_path);
 	RUN_TEST(test_put_empty_path);
 	RUN_TEST(test_get_with_content_length);
+	RUN_TEST(test_get_with_negative_content_length);
+	RUN_TEST(test_get_with_overflowing_content_length);
+	RUN_TEST(test_get_with_non_numeric_content_length);
 	RUN_TEST(test_get_with_content_type);
 	RUN_TEST(test_get_with_too_many_fields);
 	RUN_TEST(test_get_without_header_terminator);

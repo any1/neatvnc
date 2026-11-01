@@ -448,10 +448,7 @@ static int http__header(struct http_req* req, struct httplex* lex)
 	while (http__header_kv(req, lex));
 
 	lex->state = HTTPLEX_STATE_KEY;
-	if (http__expect(lex, HTTPLEX_CR))
-		return http__expect(lex, HTTPLEX_LF);
-
-	return 1;
+	return http__expect(lex, HTTPLEX_CR) && http__expect(lex, HTTPLEX_LF);
 }
 
 int http_req_parse(struct http_req* req, const char* input)

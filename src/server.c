@@ -744,6 +744,15 @@ static int on_client_set_pixel_format(struct nvnc_client* client)
 	if (fmt->true_colour_flag) {
 		nvnc_log(NVNC_LOG_DEBUG, "Using true colour for client %p",
 				client);
+
+		uint8_t bpp = fmt->bits_per_pixel;
+		if (bpp != 8 && bpp != 16 && bpp != 32) {
+			nvnc_log(NVNC_LOG_ERROR, "Client %p requested %"PRIu8" bits per pixel, which is not allowed; closing",
+					client, bpp);
+			client_close(client);
+			return -1;
+		}
+
 		fmt->red_max = ntohs(fmt->red_max);
 		fmt->green_max = ntohs(fmt->green_max);
 		fmt->blue_max = ntohs(fmt->blue_max);

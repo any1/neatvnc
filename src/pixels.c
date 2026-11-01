@@ -724,13 +724,6 @@ int rfb_pixfmt_depth(const struct rfb_pixel_format *fmt)
 	return POPCOUNT(r) + POPCOUNT(g) + POPCOUNT(b);
 }
 
-// All AMD modifiers except DCC are allowed
-static bool amd_format_modifier_is_allowed(uint64_t modifier)
-{
-	return !AMD_FMT_MOD_GET(DCC, modifier) &&
-		!AMD_FMT_MOD_GET(DCC_RETILE, modifier);
-}
-
 static const uint64_t format_modifier_allow_list[] = {
 	DRM_FORMAT_MOD_LINEAR,
 
@@ -744,7 +737,7 @@ static const uint64_t format_modifier_allow_list[] = {
 static bool format_modifier_is_allowed(uint64_t modifier)
 {
 	if (fourcc_mod_is_vendor(modifier, AMD))
-		return amd_format_modifier_is_allowed(modifier);
+		return true;
 
 	for (size_t i = 0; i < sizeof(format_modifier_allow_list) /
 			sizeof(format_modifier_allow_list[0]); ++i)

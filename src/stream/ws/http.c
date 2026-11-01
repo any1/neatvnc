@@ -21,6 +21,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <errno.h>
+#include <stdint.h>
 
 enum httplex_token_type {
 	HTTPLEX_SOLIDUS,
@@ -354,6 +356,24 @@ static int http__expect_key(struct httplex* lex, const char* key)
 	return httplex_accept_token(lex);
 }
 
+static int http__parse_size(size_t* dst, const char* str)
+{
+	if (!isdigit((unsigned char)str[0]))
+		return -1;
+
+	errno = 0;
+	char* end;
+	unsigned long long value = strtoull(str, &end, 10);
+	if (errno != 0 || value > SIZE_MAX)
+		return -1;
+
+	if (end[strspn(end, " \t")] != '\0')
+		return -1;
+
+	*dst = value;
+	return 0;
+}
+
 static int http__content_length(struct http_req* req, struct httplex* lex)
 {
 	lex->state = HTTPLEX_STATE_KEY;
@@ -368,7 +388,10 @@ static int http__content_length(struct http_req* req, struct httplex* lex)
 	if (tok->type != HTTPLEX_VALUE)
 		return 0;
 
-	req->content_length = atoi(tok->value);
+	if (http__parse_size(&req->content_length, tok->value) < 0) {
+		lex->failed = 1;
+		return 0;
+	}
 
 	return httplex_accept_token(lex);
 }

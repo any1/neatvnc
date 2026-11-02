@@ -59,6 +59,19 @@ static bool test_convert_pixels_4bpp(void)
 	return true;
 }
 
+static bool test_convert_pixels_xrgb2101010_to_xbgr8888(void)
+{
+	uint32_t src = u32_le(0x3ffu << 20 | 0x200u << 10 | 0x001u);
+	uint8_t dst[4] = { 0 };
+
+	struct nvnc_pixel_format dstfmt = { 0 }, srcfmt = { 0 };
+	nvnc_pixel_format_from_fourcc(&srcfmt, DRM_FORMAT_XRGB2101010);
+	nvnc_pixel_format_from_fourcc(&dstfmt, DRM_FORMAT_XBGR8888);
+	nvnc_convert_pixels(dst, &dstfmt, (uint8_t*)&src, &srcfmt, 1);
+
+	return dst[0] == 0xff && dst[1] == 0x80 && dst[2] == 0x00;
+}
+
 static bool test_convert_pixels_3bpp(void)
 {
 	//44 is extra data that should not be copied anywhere below.
@@ -243,6 +256,7 @@ static bool test_nvnc_pixel_format_from_rfb_big_endian(void)
 int main()
 {
 	bool ok = test_convert_pixels_4bpp() &&
+		test_convert_pixels_xrgb2101010_to_xbgr8888() &&
 		test_convert_pixels_3bpp() &&
 		test_fourcc_to_pixman_fmt() &&
 		test_extract_alpha_mask_rgba8888() &&

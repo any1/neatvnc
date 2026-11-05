@@ -379,9 +379,25 @@ static enum TJPF tight_get_jpeg_pixfmt(uint32_t fourcc)
 	return TJPF_UNKNOWN;
 }
 
+// turbojpeg only takes 8 bits per channel, e.g. not XRGB2101010
+static void tight_convert_for_jpeg(uint8_t* dst, struct nvnc_frame* fb,
+		uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+{
+	struct nvnc_pixel_format cfmt;
+	nvnc_pixel_format_from_fourcc(&cfmt, DRM_FORMAT_XBGR8888);
+
+	struct nvnc_frame_copy_options options = {
+		.crop = { x, y, width, height },
+		.buffer = dst,
+		.stride = width,
+		.format = &cfmt,
+	};
+	nvnc_frame_copy_region(fb, &options);
+}
+
 static int tight_encode_tile_jpeg(struct tight_encoder* self,
 		struct tight_tile* tile, int fb_index, uint32_t x, uint32_t y,
-		uint32_t width, uint32_t height)
+		uint32_t width, uint32_t height, int zs_index)
 {
 	tile->type = TIGHT_JPEG;
 
@@ -393,18 +409,25 @@ static int tight_encode_tile_jpeg(struct tight_encoder* self,
 	struct nvnc_frame* fb = self->composite_fb.fbs[fb_index];
 	uint32_t fourcc = nvnc_frame_get_fourcc_format(fb);
 	enum TJPF tjfmt = tight_get_jpeg_pixfmt(fourcc);
-	if (tjfmt == TJPF_UNKNOWN)
-		return -1;
+
+	uint8_t* img;
+	int32_t byte_stride;
+
+	if (tjfmt != TJPF_UNKNOWN) {
+		uint8_t* addr = nvnc_frame_get_addr(fb);
+		int32_t bpp = nvnc__pixel_size_from_fourcc(fourcc);
+		byte_stride = nvnc_frame_get_stride(fb) * bpp;
+		img = addr + x * bpp + y * byte_stride;
+	} else {
+		img = self->tile_buf[zs_index];
+		tight_convert_for_jpeg(img, fb, x, y, width, height);
+		byte_stride = width * 4;
+		tjfmt = TJPF_RGBX;
+	}
 
 	tjhandle handle = tjInitCompress();
 	if (!handle)
 		return -1;
-
-	uint8_t* addr = nvnc_frame_get_addr(fb);
-	int32_t bpp = nvnc__pixel_size_from_fourcc(fourcc);
-	int32_t byte_stride = nvnc_frame_get_stride(fb) * bpp;
-	int32_t xoff = x * bpp;
-	uint8_t* img = addr + xoff + y * byte_stride;
 
 	enum TJSAMP subsampling = (self->quality == 9) ? TJSAMP_444 : TJSAMP_420;
 
@@ -450,7 +473,7 @@ static void tight_encode_tile(struct tight_encoder* self, int fb_index,
 
 #ifdef HAVE_JPEG
 	if (self->quality >= 10 || tight_encode_tile_jpeg(self, tile,
-				fb_index, x, y, width, height) < 0)
+				fb_index, x, y, width, height, gx % 4) < 0)
 		tight_encode_tile_basic(self, tile, fb_index, x, y, width,
 				height, gx % 4);
 #else

@@ -20,6 +20,7 @@
 #include "sys/queue.h"
 #include "vec.h"
 #include "usdt.h"
+#include "strlcpy.h"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -362,8 +363,7 @@ static int get_render_node_from_bo(struct gbm_bo* bo, char* node, size_t maxlen)
 	char* name = drmGetDeviceNameFromFd2(fd);
 	if (!name)
 		return -1;
-	strncpy(node, name, maxlen - 1);
-	node[maxlen - 1] = '\0';
+	strlcpy(node, name, maxlen);
 	free(name);
 	return 0;
 }
@@ -411,8 +411,7 @@ static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
 	if (rc != 0)
 		goto avcodec_open_failure;
 
-	strncpy(self->render_node, render_node, sizeof(self->render_node) - 1);
-	self->render_node[sizeof(self->render_node) - 1] = '\0';
+	strlcpy(self->render_node, render_node, sizeof(self->render_node));
 
 	return 0;
 
@@ -597,8 +596,7 @@ static int find_render_node(char *node, size_t maxlen) {
 		if (!(dev->available_nodes & (1 << DRM_NODE_RENDER)))
 			continue;
 
-		strncpy(node, dev->nodes[DRM_NODE_RENDER], maxlen - 1);
-		node[maxlen - 1] = '\0';
+		strlcpy(node, dev->nodes[DRM_NODE_RENDER], maxlen);
 		r = 0;
 		break;
 	}

@@ -18,6 +18,7 @@
 #include "neatvnc.h"
 #include "frame.h"
 #include "pixels.h"
+#include "strlcpy.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -669,7 +670,7 @@ static struct h264_encoder* h264_encoder_v4l2m2m_create(uint32_t width,
 
 	struct v4l2_capability cap = { 0 };
 	ioctl(self->fd, VIDIOC_QUERYCAP, &cap);
-	strncpy(self->driver, (const char*)cap.driver, sizeof(self->driver));
+	strlcpy(self->driver, (const char*)cap.driver, sizeof(self->driver));
 
 	if (set_src_fmt(self) < 0)
 		goto failure;

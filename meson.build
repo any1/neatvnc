@@ -121,6 +121,7 @@ sources_dep = declare_dependency(
 		'src/region.c',
 		'src/utf8.c',
 		'src/audio.c',
+		'src/strlcpy.c',
 	]
 )
 

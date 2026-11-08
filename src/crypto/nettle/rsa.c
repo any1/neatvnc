@@ -19,6 +19,7 @@
 #include "vec.h"
 #include "neatvnc.h"
 #include "base64.h"
+#include "strlcpy.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,8 +98,7 @@ bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
 	}
 
 	char head[128];
-	strncpy(head, line, sizeof(head) - 1);
-	head[sizeof(head) - 1] = '\0';
+	strlcpy(head, line, sizeof(head));
 	char* end = strchr(head, '\n');
 	if (end)
 		*end = '\0';

@@ -20,6 +20,7 @@
 #include "stream/stream.h"
 #include "rfb-proto.h"
 #include "neatvnc.h"
+#include "strlcpy.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -88,8 +89,7 @@ void security_handshake_authenticate(struct nvnc_client* client,
 {
 	struct nvnc* server = client->server;
 
-	memset(client->username, 0, sizeof(client->username));
-	strncpy(client->username, creds->username, sizeof(client->username) - 1);
+	strlcpy(client->username, creds->username, sizeof(client->username));
 
 	client->state = VNC_CLIENT_STATE_WAITING_FOR_AUTH;
 

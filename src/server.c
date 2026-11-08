@@ -38,6 +38,7 @@
 #include "server.h"
 #include "utf8.h"
 #include "audio.h"
+#include "strlcpy.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -3532,8 +3533,7 @@ void nvnc_client_audio_sink_feed(struct nvnc_client* self, const void* samples,
 EXPORT
 void nvnc_set_name(struct nvnc* self, const char* name)
 {
-	strncpy(self->name, name, sizeof(self->name));
-	self->name[sizeof(self->name) - 1] = '\0';
+	strlcpy(self->name, name, sizeof(self->name));
 
 	struct nvnc_client* client;
 	LIST_FOREACH(client, &self->clients, link) {

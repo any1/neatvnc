@@ -19,6 +19,7 @@
 #include "stream/stream.h"
 #include "auth/auth.h"
 #include "auth/apple-dh.h"
+#include "strlcpy.h"
 
 #define APPLE_DH_SERVER_KEY_LENGTH 256
 
@@ -99,8 +100,8 @@ int apple_dh_handle_response(struct nvnc_client* client)
 		nvnc_auth_creds_new(NVNC_AUTH_CREDS_PLAIN);
 	nvnc_assert(creds, "Out of memory");
 
-	strncpy(creds->username, username, sizeof(creds->username) - 1);
-	strncpy(creds->password, password, sizeof(creds->password) - 1);
+	strlcpy(creds->username, username, sizeof(creds->username));
+	strlcpy(creds->password, password, sizeof(creds->password));
 
 	static_assert(sizeof(creds->username) >= sizeof(username) / 2,
 			"creds.username is too small");

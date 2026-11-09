@@ -278,6 +278,7 @@ void nvnc_frame_set_damage(struct nvnc_frame* self,
 	pixman_region_copy(&self->damage, damage);
 }
 
+EXPORT
 int nvnc_frame_map(struct nvnc_frame* fb)
 {
 	int32_t byte_stride = 0;

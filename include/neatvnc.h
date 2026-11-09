@@ -682,6 +682,13 @@ struct nvnc_buffer* nvnc_frame_get_buffer(const struct nvnc_frame* fb);
 void* nvnc_frame_get_addr(const struct nvnc_frame* fb);
 
 /**
+ * Map the frame into memory, making its address and stride valid.
+ *
+ * Since: 1.1.0
+ */
+int nvnc_frame_map(struct nvnc_frame* fb);
+
+/**
  * Get the width of the frame in pixels.
  */
 uint16_t nvnc_frame_get_width(const struct nvnc_frame* fb);

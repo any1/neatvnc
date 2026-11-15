@@ -599,7 +599,7 @@ static void h264_encoder__on_work_done(struct aml_work* work)
 }
 
 static int find_render_node(char *node, size_t maxlen) {
-	bool r = -1;
+	int r = -1;
 	drmDevice *devices[64];
 
 	int n = drmGetDevices2(0, devices, sizeof(devices) / sizeof(devices[0]));

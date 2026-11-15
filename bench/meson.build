@@ -4,7 +4,7 @@ configure_file(
 )
 
 if libpng.found()
-	executable('zrle-bench', 'zrle-bench.c',
+	executable('encoder-bench', 'encoder-bench.c',
 		include_directories: inc,
 		dependencies: [ dependencies, pngfb ],
 	)

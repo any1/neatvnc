@@ -23,6 +23,7 @@
 #include <aml.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <libdrm/drm_fourcc.h>
 #include <pixman.h>
 #include <time.h>
@@ -186,7 +187,7 @@ static void on_encoding_done(struct encoder* enc, struct encoded_frame* frame)
 	aml_exit(aml_get_default());
 }
 
-static int run_benchmark(const char *image)
+static int run_benchmark(enum rfb_encodings encoding, const char *image)
 {
 	int rc = -1;
 
@@ -211,7 +212,7 @@ static int run_benchmark(const char *image)
 
 	pixman_region_union_rect(&region, &region, 0, 0, width, height);
 
-	struct encoder* enc = encoder_new(RFB_ENCODING_ZRLE, width, height);
+	struct encoder* enc = encoder_new(encoding, width, height);
 	assert(enc);
 
 	encoder_set_quality(enc, 10);
@@ -281,11 +282,37 @@ failure:
 	return 0;
 }
 
+static int encoding_from_name(const char* name)
+{
+	if (strcmp(name, "raw") == 0)
+		return RFB_ENCODING_RAW;
+	if (strcmp(name, "tight") == 0)
+		return RFB_ENCODING_TIGHT;
+	if (strcmp(name, "zrle") == 0)
+		return RFB_ENCODING_ZRLE;
+	return -1;
+}
+
+static int usage(const char* self)
+{
+	fprintf(stderr, "Usage: %s <raw|tight|zrle> [image]\n", self);
+	return 1;
+}
+
 int main(int argc, char *argv[])
 {
 	int rc = 0;
 
-	char *image = argv[1];
+	if (argc < 2)
+		return usage(argv[0]);
+
+	int encoding = encoding_from_name(argv[1]);
+	if (encoding < 0) {
+		fprintf(stderr, "Unknown encoder: %s\n", argv[1]);
+		return usage(argv[0]);
+	}
+
+	char *image = argv[2];
 
 	struct aml* aml = aml_new();
 	aml_set_default(aml);
@@ -293,10 +320,12 @@ int main(int argc, char *argv[])
 	aml_require_workers(aml, -1);
 
 	if (image) {
-		rc = run_benchmark(image) < 0 ? 1 : 0;
+		rc = run_benchmark(encoding, image) < 0 ? 1 : 0;
 	} else {
-		rc |= run_benchmark("test-images/tv-test-card.png") < 0 ? 1 : 0;
-		rc |= run_benchmark("test-images/mandrill.png") < 0 ? 1 : 0;
+		rc |= run_benchmark(encoding,
+				"test-images/tv-test-card.png") < 0 ? 1 : 0;
+		rc |= run_benchmark(encoding,
+				"test-images/mandrill.png") < 0 ? 1 : 0;
 	}
 
 	aml_unref(aml);

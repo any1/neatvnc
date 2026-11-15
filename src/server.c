@@ -2633,7 +2633,7 @@ static void on_connection(struct aml_handler* poll_handle)
 	client->ext_clipboard_max_unsolicited_text_size =
 		MAX_CLIENT_UNSOLICITED_TEXT_SIZE;
 
-	int fd = accept(socket->fd, NULL, 0);
+	int fd = accept4(socket->fd, NULL, 0, SOCK_CLOEXEC);
 	if (fd < 0) {
 		nvnc_log(NVNC_LOG_WARNING, "Failed to accept a connection");
 		goto accept_failure;
@@ -2751,7 +2751,8 @@ static int bind_address_tcp(const char* name, int port)
 		sockaddr_to_string(ai_str, sizeof(ai_str), p->ai_addr);
 		nvnc_log(NVNC_LOG_DEBUG, "Trying address: %s", ai_str);
 
-		fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		fd = socket(p->ai_family, p->ai_socktype | SOCK_CLOEXEC,
+				p->ai_protocol);
 		if (fd < 0) {
 			nvnc_log(NVNC_LOG_DEBUG, "Failed to create socket: %m");
 			continue;
@@ -2790,7 +2791,7 @@ static int bind_address_unix(const char* name)
 	}
 	strcpy(addr.sun_path, name);
 
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (fd < 0)
 		return -1;
 

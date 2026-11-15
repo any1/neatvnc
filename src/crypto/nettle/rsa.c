@@ -84,7 +84,7 @@ bool crypto_rsa_priv_key_import_pkcs1_der(struct crypto_rsa_priv_key* priv,
 bool crypto_rsa_priv_key_load(struct crypto_rsa_priv_key* priv,
 		struct crypto_rsa_pub_key* pub, const char* path)
 {
-	FILE* stream = fopen(path, "r");
+	FILE* stream = fopen(path, "re");
 	if (!stream) {
 		nvnc_log(NVNC_LOG_ERROR, "Could not open file: %m");
 		return false;

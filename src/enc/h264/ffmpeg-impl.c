@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <assert.h>
 #include <gbm.h>
 #include <xf86drm.h>
@@ -378,6 +379,15 @@ static void h264_encoder__teardown_pipeline(struct h264_encoder_ffmpeg* self)
 	av_buffer_unref(&self->hw_device_ctx);
 }
 
+static void h264_encoder__set_hw_device_cloexec(
+		struct h264_encoder_ffmpeg* self)
+{
+	AVHWDeviceContext* device_ctx =
+		(AVHWDeviceContext*)self->hw_device_ctx->data;
+	AVDRMDeviceContext* drm_ctx = device_ctx->hwctx;
+	fcntl(drm_ctx->fd, F_SETFD, FD_CLOEXEC);
+}
+
 static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
 		const char* render_node)
 {
@@ -389,6 +399,8 @@ static int h264_encoder__init_pipeline(struct h264_encoder_ffmpeg* self,
 			AV_HWDEVICE_TYPE_DRM, render_node, NULL, 0);
 	if (rc != 0)
 		return -1;
+
+	h264_encoder__set_hw_device_cloexec(self);
 
 	if (h264_encoder__init_hw_frames_context(self) < 0)
 		goto hw_frames_failure;

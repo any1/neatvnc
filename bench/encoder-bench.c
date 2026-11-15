@@ -189,7 +189,7 @@ static void on_encoding_done(struct encoder* enc, struct encoded_frame* frame)
 }
 
 static int run_benchmark(enum rfb_encodings encoding, int quality,
-		const char *image)
+		uint64_t duration_us, const char *image)
 {
 	int rc = -1;
 
@@ -240,13 +240,26 @@ static int run_benchmark(enum rfb_encodings encoding, int quality,
 	nvnc_composite_fb_init(&cfb, fbs);
 
 	stopwatch_start(&stopwatch);
-	rc = encoder_encode(enc, &cfb, &region);
 
-	aml_run(aml_get_default());
+	uint64_t deadline = gettime_us(CLOCK_MONOTONIC) + duration_us;
+	int n_runs = 0;
 
-	assert(encoded_frame);
+	for (;;) {
+		rc = encoder_encode(enc, &cfb, &region);
+
+		aml_run(aml_get_default());
+
+		assert(encoded_frame);
+		n_runs++;
+
+		if (gettime_us(CLOCK_MONOTONIC) >= deadline)
+			break;
+
+		encoded_frame_unref(encoded_frame);
+	}
 
 	stopwatch_stop(&stopwatch, "Encoding");
+	printf("\tNumber of runs: %d\n", n_runs);
 
 	double orig_size = stride * height * 4;
 	double compressed_size = encoded_frame->buf.size;
@@ -297,7 +310,7 @@ static int encoding_from_name(const char* name)
 
 static int usage(const char* self)
 {
-	fprintf(stderr, "Usage: %s [-q|--quality <0-10>] <raw|tight|zrle> [image]\n",
+	fprintf(stderr, "Usage: %s [-q|--quality <0-10>] [-d|--duration <seconds>] <raw|tight|zrle> [image]\n",
 			self);
 	return 1;
 }
@@ -308,16 +321,21 @@ int main(int argc, char *argv[])
 
 	static const struct option long_options[] = {
 		{ "quality", required_argument, NULL, 'q' },
+		{ "duration", required_argument, NULL, 'd' },
 		{ NULL, 0, NULL, 0 },
 	};
 
 	int quality = 10;
+	uint64_t duration_us = 0;
 
 	int opt;
-	while ((opt = getopt_long(argc, argv, "q:", long_options, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "q:d:", long_options, NULL)) != -1) {
 		switch (opt) {
 		case 'q':
 			quality = atoi(optarg);
+			break;
+		case 'd':
+			duration_us = atof(optarg) * 1000000;
 			break;
 		default:
 			return usage(argv[0]);
@@ -341,11 +359,12 @@ int main(int argc, char *argv[])
 	aml_require_workers(aml, -1);
 
 	if (image) {
-		rc = run_benchmark(encoding, quality, image) < 0 ? 1 : 0;
+		rc = run_benchmark(encoding, quality, duration_us, image)
+				< 0 ? 1 : 0;
 	} else {
-		rc |= run_benchmark(encoding, quality,
+		rc |= run_benchmark(encoding, quality, duration_us,
 				"test-images/tv-test-card.png") < 0 ? 1 : 0;
-		rc |= run_benchmark(encoding, quality,
+		rc |= run_benchmark(encoding, quality, duration_us,
 				"test-images/mandrill.png") < 0 ? 1 : 0;
 	}
 

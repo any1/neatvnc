@@ -22,6 +22,8 @@ struct nvnc_frame* read_png_file(const char* filename)
 	png_bytep* row_pointers = NULL;
 
 	FILE* fp = fopen(filename, "rb");
+	if (!fp)
+		return NULL;
 
 	png_structp png =
 	        png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);

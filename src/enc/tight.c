@@ -52,6 +52,8 @@
 
 #define MAX_TILE_SIZE (2 * TSL * TSL * 4)
 
+#define BASIC_COMPRESSION_THRESHOLD 12
+
 struct encoder* tight_encoder_new(uint16_t width, uint16_t height);
 
 typedef void (*tight_done_fn)(struct vec* frame, void*);
@@ -101,6 +103,7 @@ struct tight_tile {
 	enum tight_tile_state state;
 	size_t size;
 	uint8_t type;
+	bool is_uncompressed;
 	char buffer[MAX_TILE_SIZE];
 };
 
@@ -348,9 +351,16 @@ static void tight_encode_tile_basic(struct tight_encoder* self,
 	};
 	nvnc_frame_copy_region(fb, &options);
 
+	size_t size = bytes_per_cpixel * width * height;
+	if (size < BASIC_COMPRESSION_THRESHOLD) {
+		memcpy(tile->buffer, buf, size);
+		tile->size = size;
+		tile->is_uncompressed = true;
+		return;
+	}
+
 	// TODO: What to do if the buffer fills up?
-	if (tight_deflate(tile, buf, bytes_per_cpixel * width * height,
-			zs, true) < 0)
+	if (tight_deflate(tile, buf, size, zs, true) < 0)
 		abort();
 }
 
@@ -470,6 +480,7 @@ static void tight_encode_tile(struct tight_encoder* self, int fb_index,
 	uint32_t height = tight_tile_height(self, fb_index, y);
 
 	tile->size = 0;
+	tile->is_uncompressed = false;
 
 #ifdef HAVE_JPEG
 	if (self->quality >= 10 || tight_encode_tile_jpeg(self, tile,
@@ -549,7 +560,8 @@ static void tight_finish_tile(struct tight_encoder* self,
 			width, height);
 
 	vec_append(&self->dst, &tile->type, sizeof(tile->type));
-	tight_encode_size(&self->dst, tile->size);
+	if (!tile->is_uncompressed)
+		tight_encode_size(&self->dst, tile->size);
 	vec_append(&self->dst, tile->buffer, tile->size);
 
 	tile->state = TIGHT_TILE_READY;

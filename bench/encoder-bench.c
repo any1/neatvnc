@@ -279,7 +279,7 @@ failure:
 	pixman_region_fini(&region);
 	encoded_frame_unref(encoded_frame);
 	nvnc_frame_unref(fb);
-	return 0;
+	return rc;
 }
 
 static int encoding_from_name(const char* name)

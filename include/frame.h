@@ -77,7 +77,6 @@ void nvnc_frame_metadata_unref(struct nvnc_frame_metadata*);
 void nvnc_frame_get_effective_logical_size(const struct nvnc_frame* self,
 		uint16_t* width, uint16_t* height);
 
-int nvnc_frame_map(struct nvnc_frame* fb);
 void nvnc_frame_unmap(struct nvnc_frame* fb);
 
 void nvnc_frame_copy_region(const struct nvnc_frame* frame,

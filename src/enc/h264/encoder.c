@@ -25,10 +25,13 @@ extern struct h264_encoder_impl h264_encoder_ffmpeg_impl;
 extern struct h264_encoder_impl h264_encoder_v4l2m2m_impl;
 #endif
 
-struct h264_encoder* h264_encoder_create(uint32_t width, uint32_t height,
-		uint32_t format, int quality)
+struct h264_encoder* h264_encoder_create(enum nvnc_buffer_type type,
+		uint32_t width, uint32_t height, uint32_t format, int quality)
 {
-	struct h264_encoder* encoder = NULL;
+	struct h264_encoder* encoder = h264_encoder_plugin_create(type, width,
+			height, format, quality);
+	if (encoder || type != NVNC_BUFFER_GBM_BO)
+		return encoder;
 
 #ifdef HAVE_V4L2
 	encoder = h264_encoder_v4l2m2m_impl.create(width, height, format, quality);

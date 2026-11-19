@@ -27,3 +27,8 @@ executable('pixel-conversion-bench', 'pixel-conversion-bench.c',
 	include_directories: inc,
 	dependencies: dependencies,
 )
+
+executable('damage-refinery-bench', 'damage-refinery-bench.c',
+	include_directories: inc,
+	dependencies: dependencies,
+)

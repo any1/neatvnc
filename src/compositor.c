@@ -326,8 +326,8 @@ int compositor_feed(struct compositor* self, struct nvnc_composite_fb* cfb,
 	struct nvnc_frame* first_fb = cfb->fbs[0];
 	assert(first_fb);
 
-	nvnc_frame_pool_resize(self->pool, width, height, first_fb->fourcc_format,
-			width);
+	nvnc_frame_pool_resize(self->pool, width, height,
+			first_fb->fourcc_format, 0);
 
 	struct aml* aml = aml_get_default();
 	assert(aml);

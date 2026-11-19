@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Andri Yngvason
+ * Copyright (c) 2020 - 2026 Andri Yngvason
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,8 +31,23 @@
 #include "xxhash.h"
 
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+#define LSB(n) ((n) & -(n))
 
 #define HASH_SEED 0
+
+// Tile side length
+#define TSL 32
+#define CACHE_LINE_SIZE 64
+
+static int calculate_row_prefetches(const void* addr, int32_t byte_stride,
+		int row_size)
+{
+	uintptr_t bits =
+		(uintptr_t)addr | byte_stride | row_size | CACHE_LINE_SIZE;
+	int alignment = LSB(bits);
+	int max_offset = CACHE_LINE_SIZE - alignment;
+	return UDIV_UP(max_offset + row_size, CACHE_LINE_SIZE);
+}
 
 int damage_refinery_init(struct damage_refinery* self, uint32_t width,
 		uint32_t height)
@@ -40,8 +55,8 @@ int damage_refinery_init(struct damage_refinery* self, uint32_t width,
 	self->width = width;
 	self->height = height;
 
-	uint32_t twidth = UDIV_UP(width, 32);
-	uint32_t theight = UDIV_UP(height, 32);
+	uint32_t twidth = UDIV_UP(width, TSL);
+	uint32_t theight = UDIV_UP(height, TSL);
 
 	self->state = XXH3_createState();
 	if (!self->state)
@@ -66,6 +81,15 @@ int damage_refinery_resize(struct damage_refinery* self, uint32_t width,
 	return damage_refinery_init(self, width, height);
 }
 
+static inline void damage_prefetch_row(struct damage_refinery* self,
+		const uint8_t* row)
+{
+	uintptr_t line = (uintptr_t)row & ~(uintptr_t)(CACHE_LINE_SIZE - 1);
+
+	for (int i = 0; i < self->n_row_prefetches; ++i)
+		__builtin_prefetch((const void*)(line + i * CACHE_LINE_SIZE));
+}
+
 void damage_refinery_destroy(struct damage_refinery* self)
 {
 	XXH3_freeState(self->state);
@@ -79,15 +103,18 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 	int bpp = nvnc__pixel_size_from_fourcc(buffer->fourcc_format);
 	int byte_stride = buffer->stride * bpp;
 
-	int x_start = tx * 32;
-	int x_stop = MIN((tx + 1) * 32, self->width);
-	int y_start = ty * 32;
-	int y_stop = MIN((ty + 1) * 32, self->height);
+	int x_start = tx * TSL;
+	int x_stop = MIN((tx + 1) * TSL, self->width);
+	int y_start = ty * TSL;
+	int y_stop = MIN((ty + 1) * TSL, self->height);
 
 	int32_t xoff = x_start * bpp;
 
 	XXH3_64bits_reset(self->state);
 	for (int y = y_start; y < y_stop; ++y) {
+		if (y < y_stop - 1)
+			damage_prefetch_row(self,
+					pixels + xoff + (y + 1) * byte_stride);
 		XXH3_64bits_update(self->state, pixels + xoff + y * byte_stride,
 				bpp * (x_stop - x_start));
 	}
@@ -98,7 +125,7 @@ static uint32_t damage_hash_tile(struct damage_refinery* self, uint32_t tx,
 static uint32_t* damage_tile_hash_ptr(struct damage_refinery* self,
 		uint32_t tx, uint32_t ty)
 {
-	uint32_t twidth = UDIV_UP(self->width, 32);
+	uint32_t twidth = UDIV_UP(self->width, TSL);
 	return &self->hashes[tx + ty * twidth];
 }
 
@@ -112,8 +139,8 @@ static void damage_refine_tile(struct damage_refinery* self,
 	*old_hash_ptr = hash;
 
 	if (is_damaged)
-		pixman_region_union_rect(refined, refined, tx * 32, ty * 32, 32,
-				32);
+		pixman_region_union_rect(refined, refined, tx * TSL, ty * TSL,
+				TSL, TSL);
 }
 
 static void tile_region_from_region(struct pixman_region16* dst,
@@ -123,10 +150,10 @@ static void tile_region_from_region(struct pixman_region16* dst,
 	struct pixman_box16* rects = pixman_region_rectangles(src, &n_rects);
 
 	for (int i = 0; i < n_rects; ++i) {
-		int x1 = rects[i].x1 / 32;
-		int y1 = rects[i].y1 / 32;
-		int x2 = UDIV_UP(rects[i].x2, 32);
-		int y2 = UDIV_UP(rects[i].y2, 32);
+		int x1 = rects[i].x1 / TSL;
+		int y1 = rects[i].y1 / TSL;
+		int x2 = UDIV_UP(rects[i].x2, TSL);
+		int y2 = UDIV_UP(rects[i].y2, TSL);
 
 		pixman_region_union_rect(dst, dst, x1, y1, x2 - x1, y2 - y1);
 	}
@@ -141,6 +168,10 @@ void damage_refine(struct damage_refinery* self,
 			self->height == (uint32_t)buffer->height);
 
 	nvnc_frame_map(buffer);
+
+	int bpp = nvnc__pixel_size_from_fourcc(buffer->fourcc_format);
+	self->n_row_prefetches = calculate_row_prefetches(buffer->buffer->addr,
+			buffer->stride * bpp, TSL * bpp);
 
 	struct pixman_region16 tile_region;
 	pixman_region_init(&tile_region);

@@ -27,6 +27,7 @@ struct damage_refinery {
 	uint32_t* hashes;
 	uint32_t width;
 	uint32_t height;
+	int n_row_prefetches;
 };
 
 int damage_refinery_init(struct damage_refinery* self, uint32_t width,

@@ -74,9 +74,8 @@ struct nvnc_frame* read_png_file(const char* filename)
 
 	png_read_update_info(png, info);
 
-	size_t row_bytes = png_get_rowbytes(png, info);
-	struct nvnc_frame* fb = nvnc_frame_new(width, height, DRM_FORMAT_ABGR8888,
-			row_bytes / 4);
+	struct nvnc_frame* fb =
+		nvnc_frame_new(width, height, DRM_FORMAT_ABGR8888, 0);
 	assert(fb);
 
 	uint8_t* addr = nvnc_frame_get_addr(fb);
@@ -84,8 +83,9 @@ struct nvnc_frame* read_png_file(const char* filename)
 	row_pointers = malloc(sizeof(png_bytep) * height);
 	assert(row_pointers);
 
+	size_t byte_stride = nvnc_frame_get_stride(fb) * 4;
 	for (int y = 0; y < height; ++y)
-		row_pointers[y] = addr + y * row_bytes;
+		row_pointers[y] = addr + y * byte_stride;
 
 	png_read_image(png, row_pointers);
 

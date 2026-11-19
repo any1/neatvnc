@@ -22,6 +22,11 @@
 #include <stdlib.h>
 
 #define EXPORT __attribute__((visibility("default")))
+#define CACHE_LINE_SIZE 64
+
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+#define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
+#define LSB(n) ((n) & -(n))
 
 struct nvnc_frame_pool {
 	int ref;
@@ -33,6 +38,14 @@ struct nvnc_frame_pool {
 	int32_t stride;
 	uint32_t fourcc_format;
 };
+
+static inline int32_t optimal_stride(uint32_t width, uint32_t bpp)
+{
+	if (bpp == 0)
+		return 0;
+	uint32_t alignment = CACHE_LINE_SIZE / LSB(bpp);
+	return ALIGN_UP(width, alignment);
+}
 
 static struct nvnc_buffer* fb_pool_buffer_alloc(
 		struct nvnc_buffer_pool* pool)
@@ -54,7 +67,12 @@ struct nvnc_frame_pool* nvnc_frame_pool_new(uint16_t width, uint16_t height,
 	self->ref = 1;
 	self->width = width;
 	self->height = height;
-	self->stride = stride;
+	if (stride == 0) {
+		uint32_t bpp = nvnc__pixel_size_from_fourcc(fourcc_format);
+		self->stride = optimal_stride(width, bpp);
+	} else {
+		self->stride = stride;
+	}
 	self->fourcc_format = fourcc_format;
 
 	self->buffer_pool = nvnc_buffer_pool_new(fb_pool_buffer_alloc);
@@ -77,16 +95,22 @@ EXPORT
 bool nvnc_frame_pool_resize(struct nvnc_frame_pool* self, uint16_t width,
 		uint16_t height, uint32_t fourcc_format, uint16_t stride)
 {
+	int32_t frame_stride = stride;
+	if (frame_stride == 0) {
+		uint32_t bpp = nvnc__pixel_size_from_fourcc(fourcc_format);
+		frame_stride = optimal_stride(width, bpp);
+	}
+
 	if (width == self->width && height == self->height &&
 			fourcc_format == self->fourcc_format &&
-			stride == self->stride)
+			frame_stride == self->stride)
 		return false;
 
 	nvnc_buffer_pool_unref(self->buffer_pool);
 
 	self->width = width;
 	self->height = height;
-	self->stride = stride;
+	self->stride = frame_stride;
 	self->fourcc_format = fourcc_format;
 
 	self->buffer_pool = nvnc_buffer_pool_new(fb_pool_buffer_alloc);

@@ -33,6 +33,19 @@
 #endif
 
 #define EXPORT __attribute__((visibility("default")))
+#define CACHE_LINE_SIZE 64
+
+#define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
+#define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
+#define LSB(n) ((n) & -(n))
+
+static inline int32_t optimal_stride(uint32_t width, uint32_t bpp)
+{
+	if (bpp == 0)
+		return 0;
+	uint32_t alignment = CACHE_LINE_SIZE / LSB(bpp);
+	return ALIGN_UP(width, alignment);
+}
 
 EXPORT
 struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
@@ -43,7 +56,8 @@ struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 		return NULL;
 
 	uint32_t bpp = nvnc__pixel_size_from_fourcc(fourcc_format);
-	size_t size = height * stride * bpp;
+	uint32_t frame_stride = stride ? stride : optimal_stride(width, bpp);
+	size_t size = height * frame_stride * bpp;
 
 	fb->buffer = nvnc_buffer_new(size);
 	if (!fb->buffer) {
@@ -55,7 +69,7 @@ struct nvnc_frame* nvnc_frame_new(uint16_t width, uint16_t height,
 	fb->width = width;
 	fb->height = height;
 	fb->fourcc_format = fourcc_format;
-	fb->stride = stride;
+	fb->stride = frame_stride;
 	fb->pts = NVNC_NO_PTS;
 	pixman_region_init_rect(&fb->damage, 0, 0, width, height);
 

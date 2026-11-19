@@ -20,7 +20,6 @@
 #include "logging.h"
 
 #include <stdlib.h>
-#include <sys/param.h>
 
 #include "config.h"
 
@@ -32,6 +31,8 @@
 #define UDIV_UP(a, b) (((a) + (b) - 1) / (b))
 #define ALIGN_UP(n, a) (UDIV_UP(n, a) * a)
 
+#define CACHE_LINE_SIZE 64
+
 EXPORT
 struct nvnc_buffer* nvnc_buffer_new(size_t size)
 {
@@ -42,10 +43,9 @@ struct nvnc_buffer* nvnc_buffer_new(size_t size)
 	buffer->ref = 1;
 	buffer->type = NVNC_BUFFER_SIMPLE;
 
-	size_t alignment = MAX(4, sizeof(void*));
-	size_t aligned_size = ALIGN_UP(size, alignment);
+	size_t aligned_size = ALIGN_UP(size, CACHE_LINE_SIZE);
 
-	buffer->addr = aligned_alloc(alignment, aligned_size);
+	buffer->addr = aligned_alloc(CACHE_LINE_SIZE, aligned_size);
 	if (!buffer->addr) {
 		free(buffer);
 		return NULL;
